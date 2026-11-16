@@ -154,9 +154,11 @@ static void draw_file_list(void)
     r_draw_text(LX_MARGIN, LY_TITLE, UI_TITLE, UI_LEN(UI_TITLE));
     if (count == 0) r_draw_text(LX_MARGIN, LY_ITEM0 + ITEM_H / 2, UI_EMPTY, UI_LEN(UI_EMPTY));
     for (int32_t i = 0; i < count; i++) {
+        int32_t y = LY_ITEM0 + i * ITEM_H;
+        if (y >= r_h()) break;
         uint32_t txt[256];
         int32_t n = utf8_to_utf32(txt, 255, files[i].name);
-        r_draw_text(LX_MARGIN, LY_ITEM0 + i * ITEM_H, txt, n);
+        r_draw_text(LX_MARGIN, y, txt, n);
     }
     r_draw_text(LX_MARGIN, r_h() - LY_BOTTOM_BTN, UI_IMPORT, UI_LEN(UI_IMPORT));
 }
@@ -228,11 +230,13 @@ static void draw_bookmarks(void)
     Bookmark *bms = rd_get_bookmarks(&count);
     if (count == 0) r_draw_text(LX_MARGIN, LY_ITEM0, UI_BM_EMPTY, UI_LEN(UI_BM_EMPTY));
     for (int32_t i = 0; i < count; i++) {
+        int32_t y = LY_ITEM0 + i * BM_ITEM_H;
+        if (y >= r_h()) break;
         char buf[64];
         snprintf(buf, sizeof(buf), "%d. %s", i+1, bms[i].preview);
         uint32_t utxt[64];
         int32_t n = utf8_to_utf32(utxt, 63, buf);
-        r_draw_text(LX_MARGIN, LY_ITEM0 + i * BM_ITEM_H, utxt, n);
+        r_draw_text(LX_MARGIN, y, utxt, n);
     }
     r_draw_text(LX_MARGIN, r_h() - LY_BOTTOM_BTN, UI_BACK_READ, UI_LEN(UI_BACK_READ));
 }
@@ -294,6 +298,8 @@ static void handle_touch_reading(int32_t x, int32_t y)
 /* ---- JNI 相关全局变量 ---- */
 static JavaVM *s_jvm = NULL;
 static jclass s_main_activity_class_global = NULL;
+static jmethodID s_pick_file_mid = NULL;
+static jmethodID s_take_rescan_mid = NULL;
 
 static void ensure_jni(void) {
     if (!s_jvm && s_app) {
@@ -318,13 +324,16 @@ void pickFile(void) {
         __android_log_print(ANDROID_LOG_ERROR, "pTEXT", "pickFile: s_main_activity_class_global is NULL");
         return;
     }
-    jmethodID mid = (*env)->GetStaticMethodID(env, s_main_activity_class_global, "pickFile", "()V");
-    if (!mid) {
-        __android_log_print(ANDROID_LOG_ERROR, "pTEXT", "pickFile: method 'pickFile' not found!");
-        (*env)->ExceptionClear(env);
-        return;
+    if (!s_pick_file_mid) {
+        s_pick_file_mid = (*env)->GetStaticMethodID(env, s_main_activity_class_global,
+                                                    "pickFile", "()V");
+        if (!s_pick_file_mid) {
+            __android_log_print(ANDROID_LOG_ERROR, "pTEXT", "pickFile: method not found");
+            (*env)->ExceptionClear(env);
+            return;
+        }
     }
-    (*env)->CallStaticVoidMethod(env, s_main_activity_class_global, mid);
+    (*env)->CallStaticVoidMethod(env, s_main_activity_class_global, s_pick_file_mid);
     __android_log_print(ANDROID_LOG_INFO, "pTEXT", "pickFile: method called successfully");
 }
 
@@ -334,12 +343,15 @@ int32_t takeRescanFlag(void) {
     JNIEnv *env = NULL;
     (*s_jvm)->AttachCurrentThread(s_jvm, &env, NULL);
     if (!env || !s_main_activity_class_global) return 0;
-    jmethodID mid = (*env)->GetStaticMethodID(env, s_main_activity_class_global, "takeRescanFlag", "()I");
-    if (!mid) {
-        (*env)->ExceptionClear(env);
-        return 0;
+    if (!s_take_rescan_mid) {
+        s_take_rescan_mid = (*env)->GetStaticMethodID(env, s_main_activity_class_global,
+                                                      "takeRescanFlag", "()I");
+        if (!s_take_rescan_mid) {
+            (*env)->ExceptionClear(env);
+            return 0;
+        }
     }
-    return (*env)->CallStaticIntMethod(env, s_main_activity_class_global, mid);
+    return (*env)->CallStaticIntMethod(env, s_main_activity_class_global, s_take_rescan_mid);
 }
 
 static void handle_cmd(struct android_app *app, int32_t cmd)
@@ -365,6 +377,7 @@ case APP_CMD_INIT_WINDOW:
     break;
 }
         case APP_CMD_TERM_WINDOW:
+            rd_save_progress();
             /* 释放全局引用 */
             if (s_main_activity_class_global) {
                 JNIEnv *env = NULL;
@@ -372,6 +385,8 @@ case APP_CMD_INIT_WINDOW:
                 if (env) {
                     (*env)->DeleteGlobalRef(env, s_main_activity_class_global);
                     s_main_activity_class_global = NULL;
+                    s_pick_file_mid = NULL;
+                    s_take_rescan_mid = NULL;
                 }
             }
             r_deinit(); break;
@@ -393,6 +408,9 @@ case APP_CMD_INIT_WINDOW:
         case APP_CMD_LOST_FOCUS:
             /* 失去焦点时暂停预排版以省电 */
             rd_reset_prefetch();
+            break;
+        case APP_CMD_PAUSE:
+            rd_save_progress();
             break;
         case APP_CMD_SAVE_STATE:
             /* 系统可能杀进程，保存阅读进度 */

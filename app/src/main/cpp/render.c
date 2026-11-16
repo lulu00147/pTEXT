@@ -6,7 +6,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <android/font.h>
-#include <android/system_fonts.h>
+#include <android/font_matcher.h>
 #include <android/log.h>
 
 /* 零堆保障：强制 16 字节对齐的静态分配器，扩大至 16 MB 以支持中文字体 */
@@ -141,13 +141,6 @@ static G *gc_get(uint32_t cp)
     return g;
 }
 
-typedef struct {
-    int32_t require_zh;
-    int32_t require_cjk;
-    int32_t min_weight;
-    int32_t max_weight;
-} FontQuery;
-
 static void unmap_font(void)
 {
     if (s_font_map) {
@@ -202,64 +195,43 @@ static int32_t load_font_file(const char *path, size_t collection,
     return 1;
 }
 
-static int32_t find_font(FontQuery query)
+static int32_t try_font_match(const char *locales, int32_t require_cjk)
 {
-    ASystemFontIterator *it = ASystemFontIterator_open();
-    if (!it) return 0;
+    AFontMatcher *matcher = AFontMatcher_create();
+    if (!matcher) return 0;
 
-    int32_t found = 0;
-    AFont *font;
+    AFontMatcher_setStyle(matcher, AFONT_WEIGHT_NORMAL, false);
+    if (locales) AFontMatcher_setLocales(matcher, locales);
 
-    while (!found && (font = ASystemFontIterator_next(it)) != NULL) {
-        if (AFont_isItalic(font)) {
-            AFont_close(font);
-            continue;
-        }
+    const uint16_t text[] = {0x4E00};
+    AFont *font = AFontMatcher_match(matcher, "sans-serif", text, 1, NULL);
 
-        int32_t weight = (int32_t)AFont_getWeight(font);
-        if (weight < query.min_weight || weight > query.max_weight) {
-            AFont_close(font);
-            continue;
-        }
-
-        const char *locale = AFont_getLocale(font);
-        if (query.require_zh && (!locale || strncmp(locale, "zh", 2) != 0)) {
-            AFont_close(font);
-            continue;
-        }
-
+    int32_t ok = 0;
+    if (font) {
         const unsigned char *map = NULL;
         size_t len = 0;
         stbtt_fontinfo fi;
         if (load_font_file(AFont_getFontFilePath(font),
                            AFont_getCollectionIndex(font),
-                           query.require_cjk, &map, &len, &fi)) {
+                           require_cjk, &map, &len, &fi)) {
             s_font_map = map;
             s_font_len = len;
             s_fi = fi;
             s_font_ok = 1;
-            found = 1;
+            ok = 1;
         }
         AFont_close(font);
     }
 
-    ASystemFontIterator_close(it);
-    return found;
+    AFontMatcher_destroy(matcher);
+    return ok;
 }
 
 static int32_t load_system_font(void)
 {
-    static const FontQuery queries[] = {
-        {1, 1, 300, 500},
-        {0, 1, 300, 500},
-        {0, 1, 0, 1000},
-        {0, 0, 300, 500},
-        {0, 0, 0, 1000},
-    };
-
-    for (size_t i = 0; i < sizeof(queries) / sizeof(queries[0]); i++) {
-        if (find_font(queries[i])) return 1;
-    }
+    if (try_font_match("zh-CN,zh-TW,ja-JP", 1)) return 1;
+    if (try_font_match("ja-JP,zh-CN", 1)) return 1;
+    if (try_font_match("en-US", 0)) return 1;
 
     __android_log_print(ANDROID_LOG_ERROR, "pTEXT", "no usable system font");
     return 0;

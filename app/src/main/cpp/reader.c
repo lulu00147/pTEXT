@@ -27,8 +27,10 @@ static char *s_mmap_data;
 static int64_t s_mmap_len;
 static uint32_t (*s_decode)(int64_t *);
 
-static Page s_page_curr;
-static Page s_page_next;
+static Page s_page_a;
+static Page s_page_b;
+static Page *s_page_curr = &s_page_a;
+static Page *s_page_next = &s_page_b;
 static volatile int32_t s_next_ready;
 static int64_t s_prefetch_target = -1;
 
@@ -342,11 +344,12 @@ int32_t rd_open_file(const char *path)
 
 void rd_close(void)
 {
+    rd_save_progress();
     close_mapping();
     s_cur_name[0] = '\0';
-    s_page_curr.count = 0;
-    s_page_curr.start_offset = 0;
-    s_page_curr.next_offset = 0;
+    s_page_curr->count = 0;
+    s_page_curr->start_offset = 0;
+    s_page_curr->next_offset = 0;
     s_hist_count = 0;
     rd_reset_prefetch();
 }
@@ -358,7 +361,7 @@ int64_t rd_get_file_len(void)
 
 Page* rd_get_page(void)
 {
-    return &s_page_curr;
+    return s_page_curr;
 }
 
 static int32_t page_max_lines(void)
@@ -437,7 +440,7 @@ static void paginate_init(int64_t offset)
 {
     s_next_ready = 0;
     s_prefetch_target = offset;
-    s_page_next.count = 0;
+    s_page_next->count = 0;
     s_ctx.cur.off = offset;
     s_ctx.cur.x = 0;
     s_ctx.cur.max_x = page_max_x();
@@ -454,14 +457,14 @@ static void paginate_step(void)
 
     for (int32_t step = 0; step < 8 &&
          s_ctx.i < s_ctx.max_lines && s_ctx.cur.off < s_mmap_len; step++) {
-        layout_line(&s_page_next.lines[s_ctx.i], &s_ctx.cur);
-        s_page_next.count++;
+        layout_line(&s_page_next->lines[s_ctx.i], &s_ctx.cur);
+        s_page_next->count++;
         s_ctx.i++;
     }
 
     if (s_ctx.i >= s_ctx.max_lines || s_ctx.cur.off >= s_mmap_len) {
-        s_page_next.start_offset = s_prefetch_target;
-        s_page_next.next_offset = s_ctx.cur.off;
+        s_page_next->start_offset = s_prefetch_target;
+        s_page_next->next_offset = s_ctx.cur.off;
         s_ctx.state = 2;
         s_next_ready = 1;
     }
@@ -501,13 +504,12 @@ void rd_goto_offset(int64_t offset)
     if (offset < 0) offset = 0;
     if (offset >= s_mmap_len) offset = s_mmap_len - 1;
 
-    paginate_full(offset, &s_page_curr);
-    save_prog(offset);
+    paginate_full(offset, s_page_curr);
     rd_reset_prefetch();
     hist_reset(offset);
 
-    if (s_page_curr.next_offset < s_mmap_len) {
-        paginate_init(s_page_curr.next_offset);
+    if (s_page_curr->next_offset < s_mmap_len) {
+        paginate_init(s_page_curr->next_offset);
     }
 }
 
@@ -515,22 +517,21 @@ void rd_next_page(void)
 {
     if (!rd_can_next()) return;
 
-    int64_t next = s_page_curr.next_offset;
+    int64_t next = s_page_curr->next_offset;
     if (s_next_ready && s_prefetch_target == next) {
-        Page tmp = s_page_curr;
+        Page *tmp = s_page_curr;
         s_page_curr = s_page_next;
         s_page_next = tmp;
         s_next_ready = 0;
     } else {
         rd_reset_prefetch();
-        paginate_full(next, &s_page_curr);
+        paginate_full(next, s_page_curr);
     }
 
-    save_prog(s_page_curr.start_offset);
-    hist_push(s_page_curr.start_offset);
+    hist_push(s_page_curr->start_offset);
 
-    if (s_page_curr.next_offset < s_mmap_len) {
-        paginate_init(s_page_curr.next_offset);
+    if (s_page_curr->next_offset < s_mmap_len) {
+        paginate_init(s_page_curr->next_offset);
     }
 }
 
@@ -542,10 +543,10 @@ void rd_prev_page(void)
     if (s_hist_count > 1) {
         s_hist_count--;
         int64_t target = s_page_hist[s_hist_count - 1];
-        paginate_full(target, &s_page_curr);
+        paginate_full(target, s_page_curr);
     } else {
         int64_t target = 0;
-        int64_t guessed = s_page_curr.start_offset - (s_mmap_len / 50);
+        int64_t guessed = s_page_curr->start_offset - (s_mmap_len / 50);
         if (guessed < 0) guessed = 0;
 
         int64_t probe = guessed;
@@ -553,9 +554,9 @@ void rd_prev_page(void)
         int32_t found = 0;
         Page probe_page;
 
-        while (probe < s_page_curr.start_offset && safety < 200) {
+        while (probe < s_page_curr->start_offset && safety < 200) {
             paginate_full(probe, &probe_page);
-            if (probe_page.next_offset >= s_page_curr.start_offset ||
+            if (probe_page.next_offset >= s_page_curr->start_offset ||
                 probe_page.next_offset >= s_mmap_len) {
                 target = probe;
                 found = 1;
@@ -567,24 +568,23 @@ void rd_prev_page(void)
         }
         if (!found) target = 0;
 
-        paginate_full(target, &s_page_curr);
-        hist_reset(s_page_curr.start_offset);
+        paginate_full(target, s_page_curr);
+        hist_reset(s_page_curr->start_offset);
     }
 
-    save_prog(s_page_curr.start_offset);
-    if (s_page_curr.next_offset < s_mmap_len) {
-        paginate_init(s_page_curr.next_offset);
+    if (s_page_curr->next_offset < s_mmap_len) {
+        paginate_init(s_page_curr->next_offset);
     }
 }
 
 int32_t rd_can_next(void)
 {
-    return s_page_curr.next_offset < s_mmap_len;
+    return s_page_curr->next_offset < s_mmap_len;
 }
 
 int32_t rd_can_prev(void)
 {
-    return s_page_curr.start_offset > 0;
+    return s_page_curr->start_offset > 0;
 }
 
 Settings* rd_get_settings(void)
@@ -698,7 +698,7 @@ void rd_toggle_bookmark(void)
 
     int32_t exist = -1;
     for (int32_t i = 0; i < s_bm_count; i++) {
-        if (s_bms[i].offset == s_page_curr.start_offset) {
+        if (s_bms[i].offset == s_page_curr->start_offset) {
             exist = i;
             break;
         }
@@ -708,7 +708,7 @@ void rd_toggle_bookmark(void)
         s_bms[exist] = s_bms[--s_bm_count];
     } else if (s_bm_count < MAX_BOOKMARKS) {
         Bookmark *b = &s_bms[s_bm_count++];
-        b->offset = s_page_curr.start_offset;
+        b->offset = s_page_curr->start_offset;
         bookmark_preview(b->offset, b->preview, (int32_t)sizeof(b->preview));
     }
 
@@ -753,7 +753,7 @@ int32_t rd_is_prefetching(void)
 
 void rd_save_progress(void)
 {
-    if (s_mmap_data && s_mmap_len > 0 && s_page_curr.start_offset >= 0) {
-        save_prog(s_page_curr.start_offset);
+    if (s_mmap_data && s_mmap_len > 0 && s_page_curr->start_offset >= 0) {
+        save_prog(s_page_curr->start_offset);
     }
 }

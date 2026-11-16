@@ -34,14 +34,12 @@ if %errorlevel% neq 0 ( echo [ERROR] CMake configure failed & cd .. & pause & ex
 if %errorlevel% neq 0 ( echo [ERROR] C build failed & cd .. & pause & exit )
 cd ..
 
-echo [2/6] Processing AndroidManifest and assets...
-if not exist "res" mkdir res
-%BUILD_TOOLS%\aapt2.exe compile --dir res -o build\res.zip
-%BUILD_TOOLS%\aapt2.exe link -o build\base.apk -I %PLATFORM% --manifest app\src\main\AndroidManifest.xml --java gen -R build\res.zip --min-sdk-version 29 --target-sdk-version 34
+echo [2/6] Processing AndroidManifest...
+%BUILD_TOOLS%\aapt2.exe link -o build\base.apk -I %PLATFORM% --manifest app\src\main\AndroidManifest.xml --min-sdk-version 29 --target-sdk-version 34
 
 echo [3/6] Compiling Java code...
 if not exist "build_java" mkdir build_java
-%JAVA_HOME%\bin\javac.exe -d build_java --release 11 -classpath %PLATFORM% gen\com\ptext\R.java app\src\main\java\com\ptext\MainActivity.java
+%JAVA_HOME%\bin\javac.exe -d build_java --release 11 -classpath %PLATFORM% app\src\main\java\com\ptext\MainActivity.java
 if %errorlevel% neq 0 ( echo [ERROR] Java compile failed & pause & exit )
 
 echo [4/6] Generating DEX...
@@ -63,8 +61,6 @@ echo Cleaning...
 rmdir /s /q build
 rmdir /s /q build_cpp
 rmdir /s /q build_java
-rmdir /s /q gen
-rmdir /s /q res
 del /f /q pTEXT.apk.idsig
 
 echo.
