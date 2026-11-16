@@ -618,10 +618,6 @@ void android_main(struct android_app *app)
                 continue;
             }
             ARect dirty = {0, 0, r_w(), r_h()};
-            if (s_state == ST_SETTINGS) {
-                ui_get_settings_rect(&dirty.left, &dirty.top,
-                                     &dirty.right, &dirty.bottom);
-            }
             r_set_dirty(&dirty);
 
             r_begin();

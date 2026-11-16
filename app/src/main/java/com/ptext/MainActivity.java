@@ -14,7 +14,6 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 
@@ -108,7 +107,7 @@ public class MainActivity extends NativeActivity {
             tmp = new File(dir, dest.getName() + ".part");
 
             try (InputStream is = getContentResolver().openInputStream(uri);
-                 OutputStream os = new FileOutputStream(tmp)) {
+                 FileOutputStream os = new FileOutputStream(tmp)) {
                 if (is == null) throw new IOException("openInputStream returned null");
 
                 byte[] buf = new byte[8192];
@@ -129,6 +128,8 @@ public class MainActivity extends NativeActivity {
                         }
                     }
                 }
+                os.flush();
+                os.getFD().sync();
             }
 
             if (!tmp.renameTo(dest)) throw new IOException("rename failed");

@@ -16,7 +16,6 @@
 #include <unistd.h>
 #include <dirent.h>
 #include <stdlib.h>
-#include <errno.h>
 
 #define MAX_FILES 100
 #define MAX_BOOKMARKS 50
@@ -136,6 +135,12 @@ void rd_scan_dir(void)
     while ((ent = readdir(d)) != NULL && s_file_count < MAX_FILES) {
         if (ent->d_name[0] == '.') continue;
         char *ext = strrchr(ent->d_name, '.');
+        if (ext && strcasecmp(ext, ".part") == 0) {
+            char stale[768];
+            int n = snprintf(stale, sizeof(stale), "%s/%s", dpath, ent->d_name);
+            if (n > 0 && (size_t)n < sizeof(stale)) unlink(stale);
+            continue;
+        }
         if (!ext || strcasecmp(ext, ".txt") != 0) continue;
 
         FileItem *f = &s_files[s_file_count];
@@ -560,7 +565,23 @@ void rd_jump_to_offset(int64_t offset)
     if (offset >= s_mmap_len) offset = s_mmap_len - 1;
 
     int64_t page_start = 0;
-    int32_t page_no = page_for_offset(offset, &page_start);
+    int32_t page_no = 1;
+
+    if (s_page_no > 0 && s_page_curr->start_offset <= offset) {
+        int64_t off = s_page_curr->start_offset;
+        page_no = s_page_no;
+        while (off < offset) {
+            Page probe;
+            paginate_full(off, &probe);
+            if (probe.next_offset <= off || probe.next_offset > offset) break;
+            off = probe.next_offset;
+            page_no++;
+        }
+        page_start = off;
+    } else {
+        page_no = page_for_offset(offset, &page_start);
+    }
+
     rd_goto_offset(page_start);
     s_page_no = page_no > 0 ? page_no : 1;
 }
