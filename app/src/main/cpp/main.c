@@ -144,7 +144,7 @@ static void draw_reading(void)
     else snprintf(foot, sizeof(foot), "页码 --");
     uint32_t utxt[64];
     int32_t n = utf8_to_utf32(utxt, 63, foot);
-    r_draw_text(READ_MARGIN_X, fy, utxt, n);
+    r_draw_text((r_w() - r_text_width(utxt, n)) / 2, fy, utxt, n);
 
     float pct = (float)p->start_offset / (float)rd_get_file_len() * 100.0f;
     char pct_buf[32];

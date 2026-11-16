@@ -68,6 +68,7 @@ static PageContext s_ctx;
 
 static void load_settings(void);
 static void paginate_full(int64_t offset, Page *target);
+static int32_t page_for_offset(int64_t target, int64_t *page_start);
 
 static int32_t clamp_int(int32_t v, int32_t lo, int32_t hi)
 {
@@ -295,19 +296,24 @@ int32_t rd_open_file(const char *path)
         }
     }
 
-    rd_goto_offset(saved_offset);
-    if (has_prev) {
+    int64_t open_offset = saved_offset;
+    if (saved_offset == start_offset) {
+        s_page_no = 1;
+    } else if (saved_page >= 1 && saved_page <= INT32_MAX && has_prev) {
+        s_page_no = (int32_t)saved_page;
+    } else {
+        int64_t page_start = 0;
+        s_page_no = page_for_offset(saved_offset, &page_start);
+        open_offset = page_start;
+        has_prev = 0;
+    }
+
+    rd_goto_offset(open_offset);
+    s_page_no = s_page_no > 0 ? s_page_no : 1;
+    if (has_prev && open_offset == saved_offset) {
         s_page_hist[0] = prev_offset;
         s_page_hist[1] = s_page_curr->start_offset;
         s_hist_count = 2;
-    }
-    if (saved_page >= 1 && saved_page <= INT32_MAX &&
-        (has_prev || saved_offset == start_offset)) {
-        s_page_no = (int32_t)saved_page;
-    } else if (saved_offset == start_offset) {
-        s_page_no = 1;
-    } else {
-        s_page_no = 0;
     }
     return 0;
 }
@@ -354,6 +360,23 @@ static int32_t page_max_x(void)
 {
     int32_t n = r_w() - MARGIN_X * 2;
     return n > 1 ? n : 1;
+}
+
+static int32_t page_for_offset(int64_t target, int64_t *page_start)
+{
+    Page probe;
+    int64_t off = 0;
+    int32_t number = 1;
+
+    while (off < target) {
+        paginate_full(off, &probe);
+        if (probe.next_offset <= off || probe.next_offset > target) break;
+        off = probe.next_offset;
+        number++;
+    }
+
+    *page_start = off;
+    return number;
 }
 
 static void layout_line(Line *line, LineCursor *cur)
@@ -637,7 +660,7 @@ int32_t rd_get_line_h(void)
     int32_t fh = r_font_h();
     if (fh < 1) fh = 1;
     int32_t gap = clamp_int(s_settings.gap_idx, 0, 2);
-    return fh + (fh * gap) / 2;
+    return fh + (fh * gap) / 8;
 }
 
 int32_t rd_get_indent_w(void)
