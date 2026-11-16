@@ -30,6 +30,7 @@ public class MainActivity extends NativeActivity {
     private static int sFileCounter;
 
     private final Handler screenHandler = new Handler(Looper.getMainLooper());
+    private boolean screenActive;
     private final Runnable releaseScreenOn = () -> {
         Window w = getWindow();
         if (w != null) w.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -51,11 +52,13 @@ public class MainActivity extends NativeActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        screenActive = true;
         keepScreenOn();
     }
 
     @Override
     protected void onPause() {
+        screenActive = false;
         screenHandler.removeCallbacks(releaseScreenOn);
         Window w = getWindow();
         if (w != null) w.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -74,6 +77,7 @@ public class MainActivity extends NativeActivity {
     }
 
     private void keepScreenOn() {
+        if (!screenActive) return;
         Window w = getWindow();
         if (w == null) return;
         w.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
