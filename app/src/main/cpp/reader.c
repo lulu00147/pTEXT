@@ -350,6 +350,20 @@ static int32_t page_max_x(void)
     return n > 1 ? n : 1;
 }
 
+PageLayout rd_get_layout(void)
+{
+    PageLayout pl;
+    pl.margin_x = MARGIN_X;
+    pl.margin_top = MARGIN_TOP;
+    pl.margin_bot = MARGIN_BOT;
+    pl.line_height = rd_get_line_h();
+    if (pl.line_height < 1) pl.line_height = 1;
+    pl.text_width = page_max_x();
+    pl.page_height = r_h();
+    pl.max_lines = page_max_lines();
+    return pl;
+}
+
 static int32_t page_for_offset(int64_t target, int64_t *page_start)
 {
     Page probe;

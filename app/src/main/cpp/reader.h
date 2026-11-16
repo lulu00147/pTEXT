@@ -43,6 +43,18 @@ int32_t rd_delete_file(const char *path);
 int32_t rd_read_bookmarks(const char *path, Bookmark *out, int32_t cap);
 void rd_set_theme(int32_t t);
 
+typedef struct {
+    int32_t margin_x;
+    int32_t margin_top;
+    int32_t margin_bot;
+    int32_t line_height;
+    int32_t text_width;
+    int32_t page_height;
+    int32_t max_lines;
+} PageLayout;
+
+PageLayout rd_get_layout(void);
+
 void rd_prefetch_step(void);
 void rd_reset_prefetch(void);
 int32_t rd_is_prefetching(void);

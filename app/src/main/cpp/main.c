@@ -32,9 +32,7 @@ static int32_t ui(int32_t px)
 #define LY_BOTTOM_BTN   ui(80)   /* 底部按钮距底边距 */
 #define BOTTOM_BTN_ZONE ui(100)  /* 底部按钮区域高度 */
 #define HEADER_MARGIN_X ui(14)  /* Legado 页眉左右边距 */
-#define BODY_MARGIN_X   ui(5)   /* Legado 正文左右边距 */
 #define FOOTER_MARGIN_X ui(13)  /* Legado 页脚左右边距 */
-#define READ_TEXT_Y0    ui(53)  /* 阅读页正文起始 Y */
 #define SETTINGS_W      ui(360)  /* 设置面板宽 */
 #define SETTINGS_H      ui(240)  /* 设置面板高 */
 #define SETTINGS_ROW_H  ui(50)   /* 设置行高 */
@@ -324,7 +322,8 @@ static void draw_reading(void)
     r_draw_text_at_size_color(r_w() - tw - HEADER_MARGIN_X, ui(28), utime, un, hts, hf_color);
 
     Page *p = rd_get_page();
-    int32_t footer_zone_top = r_h() - ui(10);
+    PageLayout pl = rd_get_layout();
+    int32_t footer_zone_top = r_h() - pl.margin_bot;
     int32_t fy = r_h() - ui(6);
 
     /* 先画页脚，再画正文；正文不得进入页脚带 */
@@ -345,9 +344,9 @@ static void draw_reading(void)
                               fy, utxt, n, fs, hf_color);
 
     if (rd_page_bookmarked()) {
-        const uint32_t bm[] = {0x4E66, 0x7B7E}; /* 书签 */
-        int32_t bw = r_text_width_at_size(bm, 2, fs);
-        r_draw_text_at_size_color((r_w() - bw) / 2, fy, bm, 2, fs, hf_color);
+        const uint32_t bm[] = {0x2A}; /* 书签标记 */
+        int32_t bw = r_text_width_at_size(bm, 1, fs);
+        r_draw_text_at_size_color((r_w() - bw) / 2, fy, bm, 1, fs, hf_color);
     }
 
     int32_t vstep_x10 = rd_get_line_h() * 10 + 7;
@@ -355,9 +354,9 @@ static void draw_reading(void)
     for (int32_t i = 0; i < p->count; i++) {
         Line *line = &p->lines[i];
         if (draw_line_blank(line)) continue;
-        int32_t x = BODY_MARGIN_X + line->indent;
-        int32_t target = r_w() - BODY_MARGIN_X * 2 - line->indent;
-        int32_t y = READ_TEXT_Y0 + draw_i * vstep_x10 / 10;
+        int32_t x = pl.margin_x + line->indent;
+        int32_t target = pl.text_width - line->indent;
+        int32_t y = pl.margin_top + draw_i * vstep_x10 / 10;
         if (y > footer_zone_top) break;
         if (line->justify && line->len > 1) {
             r_draw_text_justified(x, y, line->text, line->len, target);
