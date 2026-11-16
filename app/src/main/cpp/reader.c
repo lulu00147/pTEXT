@@ -46,7 +46,7 @@ static int64_t s_page_hist[MAX_PAGE_HIST];
 static int32_t s_hist_count;
 static int32_t s_page_no;
 
-static Settings s_settings = {1, 1, 0, 0, 2};
+static Settings s_settings = {1, 1, 0, 0, 3};
 static Bookmark s_bms[MAX_BOOKMARKS];
 static int32_t s_bm_count;
 
@@ -430,7 +430,9 @@ static int32_t page_for_offset(int64_t target, int64_t *page_start)
 static void layout_line(Line *line, LineCursor *cur)
 {
     line->len = 0;
-    cur->x = cur->para_start ? cur->indent_w : 0;
+    line->indent = cur->para_start ? cur->indent_w : 0;
+    line->justify = 0;
+    cur->x = line->indent;
 
     while (cur->off < s_mmap_len) {
         if (line->len >= MAX_CHARS - 1) break;
@@ -447,6 +449,7 @@ static void layout_line(Line *line, LineCursor *cur)
         int32_t cw = r_char_advance(cp);
         if (cur->x + cw > cur->max_x && line->len > 0) {
             cur->off = prev;
+            line->justify = 1;
             break;
         }
         line->text[line->len++] = cp;
@@ -675,7 +678,7 @@ static void load_settings(void)
                     s_settings.indent_idx = clamp_int(tmp.indent_idx, 0, 2);
                     s_settings.gap_idx = clamp_int(tmp.gap_idx, 0, 2);
                     if (rn >= 16) s_settings.theme = clamp_int(tmp.theme, 0, 1);
-                    if (rn >= sizeof(Settings) && tmp.version >= 2) {
+                    if (rn >= sizeof(Settings) && tmp.version >= 3) {
                         s_settings.version = tmp.version;
                         migrate = 0;
                     }
@@ -689,7 +692,7 @@ static void load_settings(void)
         s_settings.font_idx = 1;
         s_settings.indent_idx = 1;
         s_settings.gap_idx = 0;
-        s_settings.version = 2;
+        s_settings.version = 3;
         save_settings();
     }
 

@@ -14,7 +14,7 @@ void rd_close(void);
 
 #define MAX_LINES 80
 #define MAX_CHARS 200
-typedef struct { uint32_t text[MAX_CHARS]; int32_t len; } Line;
+typedef struct { uint32_t text[MAX_CHARS]; int32_t len; int32_t indent; uint8_t justify; } Line;
 typedef struct {
     Line lines[MAX_LINES];
     int32_t count;

@@ -155,8 +155,15 @@ static void draw_reading(void)
     Page *p = rd_get_page();
     int32_t lh = rd_get_line_h();
     for (int32_t i = 0; i < p->count; i++) {
-        r_draw_text(READ_MARGIN_X, READ_TEXT_Y0 + i * lh,
-                    p->lines[i].text, p->lines[i].len);
+        Line *line = &p->lines[i];
+        int32_t x = READ_MARGIN_X + line->indent;
+        int32_t target = r_w() - READ_MARGIN_X * 2 - line->indent;
+        int32_t y = READ_TEXT_Y0 + i * lh;
+        if (line->justify && line->len > 1) {
+            r_draw_text_justified(x, y, line->text, line->len, target);
+        } else {
+            r_draw_text(x, y, line->text, line->len);
+        }
     }
 
     int32_t fy = r_h() - ui(32);

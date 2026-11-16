@@ -76,6 +76,7 @@ static float s_ui_scale = 1.0f;
 static G s_gc[GC_SIZE];
 static uint32_t s_lru;
 static int32_t s_font_ok = 0;
+static int32_t s_text_extra = 0;
 static uint8_t s_glyph_tmp[GLYPH_MAX * GLYPH_MAX];  /* 字形光栅化复用缓冲区 */
 
 /* 主题色：0=暗色(黑底白字), 1=亮色(白底黑字) */
@@ -369,6 +370,7 @@ void r_draw_text(int32_t x, int32_t y, const uint32_t *s, int32_t n)
         G *g = gc_get(s[i]);
         if (!g || !g->w) {
             x += (g && g->adv) ? g->adv : r_font_h();
+            x += s_text_extra;
             continue;
         }
         int32_t sx = x + g->xo, sy = y + g->yo;
@@ -405,8 +407,26 @@ void r_draw_text(int32_t x, int32_t y, const uint32_t *s, int32_t n)
                 }
             }
         }
-        x += g->adv;
+        x += g->adv + s_text_extra;
     }
+}
+
+void r_draw_text_justified(int32_t x, int32_t y, const uint32_t *s, int32_t n, int32_t target_width)
+{
+    if (n < 2) {
+        r_draw_text(x, y, s, n);
+        return;
+    }
+    int32_t natural = r_text_width(s, n);
+    int32_t extra = (target_width - natural) / (n - 1);
+    if (extra <= 0) {
+        r_draw_text(x, y, s, n);
+        return;
+    }
+    int32_t old = s_text_extra;
+    s_text_extra = extra;
+    r_draw_text(x, y, s, n);
+    s_text_extra = old;
 }
 
 int32_t r_text_width(const uint32_t *s, int32_t n)
