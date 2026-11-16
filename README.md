@@ -50,9 +50,9 @@ build.bat
 
 构建脚本会下载 `stb_truetype.h`：
 
-- 版本：v1.26
-- 提交：`c0c982601f40183e74d84a61237e968dca08380e`
-- SHA-256：`a34d8d536ce7c11b9163ab2d524721c1f4df1452cce6595c4f11d3048384f925`
+- 版本：v1.28
+- 提交：`9f755b604db3492df2cbeb39bf84b81e3e3932e3`
+- SHA-256：`428cfe93520f2aed5e413a220b0db5bba5b17e2ebe5a64e4a8efa9eeeb67ec5f`
 - 文件不纳入 git；下载后校验哈希。
 
 产物：`pTEXT.apk`；minSdk 37，targetSdk 37，compileSdk 37.2；versionCode 1，versionName 0.1。
@@ -121,4 +121,4 @@ sh tests/run_reader_tests.sh
 
 代码 MIT，见 [LICENSE](LICENSE)。
 
-`stb_truetype` v1.26，Sean Barrett / RAD Game Tools，Public Domain 或 MIT；构建时下载，不随仓库分发。
+`stb_truetype` v1.28，Sean Barrett / RAD Game Tools，Public Domain 或 MIT；构建时下载，不随仓库分发。

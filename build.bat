@@ -29,8 +29,8 @@ if not exist "%JAVA_HOME%\bin\javac.exe" ( echo [ERROR] javac not found: %JAVA_H
 if not exist "%BUILD_TOOLS%\aapt2.exe" ( echo [ERROR] aapt2 not found: %BUILD_TOOLS% & pause & exit )
 
 set "STB_FILE=app\src\main\cpp\stb_truetype.h"
-set "STB_URL=https://raw.githubusercontent.com/nothings/stb/c0c982601f40183e74d84a61237e968dca08380e/stb_truetype.h"
-set "STB_SHA256=a34d8d536ce7c11b9163ab2d524721c1f4df1452cce6595c4f11d3048384f925"
+set "STB_URL=https://raw.githubusercontent.com/nothings/stb/9f755b604db3492df2cbeb39bf84b81e3e3932e3/stb_truetype.h"
+set "STB_SHA256=428cfe93520f2aed5e413a220b0db5bba5b17e2ebe5a64e4a8efa9eeeb67ec5f"
 
 echo [1/8] Checking stb_truetype...
 set "STB_HASH="
