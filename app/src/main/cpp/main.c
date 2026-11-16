@@ -2,6 +2,7 @@
 #include <android/input.h>
 #include <android/looper.h>
 #include <android/choreographer.h>
+#include <android/configuration.h>
 #include "android_native_app_glue.h"
 #include <string.h>
 #include <stdio.h>
@@ -15,20 +16,25 @@
 #define ST_SETTINGS 2
 #define ST_BMARKS   3
 
-/* 布局常量 */
-#define LX_MARGIN      30   /* 水平边距 */
-#define LY_TITLE        50   /* 标题 Y */
-#define LY_ITEM0       120   /* 第一个列表项 Y */
-#define ITEM_H          80   /* 文件列表项高度 */
-#define BM_ITEM_H       60   /* 书签列表项高度 */
-#define LY_BOTTOM_BTN  80   /* 底部按钮距底边距 */
-#define BOTTOM_BTN_ZONE 100  /* 底部按钮区域高度 */
-#define READ_TITLE_Y     20   /* 阅读页标题 Y */
-#define READ_TEXT_Y0     60   /* 阅读页正文起始 Y */
-#define SETTINGS_W      360   /* 设置面板宽 */
-#define SETTINGS_H      320   /* 设置面板高 */
-#define SETTINGS_ROW_H   50   /* 设置行高 */
-#define SETTINGS_TITLE_H  20  /* 标题内边距 */
+static int32_t ui(int32_t px)
+{
+    return (int32_t)(px * r_ui_scale() + 0.5f);
+}
+
+/* 布局常量，单位 dp */
+#define LX_MARGIN       ui(30)   /* 水平边距 */
+#define LY_TITLE        ui(50)   /* 标题 Y */
+#define LY_ITEM0        ui(120)  /* 第一个列表项 Y */
+#define ITEM_H          ui(80)   /* 文件列表项高度 */
+#define BM_ITEM_H       ui(60)   /* 书签列表项高度 */
+#define LY_BOTTOM_BTN   ui(80)   /* 底部按钮距底边距 */
+#define BOTTOM_BTN_ZONE ui(100)  /* 底部按钮区域高度 */
+#define READ_TITLE_Y    ui(20)   /* 阅读页标题 Y */
+#define READ_TEXT_Y0    ui(60)   /* 阅读页正文起始 Y */
+#define SETTINGS_W      ui(360)  /* 设置面板宽 */
+#define SETTINGS_H      ui(320)  /* 设置面板高 */
+#define SETTINGS_ROW_H  ui(50)   /* 设置行高 */
+#define SETTINGS_TITLE_H ui(20)  /* 标题内边距 */
 #define TOUCH_ZONE_L     (r_w() / 3)       /* 左触摸区 */
 #define TOUCH_ZONE_R     (r_w() * 2 / 3)   /* 右触摸区 */
 
@@ -158,25 +164,25 @@ static void draw_settings(void)
     int32_t gap_idx = clamp_i(s->gap_idx, 0, 2);
     int32_t theme = clamp_i(s->theme, 0, 1);
     int32_t y = t + SETTINGS_TITLE_H;
-    r_draw_text(l+40, y, UI_SETTINGS_TITLE, UI_LEN(UI_SETTINGS_TITLE)); y += SETTINGS_ROW_H;
+    r_draw_text(l+ui(40), y, UI_SETTINGS_TITLE, UI_LEN(UI_SETTINGS_TITLE)); y += SETTINGS_ROW_H;
     char buf[64];
     snprintf(buf, sizeof(buf), "字号: %d  [-] [+]", 18 + font_idx * 2);
     n = utf8_to_utf32(utxt, 127, buf);
-    r_draw_text(l+30, y, utxt, n); y += SETTINGS_ROW_H;
+    r_draw_text(l+ui(30), y, utxt, n); y += SETTINGS_ROW_H;
     snprintf(buf, sizeof(buf), "缩进: %d字符  [<] [>]", indent_idx * 2);
     n = utf8_to_utf32(utxt, 127, buf);
-    r_draw_text(l+30, y, utxt, n); y += SETTINGS_ROW_H;
+    r_draw_text(l+ui(30), y, utxt, n); y += SETTINGS_ROW_H;
     const char *gaps[] = {"0", "0.5", "1.0"};
     snprintf(buf, sizeof(buf), "行距: %s  [<] [>]", gaps[gap_idx]);
     n = utf8_to_utf32(utxt, 127, buf);
-    r_draw_text(l+30, y, utxt, n); y += SETTINGS_ROW_H;
+    r_draw_text(l+ui(30), y, utxt, n); y += SETTINGS_ROW_H;
     /* 主题行 */
     snprintf(buf, sizeof(buf), "主题: %s  [<] [>]", theme ? "日间" : "夜间");
     n = utf8_to_utf32(utxt, 127, buf);
-    r_draw_text(l+30, y, utxt, n); y += SETTINGS_ROW_H;
-    r_draw_text(l+20, y, UI_BACK_READ, UI_LEN(UI_BACK_READ));
+    r_draw_text(l+ui(30), y, utxt, n); y += SETTINGS_ROW_H;
+    r_draw_text(l+ui(20), y, UI_BACK_READ, UI_LEN(UI_BACK_READ));
     int32_t bm_w = r_text_width(UI_BOOKMARKS, UI_LEN(UI_BOOKMARKS));
-    r_draw_text(l + SETTINGS_W - bm_w - 20, y, UI_BOOKMARKS, UI_LEN(UI_BOOKMARKS));
+    r_draw_text(l + SETTINGS_W - bm_w - ui(20), y, UI_BOOKMARKS, UI_LEN(UI_BOOKMARKS));
 }
 
 static void draw_bookmarks(void)
@@ -311,6 +317,17 @@ int32_t takeRescanFlag(void) {
     return (*env)->CallStaticIntMethod(env, s_main_activity_class_global, s_take_rescan_mid);
 }
 
+static void update_ui_scale(struct android_app *app)
+{
+    AConfiguration *cfg = AConfiguration_new();
+    if (!cfg) return;
+    AConfiguration_fromAssetManager(cfg, app->activity->assetManager);
+    int32_t density = AConfiguration_getDensity(cfg);
+    AConfiguration_delete(cfg);
+    if (density <= 0) density = 160;
+    r_set_ui_scale((float)density / 160.0f);
+}
+
 static void handle_cmd(struct android_app *app, int32_t cmd)
 {
     switch (cmd) {
@@ -319,17 +336,30 @@ case APP_CMD_INIT_WINDOW:
     JNIEnv *env = NULL;
     (*app->activity->vm)->AttachCurrentThread(app->activity->vm, &env, NULL);
     if (env) {
-        /* 直接缓存 NativeActivity 的 Class 对象（就是 MainActivity） */
-        s_main_activity_class_global = (*env)->NewGlobalRef(env, app->activity->clazz);
+        if (s_main_activity_class_global) {
+            (*env)->DeleteGlobalRef(env, s_main_activity_class_global);
+            s_main_activity_class_global = NULL;
+            s_pick_file_mid = NULL;
+            s_take_rescan_mid = NULL;
+        }
+        /* activity->clazz 是 Activity 实例，不是 jclass；先取对象类。 */
+        jclass clazz = (*env)->GetObjectClass(env, app->activity->clazz);
+        if (clazz) {
+            s_main_activity_class_global = (*env)->NewGlobalRef(env, clazz);
+            (*env)->DeleteLocalRef(env, clazz);
+        }
         if (s_main_activity_class_global) {
             __android_log_print(ANDROID_LOG_INFO, "pTEXT", "MainActivity class cached OK");
         } else {
+            (*env)->ExceptionClear(env);
             __android_log_print(ANDROID_LOG_ERROR, "pTEXT", "Failed to cache MainActivity class");
         }
     }
+    update_ui_scale(app);
     r_init(app->window);
     rd_init(app->activity->internalDataPath);
-    rd_scan_dir(); s_need_redraw = 1;
+    rd_scan_dir();
+    s_need_redraw = 1;
     s_choreographer = AChoreographer_getInstance();
     break;
 }
@@ -362,6 +392,14 @@ case APP_CMD_INIT_WINDOW:
                     s_need_redraw = 1;
                 }
             } break;
+        case APP_CMD_CONFIG_CHANGED:
+            if (app->window) {
+                update_ui_scale(app);
+                if (rd_get_file_len() > 0)
+                    rd_goto_offset(rd_get_page()->start_offset);
+                s_need_redraw = 1;
+            }
+            break;
         case APP_CMD_LOST_FOCUS:
             /* 失去焦点时暂停预排版以省电 */
             rd_reset_prefetch();

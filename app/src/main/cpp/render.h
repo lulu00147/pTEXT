@@ -6,6 +6,8 @@
 
 void r_init(ANativeWindow *w);
 void r_deinit(void);
+void r_set_ui_scale(float scale);
+float r_ui_scale(void);
 void r_begin(void);
 void r_end(void);
 void r_clear(void);

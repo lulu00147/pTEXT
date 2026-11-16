@@ -52,11 +52,12 @@ static inline int32_t safe_iceil(float x) {
 #define GC_SIZE  512
 #define GC_ASSOC 4
 #define GC_MASK  (GC_SIZE - 1)
+#define GLYPH_MAX 128
 
 typedef struct {
     uint32_t cp;
     float sz;
-    uint8_t bmp[512];
+    uint8_t bmp[GLYPH_MAX * GLYPH_MAX / 8];
     uint8_t w, h;
     int16_t xo, yo;
     int32_t adv;
@@ -71,10 +72,11 @@ static stbtt_fontinfo s_fi;
 static const void *s_font_map = NULL;
 static size_t s_font_len = 0;
 static float s_fsz = 36.0f, s_sc;
+static float s_ui_scale = 1.0f;
 static G s_gc[GC_SIZE];
 static uint32_t s_lru;
 static int32_t s_font_ok = 0;
-static uint8_t s_glyph_tmp[64 * 64];  /* 字形光栅化复用缓冲区 */
+static uint8_t s_glyph_tmp[GLYPH_MAX * GLYPH_MAX];  /* 字形光栅化复用缓冲区 */
 
 /* 主题色：0=暗色(黑底白字), 1=亮色(白底黑字) */
 static int32_t s_theme = 0;
@@ -121,7 +123,7 @@ static G *gc_get(uint32_t cp)
     g->xo = 0;
     g->yo = 0;
 
-    if (gw > 0 && gh > 0 && gw <= 64 && gh <= 64) {
+    if (gw > 0 && gh > 0 && gw <= GLYPH_MAX && gh <= GLYPH_MAX) {
         g->w = (uint8_t)gw;
         g->h = (uint8_t)gh;
         g->xo = (int16_t)ix0;
@@ -239,6 +241,18 @@ static int32_t load_system_font(void)
 
     __android_log_print(ANDROID_LOG_ERROR, "pTEXT", "no usable system font");
     return 0;
+}
+
+void r_set_ui_scale(float scale)
+{
+    if (scale < 0.75f) scale = 0.75f;
+    if (scale > 4.0f) scale = 4.0f;
+    s_ui_scale = scale;
+}
+
+float r_ui_scale(void)
+{
+    return s_ui_scale;
 }
 
 void r_init(ANativeWindow *w)
@@ -398,7 +412,7 @@ int32_t r_font_h(void)
 void r_set_font_size(float s)
 {
     if (s < 1.0f) s = 1.0f;
-    if (s > 96.0f) s = 96.0f;
+    if (s > 128.0f) s = 128.0f;
     s_fsz = s;
     if (s_font_ok) s_sc = stbtt_ScaleForPixelHeight(&s_fi, s_fsz);
     r_clear_cache();

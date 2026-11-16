@@ -12,12 +12,18 @@
 #include <dirent.h>
 #include <stdlib.h>
 
-#define MARGIN_X 30
-#define MARGIN_TOP 60
-#define MARGIN_BOT 50
 #define MAX_FILES 100
 #define MAX_BOOKMARKS 50
 #define MAX_PAGE_HIST 64
+
+static int32_t rd_ui(int32_t px)
+{
+    return (int32_t)(px * r_ui_scale() + 0.5f);
+}
+
+#define MARGIN_X   rd_ui(30)
+#define MARGIN_TOP rd_ui(60)
+#define MARGIN_BOT rd_ui(50)
 
 static char s_data_path[512];
 static char s_cur_name[256];
@@ -583,13 +589,13 @@ static void load_settings(void)
     }
 
     r_set_theme(s_settings.theme);
-    r_set_font_size(18.0f + s_settings.font_idx * 2.0f);
+    r_set_font_size((18.0f + s_settings.font_idx * 2.0f) * r_ui_scale());
 }
 
 void rd_set_font_idx(int32_t i)
 {
     s_settings.font_idx = clamp_int(i, 0, 6);
-    r_set_font_size(18.0f + s_settings.font_idx * 2.0f);
+    r_set_font_size((18.0f + s_settings.font_idx * 2.0f) * r_ui_scale());
     save_settings();
 }
 
@@ -616,7 +622,7 @@ int32_t rd_get_line_h(void)
 int32_t rd_get_indent_w(void)
 {
     int32_t adv = r_char_advance(' ');
-    if (adv <= 0) adv = 12;
+    if (adv <= 0) adv = rd_ui(12);
     return clamp_int(s_settings.indent_idx, 0, 2) * 2 * adv;
 }
 
