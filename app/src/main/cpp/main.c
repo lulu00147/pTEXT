@@ -182,7 +182,7 @@ static void draw_reading(void)
         draw_i++;
     }
 
-    int32_t fy = r_h() - ui(35);
+    int32_t fy = r_h() - ui(10);
     r_clear_rect(0, fy - ui(2), r_w(), r_h());
     char foot[64];
     int32_t page_no = rd_get_page_no();
