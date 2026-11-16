@@ -130,6 +130,16 @@ static void draw_file_list(void)
     r_draw_text(LX_MARGIN, r_h() - LY_BOTTOM_BTN, UI_IMPORT, UI_LEN(UI_IMPORT));
 }
 
+static int32_t draw_line_blank(const Line *line)
+{
+    if (line->len == 0) return 1;
+    for (int32_t i = 0; i < line->len; i++) {
+        uint32_t cp = line->text[i];
+        if (cp != ' ' && cp != '\t' && cp != 0x3000) return 0;
+    }
+    return 1;
+}
+
 static void draw_reading(void)
 {
     if (!rd_get_file_len()) return;
@@ -157,16 +167,19 @@ static void draw_reading(void)
 
     Page *p = rd_get_page();
     int32_t lh = rd_get_line_h();
+    int32_t draw_i = 0;
     for (int32_t i = 0; i < p->count; i++) {
         Line *line = &p->lines[i];
+        if (draw_line_blank(line)) continue;
         int32_t x = BODY_MARGIN_X + line->indent;
         int32_t target = r_w() - BODY_MARGIN_X * 2 - line->indent;
-        int32_t y = READ_TEXT_Y0 + i * lh;
+        int32_t y = READ_TEXT_Y0 + draw_i * lh;
         if (line->justify && line->len > 1) {
             r_draw_text_justified(x, y, line->text, line->len, target);
         } else {
             r_draw_text(x, y, line->text, line->len);
         }
+        draw_i++;
     }
 
     int32_t fy = r_h() - ui(23);

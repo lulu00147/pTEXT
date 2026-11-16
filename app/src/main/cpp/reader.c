@@ -442,6 +442,16 @@ static void layout_line(Line *line, LineCursor *cur)
     cur->para_start = is_para_start(cur->off);
 }
 
+static int32_t line_blank(const Line *line)
+{
+    if (line->len == 0) return 1;
+    for (int32_t i = 0; i < line->len; i++) {
+        uint32_t cp = line->text[i];
+        if (cp != ' ' && cp != '\t' && cp != 0x3000) return 0;
+    }
+    return 1;
+}
+
 static void paginate_full(int64_t offset, Page *target)
 {
     target->count = 0;
@@ -462,7 +472,7 @@ static void paginate_full(int64_t offset, Page *target)
     int32_t i = 0;
     while (i < max_lines && cur.off < s_mmap_len) {
         layout_line(&target->lines[i], &cur);
-        if (target->lines[i].len == 0) continue;
+        if (line_blank(&target->lines[i])) continue;
         target->count++;
         i++;
     }
@@ -493,7 +503,7 @@ static void paginate_step(void)
     for (int32_t step = 0; step < 8 &&
          s_ctx.i < s_ctx.max_lines && s_ctx.cur.off < s_mmap_len; step++) {
         layout_line(&s_page_next->lines[s_ctx.i], &s_ctx.cur);
-        if (s_page_next->lines[s_ctx.i].len == 0) continue;
+        if (line_blank(&s_page_next->lines[s_ctx.i])) continue;
         s_page_next->count++;
         s_ctx.i++;
     }
