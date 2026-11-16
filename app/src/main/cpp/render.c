@@ -1,9 +1,12 @@
 #include "render.h"
 #include <string.h>
 #include <stdint.h>
+#include <limits.h>
 #include <sys/mman.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <android/font.h>
+#include <android/system_fonts.h>
 #include <android/log.h>
 
 /* 零堆保障：强制 16 字节对齐的静态分配器，扩大至 16 MB 以支持中文字体 */
@@ -71,7 +74,6 @@ static float s_fsz = 36.0f, s_sc;
 static G s_gc[GC_SIZE];
 static uint32_t s_lru;
 static int32_t s_font_ok = 0;
-static AAsset *s_font_asset = NULL;
 static uint8_t s_glyph_tmp[64 * 64];  /* 字形光栅化复用缓冲区 */
 
 /* 主题色：0=暗色(黑底白字), 1=亮色(白底黑字) */
@@ -139,7 +141,131 @@ static G *gc_get(uint32_t cp)
     return g;
 }
 
-void r_init(ANativeWindow *w, AAssetManager *a)
+typedef struct {
+    int32_t require_zh;
+    int32_t require_cjk;
+    int32_t min_weight;
+    int32_t max_weight;
+} FontQuery;
+
+static void unmap_font(void)
+{
+    if (s_font_map) {
+        munmap((void *)s_font_map, s_font_len);
+        s_font_map = NULL;
+    }
+    s_font_len = 0;
+    s_font_ok = 0;
+}
+
+static int32_t load_font_file(const char *path, size_t collection,
+                              int32_t require_cjk,
+                              const unsigned char **out_map, size_t *out_len,
+                              stbtt_fontinfo *out_fi)
+{
+    if (!path || collection > (size_t)INT_MAX) return 0;
+
+    int fd = open(path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return 0;
+
+    off_t len = lseek(fd, 0, SEEK_END);
+    if (len <= 0) {
+        close(fd);
+        return 0;
+    }
+
+    void *map = mmap(NULL, (size_t)len, PROT_READ, MAP_PRIVATE, fd, 0);
+    close(fd);
+    if (map == MAP_FAILED) return 0;
+
+    int offset = stbtt_GetFontOffsetForIndex((const unsigned char *)map,
+                                             (int)collection);
+    if (offset < 0) {
+        munmap(map, (size_t)len);
+        return 0;
+    }
+
+    stbtt_fontinfo fi;
+    if (!stbtt_InitFont(&fi, (const unsigned char *)map, offset)) {
+        munmap(map, (size_t)len);
+        return 0;
+    }
+
+    if (require_cjk && stbtt_FindGlyphIndex(&fi, 0x4E00) == 0) {
+        munmap(map, (size_t)len);
+        return 0;
+    }
+
+    *out_map = (const unsigned char *)map;
+    *out_len = (size_t)len;
+    *out_fi = fi;
+    return 1;
+}
+
+static int32_t find_font(FontQuery query)
+{
+    ASystemFontIterator *it = ASystemFontIterator_open();
+    if (!it) return 0;
+
+    int32_t found = 0;
+    AFont *font;
+
+    while (!found && (font = ASystemFontIterator_next(it)) != NULL) {
+        if (AFont_isItalic(font)) {
+            AFont_close(font);
+            continue;
+        }
+
+        int32_t weight = (int32_t)AFont_getWeight(font);
+        if (weight < query.min_weight || weight > query.max_weight) {
+            AFont_close(font);
+            continue;
+        }
+
+        const char *locale = AFont_getLocale(font);
+        if (query.require_zh && (!locale || strncmp(locale, "zh", 2) != 0)) {
+            AFont_close(font);
+            continue;
+        }
+
+        const unsigned char *map = NULL;
+        size_t len = 0;
+        stbtt_fontinfo fi;
+        if (load_font_file(AFont_getFontFilePath(font),
+                           AFont_getCollectionIndex(font),
+                           query.require_cjk, &map, &len, &fi)) {
+            s_font_map = map;
+            s_font_len = len;
+            s_fi = fi;
+            s_font_ok = 1;
+            found = 1;
+        }
+        AFont_close(font);
+    }
+
+    ASystemFontIterator_close(it);
+    return found;
+}
+
+static int32_t load_system_font(void)
+{
+    static const FontQuery queries[] = {
+        {1, 1, 300, 500},
+        {0, 1, 300, 500},
+        {0, 1, 0, 1000},
+        {0, 0, 300, 500},
+        {0, 0, 0, 1000},
+    };
+
+    for (size_t i = 0; i < sizeof(queries) / sizeof(queries[0]); i++) {
+        if (find_font(queries[i])) return 1;
+    }
+
+    __android_log_print(ANDROID_LOG_ERROR, "pTEXT", "no usable system font");
+    return 0;
+}
+
+void r_init(ANativeWindow *w)
 {
     if (!w) return;
 
@@ -152,48 +278,15 @@ void r_init(ANativeWindow *w, AAssetManager *a)
     }
     ANativeWindow_setBuffersGeometry(w, 0, 0, WINDOW_FORMAT_RGB_565);
 
-    if (s_font_asset) {
-        AAsset_close(s_font_asset);
-        s_font_asset = NULL;
-    }
-    s_font_map = NULL;
-    s_font_len = 0;
-    s_font_ok = 0;
+    unmap_font();
     r_clear_cache();
-
-    /* assets 内的路径使用正斜杠；反斜杠仅作旧构建回退。 */
-    s_font_asset = AAssetManager_open(a, "fonts/OPPOSans.ttf", AASSET_MODE_BUFFER);
-    if (!s_font_asset) {
-        s_font_asset = AAssetManager_open(a, "fonts\\OPPOSans.ttf", AASSET_MODE_BUFFER);
-    }
-    if (s_font_asset) {
-        s_font_len = (size_t)AAsset_getLength(s_font_asset);
-        s_font_map = AAsset_getBuffer(s_font_asset);
-        if (s_font_map && s_font_len > 0) {
-            if (stbtt_InitFont(&s_fi, (const unsigned char *)s_font_map, 0)) {
-                s_font_ok = 1;
-            }
-        }
-        if (!s_font_ok) {
-            AAsset_close(s_font_asset);
-            s_font_asset = NULL;
-            s_font_map = NULL;
-            s_font_len = 0;
-        }
-    }
-
+    load_system_font();
     r_set_font_size(s_fsz);
 }
 
 void r_deinit(void)
 {
-    if (s_font_asset) {
-        AAsset_close(s_font_asset);
-        s_font_asset = NULL;
-    }
-    s_font_map = NULL;
-    s_font_len = 0;
-    s_font_ok = 0;
+    unmap_font();
 }
 
 __attribute__((weak)) extern void ANativeWindow_setDirtyRect(ANativeWindow *window, const ARect *rect);

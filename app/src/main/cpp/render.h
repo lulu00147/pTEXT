@@ -1,11 +1,10 @@
 #ifndef RENDER_H
 #define RENDER_H
 #include <android/native_window.h>
-#include <android/asset_manager.h>
 #include <android/rect.h>
 #include <stdint.h>
 
-void r_init(ANativeWindow *w, AAssetManager *a);
+void r_init(ANativeWindow *w);
 void r_deinit(void);
 void r_begin(void);
 void r_end(void);

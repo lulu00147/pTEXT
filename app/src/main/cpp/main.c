@@ -358,7 +358,7 @@ case APP_CMD_INIT_WINDOW:
             __android_log_print(ANDROID_LOG_ERROR, "pTEXT", "Failed to cache MainActivity class");
         }
     }
-    r_init(app->window, app->activity->assetManager);
+    r_init(app->window);
     rd_init(app->activity->internalDataPath);
     rd_scan_dir(); s_need_redraw = 1;
     s_choreographer = AChoreographer_getInstance();
