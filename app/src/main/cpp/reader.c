@@ -145,6 +145,11 @@ static int64_t s_page_ckpt_off[PAGE_CKPT_MAX];
 static int32_t s_page_ckpt_no[PAGE_CKPT_MAX];
 static int32_t s_page_ckpt_count;
 
+void rd_reset_page_cache(void)
+{
+    s_page_ckpt_count = 0;
+}
+
 static Settings s_settings = {3, 1, 0, 0, 14};
 
 typedef struct {
@@ -756,8 +761,9 @@ void rd_prev_page(void)
         Page probe_page;
 
         (void)page_checkpoint_find(s_page_curr->start_offset - 1, &probe);
+        int32_t safety_limit = s_page_ckpt_count > 1 ? PAGE_CKPT_STEP + 2 : 100000;
         int32_t safety = 0;
-        while (probe < s_page_curr->start_offset && safety <= PAGE_CKPT_STEP + 2) {
+        while (probe < s_page_curr->start_offset && safety <= safety_limit) {
             paginate_full(probe, &probe_page);
             if (probe_page.next_offset >= s_page_curr->start_offset ||
                 probe_page.next_offset >= s_mmap_len) {
@@ -849,18 +855,21 @@ void rd_set_font_idx(int32_t i)
 {
     s_settings.font_idx = clamp_int(i, 0, 6);
     r_set_font_size((18.0f + s_settings.font_idx * 2.0f) * r_ui_scale());
+    rd_reset_page_cache();
     save_settings();
 }
 
 void rd_set_indent_idx(int32_t i)
 {
     s_settings.indent_idx = clamp_int(i, 0, 2);
+    rd_reset_page_cache();
     save_settings();
 }
 
 void rd_set_gap_idx(int32_t i)
 {
     s_settings.gap_idx = clamp_int(i, 0, 2);
+    rd_reset_page_cache();
     save_settings();
 }
 

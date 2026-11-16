@@ -25,6 +25,7 @@ typedef struct {
 
 void rd_goto_offset(int64_t offset);
 void rd_jump_to_offset(int64_t offset);
+void rd_reset_page_cache(void);
 void rd_prev_page(void);
 void rd_next_page(void);
 int32_t rd_can_prev(void);

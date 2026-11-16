@@ -283,6 +283,7 @@ case APP_CMD_INIT_WINDOW:
                 if (new_w > 0 && new_h > 0 && (new_w != r_w() || new_h != r_h())) {
                     r_update_window(app->window);
                     rd_reset_prefetch();
+                    rd_reset_page_cache();
                     if (rd_get_file_len() > 0)
                         rd_goto_offset(rd_get_page()->start_offset);
                     s_need_redraw = 1;
