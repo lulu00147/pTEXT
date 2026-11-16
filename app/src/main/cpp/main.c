@@ -237,16 +237,16 @@ static void draw_settings(void)
     snprintf(buf, sizeof(buf), "缩进: %d字符", indent_idx * 2);
     n = utf8_to_utf32(utxt, 127, buf);
     r_draw_text(l+ui(30), y, utxt, n);
-    draw_toggle_buttons(r, y, '<', '>'); y += SETTINGS_ROW_H;
+    draw_toggle_buttons(r, y, '-', '+'); y += SETTINGS_ROW_H;
     const char *gaps[] = {"0", "0.5", "1.0"};
     snprintf(buf, sizeof(buf), "行距: %s", gaps[gap_idx]);
     n = utf8_to_utf32(utxt, 127, buf);
     r_draw_text(l+ui(30), y, utxt, n);
-    draw_toggle_buttons(r, y, '<', '>'); y += SETTINGS_ROW_H;
+    draw_toggle_buttons(r, y, '-', '+'); y += SETTINGS_ROW_H;
     snprintf(buf, sizeof(buf), "主题: %s", theme ? "日间" : "夜间");
     n = utf8_to_utf32(utxt, 127, buf);
     r_draw_text(l+ui(30), y, utxt, n);
-    draw_toggle_buttons(r, y, '<', '>');
+    draw_toggle_buttons(r, y, '-', '+');
 }
 
 static void draw_bookmarks(void)
