@@ -28,7 +28,23 @@ if not exist "%NDK_TOOLCHAIN%" ( echo [ERROR] NDK toolchain not found: %NDK_TOOL
 if not exist "%JAVA_HOME%\bin\javac.exe" ( echo [ERROR] javac not found: %JAVA_HOME% & pause & exit )
 if not exist "%BUILD_TOOLS%\aapt2.exe" ( echo [ERROR] aapt2 not found: %BUILD_TOOLS% & pause & exit )
 
-echo [1/6] Building C code...
+set "STB_FILE=app\src\main\cpp\stb_truetype.h"
+set "STB_URL=https://raw.githubusercontent.com/nothings/stb/c0c982601f40183e74d84a61237e968dca08380e/stb_truetype.h"
+set "STB_SHA256=a34d8d536ce7c11b9163ab2d524721c1f4df1452cce6595c4f11d3048384f925"
+
+echo [1/8] Checking stb_truetype...
+set "STB_HASH="
+if exist "%STB_FILE%" for /f "skip=1 tokens=* delims=" %%H in ('certutil -hashfile "%STB_FILE%" SHA256 2^>nul') do if not defined STB_HASH set "STB_HASH=%%H"
+if /I "!STB_HASH!"=="%STB_SHA256%" goto stb_ready
+if exist "%STB_FILE%" del /f /q "%STB_FILE%"
+curl.exe -L --fail --silent --show-error -o "%STB_FILE%" "%STB_URL%"
+if errorlevel 1 ( echo [ERROR] stb_truetype download failed & pause & exit )
+set "STB_HASH="
+for /f "skip=1 tokens=* delims=" %%H in ('certutil -hashfile "%STB_FILE%" SHA256 2^>nul') do if not defined STB_HASH set "STB_HASH=%%H"
+if /I not "!STB_HASH!"=="%STB_SHA256%" ( del /f /q "%STB_FILE%" & echo [ERROR] stb_truetype checksum mismatch & pause & exit )
+:stb_ready
+
+echo [2/8] Building C code...
 if exist "build_cpp" rmdir /s /q build_cpp
 mkdir build_cpp
 cd build_cpp
@@ -40,28 +56,28 @@ if %errorlevel% neq 0 ( echo [ERROR] CMake configure failed & cd .. & pause & ex
 if %errorlevel% neq 0 ( echo [ERROR] C build failed & cd .. & pause & exit )
 cd ..
 
-echo [2/7] Compiling resources...
+echo [3/8] Compiling resources...
 if not exist "build" mkdir build
 %BUILD_TOOLS%\aapt2.exe compile --dir app\src\main\res -o build\res.zip
 if %errorlevel% neq 0 ( echo [ERROR] Resource compile failed & pause & exit )
 
-echo [3/7] Linking AndroidManifest...
+echo [4/8] Linking AndroidManifest...
 %BUILD_TOOLS%\aapt2.exe link -o build\base.apk -I %PLATFORM% --manifest app\src\main\AndroidManifest.xml -R build\res.zip --auto-add-overlay --min-sdk-version 37 --target-sdk-version 37
 if %errorlevel% neq 0 ( echo [ERROR] Resource link failed & pause & exit )
 
-echo [4/7] Compiling Java code...
+echo [5/8] Compiling Java code...
 if not exist "build_java" mkdir build_java
 %JAVA_HOME%\bin\javac.exe -d build_java --release 11 -classpath %PLATFORM% app\src\main\java\com\ptext\MainActivity.java
 if %errorlevel% neq 0 ( echo [ERROR] Java compile failed & pause & exit )
 
-echo [5/7] Generating DEX...
+echo [6/8] Generating DEX...
 call %BUILD_TOOLS%\d8.bat --lib %PLATFORM% --output build build_java\com\ptext\*.class
 
-echo [6/7] Packing APK...
+echo [7/8] Packing APK...
 %JAVA_HOME%\bin\jar.exe uf build\base.apk -C build lib\arm64-v8a\libptext.so
 %JAVA_HOME%\bin\jar.exe uf build\base.apk -C build classes.dex
 
-echo [7/7] Aligning and signing...
+echo [8/8] Aligning and signing...
 call %BUILD_TOOLS%\zipalign.exe -f 4 build\base.apk build\aligned.apk
 if exist "!STORE_FILE!" if defined STORE_PASSWORD if defined KEY_PASSWORD (
     echo Signing with release keystore: !STORE_FILE!

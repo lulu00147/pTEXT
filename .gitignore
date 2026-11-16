@@ -1,3 +1,6 @@
+# Downloaded at build time
+/app/src/main/cpp/stb_truetype.h
+
 # Local toolchain (NDK/JDK/build-tools/platform)
 /tools/
 
