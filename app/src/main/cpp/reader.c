@@ -209,6 +209,7 @@ void rd_init(const char *path)
     snprintf(sub, sizeof(sub), "%s/files", s_data_path);
     mkdir(sub, 0755);
 
+    rd_reset_page_cache();
     load_settings();
 }
 
@@ -231,7 +232,6 @@ void rd_scan_dir(void)
 
     struct dirent *ent;
     while ((ent = readdir(d)) != NULL) {
-        if (ent->d_name[0] == '.') continue;
         char *ext = strrchr(ent->d_name, '.');
         if (ext && strcasecmp(ext, ".part") == 0) {
             char stale[1400];
@@ -281,7 +281,7 @@ void rd_scan_dir(void)
 
 FileItem* rd_get_files(int32_t *count)
 {
-    *count = s_file_count;
+    if (count) *count = s_file_count;
     return s_files;
 }
 
@@ -416,8 +416,10 @@ void rd_close(void)
     s_page_curr->next_offset = 0;
     s_hist_count = 0;
     s_page_no = 0;
+    s_bm_count = 0;
     s_book_name[0] = '\0';
     rd_reset_prefetch();
+    rd_reset_page_cache();
 }
 
 int64_t rd_get_file_len(void)
@@ -875,11 +877,8 @@ void rd_set_gap_idx(int32_t i)
 
 int32_t rd_get_line_h(void)
 {
-    int32_t fh = r_font_h();
-    if (fh < 1) fh = 1;
     int32_t gap = clamp_int(s_settings.gap_idx, 0, 2);
-    int32_t lh = (rd_ui(47) + 1) / 2 + gap * rd_ui(2);
-    return lh;
+    return (rd_ui(47) + 1) / 2 + gap * rd_ui(2);
 }
 
 int32_t rd_get_indent_w(void)

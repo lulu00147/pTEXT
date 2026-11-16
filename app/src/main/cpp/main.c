@@ -4,7 +4,6 @@
 #include <android/choreographer.h>
 #include <android/configuration.h>
 #include "android_native_app_glue.h"
-#include <string.h>
 #include <stdio.h>
 #include <time.h>
 #include "render.h"
@@ -12,6 +11,7 @@
 #include "ui_lists.h"
 #include "ui_reading.h"
 #include "ui_settings.h"
+#include "ui_util.h"
 #include <android/log.h>
 
 #define ST_FILELIST 0
@@ -19,13 +19,6 @@
 #define ST_SETTINGS 2
 #define ST_BMARKS   3
 #define ST_DELETE   4
-
-static int32_t ui(int32_t px)
-{
-    return (int32_t)(px * r_ui_scale() + 0.5f);
-}
-
-/* 布局常量，单位 dp */
 
 static struct android_app *s_app;
 static int32_t s_state = ST_FILELIST;
@@ -50,7 +43,7 @@ static int32_t s_bm_touch_active = 0;
 static int32_t s_bm_dragging = 0;
 static int32_t s_bm_down_y = 0;
 static int32_t s_bm_down_scroll = 0;
-static char s_bm_path[512];
+static char s_bm_path[1024];
 void pickFile(void);
 int32_t takeRescanFlag(void);
 
@@ -255,6 +248,8 @@ case APP_CMD_INIT_WINDOW:
     r_init(app->window);
     rd_init(app->activity->internalDataPath);
     rd_scan_dir();
+    if (rd_get_file_len() > 0)
+        rd_goto_offset(rd_get_page()->start_offset);
     s_need_redraw = 1;
     s_choreographer = AChoreographer_getInstance();
     break;
@@ -292,6 +287,10 @@ case APP_CMD_INIT_WINDOW:
         case APP_CMD_CONFIG_CHANGED:
             if (app->window) {
                 update_ui_scale(app);
+                Settings *cfg = rd_get_settings();
+                r_set_font_size((18.0f + clamp_i(cfg->font_idx, 0, 6) * 2.0f) *
+                                r_ui_scale());
+                rd_reset_page_cache();
                 if (rd_get_file_len() > 0)
                     rd_goto_offset(rd_get_page()->start_offset);
                 s_need_redraw = 1;
@@ -378,7 +377,7 @@ static int32_t handle_input(struct android_app *app, AInputEvent *event)
         if (masked == AMOTION_EVENT_ACTION_MOVE) {
             if (s_state == ST_BMARKS && s_bm_touch_active) {
                 int32_t dy = y - s_bm_down_y;
-                if (!s_bm_dragging && (dy > ui(8) || dy < -ui(8))) {
+                if (!s_bm_dragging && (dy > ui_px(8) || dy < -ui_px(8))) {
                     s_bm_dragging = 1;
                 }
                 if (s_bm_dragging) {
@@ -393,7 +392,7 @@ static int32_t handle_input(struct android_app *app, AInputEvent *event)
                 }
             } else if (s_state == ST_FILELIST && s_file_touch_active) {
                 int32_t dy = y - s_file_down_y;
-                if (!s_file_dragging && (dy > ui(8) || dy < -ui(8))) {
+                if (!s_file_dragging && (dy > ui_px(8) || dy < -ui_px(8))) {
                     s_file_dragging = 1;
                     s_file_hold_start_ns = 0;
                     s_file_hold_idx = -1;
@@ -465,8 +464,8 @@ static int32_t handle_input(struct android_app *app, AInputEvent *event)
                 FileItem *files = rd_get_files(&count);
                 int32_t l, t, r, b;
                 ui_get_delete_rect(&l, &t, &r, &b);
-                int32_t button_y = b - ui(76);
-                if (x >= l && x <= r && y >= button_y && y <= b - ui(20) &&
+                int32_t button_y = b - ui_px(76);
+                if (x >= l && x <= r && y >= button_y && y <= b - ui_px(20) &&
                     s_delete_idx >= 0 && s_delete_idx < count) {
                     if (x < (l + r) / 2) {
                         s_state = ST_FILELIST;
@@ -502,7 +501,7 @@ static int32_t handle_input(struct android_app *app, AInputEvent *event)
                     int32_t fidx = ui_file_index_at(y, s_file_scroll);
                     if (fidx >= 0 && fidx < count) {
                         int32_t mark_left = ui_file_mark_left();
-                        if (files[fidx].bookmarks > 0 && x >= mark_left - ui(10)) {
+                        if (files[fidx].bookmarks > 0 && x >= mark_left - ui_px(10)) {
                             int32_t n = rd_read_bookmarks(files[fidx].path,
                                                           s_bm_view, 50);
                             if (n > 0) {

@@ -44,8 +44,10 @@ int32_t ui_file_index_at(int32_t y, int32_t scroll)
     int32_t count;
     rd_get_files(&count);
     int32_t list_top = LY_ITEM0 - ITEM_H / 2;
+    int32_t list_bottom = r_h() - BOTTOM_BTN_ZONE;
     int32_t iy = y + scroll;
-    if (count <= 0 || iy < list_top || iy >= list_top + count * ITEM_H) return -1;
+    if (count <= 0 || y < list_top || y >= list_bottom) return -1;
+    if (iy < list_top || iy >= list_top + count * ITEM_H) return -1;
     int32_t idx = (iy - list_top) / ITEM_H;
     return idx >= 0 && idx < count ? idx : -1;
 }
@@ -135,8 +137,9 @@ int32_t ui_bm_max_scroll(int32_t count)
 int32_t ui_bm_index_at(int32_t y, int32_t scroll)
 {
     int32_t list_top = LY_ITEM0 - BM_ITEM_H / 2;
+    int32_t list_bottom = r_h() - BOTTOM_BTN_ZONE;
     int32_t iy = y + scroll;
-    if (iy < list_top) return -1;
+    if (y < list_top || y >= list_bottom || iy < list_top) return -1;
     return (iy - list_top) / BM_ITEM_H;
 }
 

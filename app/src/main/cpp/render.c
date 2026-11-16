@@ -76,7 +76,6 @@ static float s_ui_scale = 1.0f;
 static G s_gc[GC_SIZE];
 static uint32_t s_lru;
 static int32_t s_font_ok = 0;
-static int32_t s_text_extra = 0;
 static uint8_t s_glyph_tmp[GLYPH_MAX * GLYPH_MAX];  /* 字形光栅化复用缓冲区 */
 
 /* 主题色：0=暗色(黑底白字), 1=亮色(白底黑字) */
@@ -375,9 +374,12 @@ static inline uint16_t blend565(uint16_t bg, uint16_t fg, int32_t a)
     int32_t fr = (fg >> 11) & 0x1F;
     int32_t fgc = (fg >> 5) & 0x3F;
     int32_t fb = fg & 0x1F;
-    int32_t r = br + (((fr - br) * a + 7) / 15);
-    int32_t g = bgc + (((fgc - bgc) * a + 7) / 15);
-    int32_t b = bb + (((fb - bb) * a + 7) / 15);
+    int32_t dr = (fr - br) * a;
+    int32_t dg = (fgc - bgc) * a;
+    int32_t db = (fb - bb) * a;
+    int32_t r = br + (dr >= 0 ? (dr + 7) / 15 : (dr - 7) / 15);
+    int32_t g = bgc + (dg >= 0 ? (dg + 7) / 15 : (dg - 7) / 15);
+    int32_t b = bb + (db >= 0 ? (db + 7) / 15 : (db - 7) / 15);
     return (uint16_t)((r << 11) | (g << 5) | b);
 }
 
@@ -389,7 +391,6 @@ void r_draw_text(int32_t x, int32_t y, const uint32_t *s, int32_t n)
         G *g = gc_get(s[i]);
         if (!g || !g->w) {
             x += (g && g->adv) ? g->adv : r_font_h();
-            x += s_text_extra;
             continue;
         }
         int32_t sx = x + g->xo, sy = y + g->yo;
@@ -411,7 +412,7 @@ void r_draw_text(int32_t x, int32_t y, const uint32_t *s, int32_t n)
                 if (a) dst[col] = blend565(dst[col], fg, a);
             }
         }
-        x += g->adv + s_text_extra;
+        x += g->adv;
     }
 }
 

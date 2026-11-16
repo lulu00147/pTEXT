@@ -31,6 +31,7 @@ static uint32_t gbk_decode_fast(unsigned char b1, unsigned char b2)
 
 uint32_t enc_decode_utf8(const uint8_t *data, int64_t len, int64_t *off)
 {
+    if (!data || !off || *off < 0 || *off >= len) return 0;
     const uint8_t *base = data;
     const uint8_t *p = base + *off;
     uint32_t cp = 0;
@@ -42,7 +43,7 @@ uint32_t enc_decode_utf8(const uint8_t *data, int64_t len, int64_t *off)
 
 uint32_t enc_decode_gbk(const uint8_t *data, int64_t len, int64_t *off)
 {
-    if (*off >= len) return 0;
+    if (!data || !off || *off < 0 || *off >= len) return 0;
 
     unsigned char b1 = data[(*off)++];
     if (b1 < 0x80) return b1;
@@ -71,6 +72,7 @@ uint32_t enc_decode_gbk(const uint8_t *data, int64_t len, int64_t *off)
 
 int32_t enc_utf8_prefix_ok(const uint8_t *data, int64_t len)
 {
+    if (!data || len <= 0) return 1;
     int64_t limit = len < 4096 ? len : 4096;
     const uint8_t *p = data;
     const uint8_t *end = p + limit;
@@ -86,7 +88,7 @@ int32_t enc_utf8_prefix_ok(const uint8_t *data, int64_t len)
 
 int32_t enc_utf8_encode(uint32_t cp, char out[4])
 {
-    if (cp == 0 || cp > 0x10FFFF ||
+    if (!out || cp == 0 || cp > 0x10FFFF ||
         (cp >= 0xD800 && cp <= 0xDFFF)) return 0;
     if (cp < 0x80) {
         out[0] = (char)cp;

@@ -92,6 +92,7 @@ public class MainActivity extends NativeActivity {
 
             String base = displayName == null ? "" : displayName.trim();
             base = base.replaceAll("[\\\\/:*?\"<>|]", "_");
+            while (base.startsWith(".")) base = "_" + base.substring(1);
             if (base.length() > 80) base = base.substring(0, 80);
             if (!base.isEmpty() && !base.toLowerCase().endsWith(".txt")) base += ".txt";
             if (base.isEmpty()) base = System.currentTimeMillis() + "_" + (++sFileCounter) + ".txt";

@@ -47,7 +47,7 @@ void ui_draw_reading(void)
 
     Page *p = rd_get_page();
     PageLayout pl = rd_get_layout();
-    int32_t footer_zone_top = r_h() - pl.margin_bot;
+    int32_t footer_zone_top = pl.page_height - pl.margin_bot;
     int32_t fy = r_h() - ui_px(6);
 
     r_clear_rect(0, footer_zone_top, r_w(), r_h());
@@ -72,7 +72,7 @@ void ui_draw_reading(void)
         r_draw_text_at_size_color((r_w() - bw) / 2, fy, bm, 1, fs, hf_color);
     }
 
-    int32_t vstep_x10 = rd_get_line_h() * 10 + 7;
+    int32_t vstep_x10 = pl.line_height * 10 + 7;
     int32_t draw_i = 0;
     for (int32_t i = 0; i < p->count; i++) {
         Line *line = &p->lines[i];

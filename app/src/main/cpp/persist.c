@@ -7,7 +7,7 @@
 
 int32_t persist_write_atomic(const char *path, const void *buf, size_t len)
 {
-    if (!path) return -1;
+    if (!path || (!buf && len > 0)) return -1;
 
     char tmp[1100];
     int n = snprintf(tmp, sizeof(tmp), "%s.tmp", path);
