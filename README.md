@@ -1,71 +1,83 @@
 # pTEXT
 
-Android 原生 TXT 阅读器。C11 + Java 11，NativeActivity。
+Android 17 TXT 阅读器。C11 + Java 11，NativeActivity，arm64-v8a。
 
 ## 功能
 
-- UTF-8、UTF-8 BOM、GBK（GB2312 + GBK 扩展）
-- 系统字体渲染，优先中文字体，不打包字体
-- 4-bit alpha 字形抗锯齿，RGB565 背景混合
-- mmap 文件读取，页式排版，逐帧预排版
-- 无标题栏、全屏 edge-to-edge、5dp 正文边距；顶部书名/时间，底部页码/百分比
-- 文件列表支持滚动、长文件名省略、长按 3 秒删除；右下角 `[ + ]` 导入
-- 默认 24sp 正文、`#A9A9A9` 字色、按汉字宽度缩进、满行两端对齐并可压缩/放宽字间空隙
-- 阅读页 3×3 九宫格：1/2/4/7 上一页，3/6/8/9 下一页，5 短按书签、按住 3 秒设置
-- 书签状态显示为页脚中央的“*”；设置面板保留字号、缩进、行距、主题四行
-- 阅读进度在暂停、返回或终止时保存
-- SAF 导入 txt
+- UTF-8、UTF-8 BOM、GBK、GB18030
+- 系统字体，4-bit alpha，RGB565
+- mmap、页式排版、逐帧预排版
+- 文件列表：滚动、`[ + ]` 导入、长按删除、`[ * ]` 书签入口
+- 阅读页：3×3 九宫格；1/2/4/7 上一页，3/6/8/9 下一页
+- 5 短按书签，页脚显示 `*`；按住 3 秒设置
+- 设置四行：字号、缩进、行距、主题
+- 书签列表：滚动、点击跳转
+- 进度、书签、设置原子写入
 
 ## 结构
 
 ```text
-MainActivity.java      NativeActivity 壳、SAF 导入
-main.c                 事件循环、UI 状态机、JNI
-reader.c               mmap、分页、书签、设置、持久化
-encoding.c             UTF-8/GBK 解码、编码探测
-render.c               系统字体、stb_truetype 光栅、RGB565、字形缓存
+main.c            事件循环、输入、JNI
+ui_lists.c        文件列表、书签列表、删除确认
+ui_reading.c      阅读页绘制
+ui_settings.c     设置面板
+ui_util.c         dp 缩放、UTF-8 转换
+reader.c          mmap、分页、书签、设置
+persist.c         原子写入
+encoding.c        UTF-8/GBK/GB18030
+render.c          字体光栅、RGB565、字形缓存
+MainActivity.java NativeActivity 壳、SAF 导入
 ```
 
 ## 构建
 
-需要 Windows 和仓库根目录的 `tools/`（NDK r30、CMake 4.5.0、Build Tools 37.0.0、JDK 25、Platform 37.2、Ninja 1.13.2；约 2.8 GB，不纳入 git）。
+需要 Windows 和仓库根 `tools/`：NDK r30、CMake 4.5.0、Build Tools 37.0.0、JDK 25、Platform 37.2、Ninja 1.13.2。
 
 ```bat
 build.bat
 ```
 
-产物 `pTEXT.apk`：arm64-v8a，仅 Android 17 / API 37，targetSdk 37，compileSdk 37.2，versionCode 1，versionName 0.1。
+产物：`pTEXT.apk`；minSdk 37，targetSdk 37，compileSdk 37.2；versionCode 1，versionName 0.1。
 
-发布签名：
+release 签名：
 
-1. 本地生成 `release.keystore`（不入库）。
-2. 在根目录创建 `release.properties`（不入库）：
-   ```properties
-   STORE_FILE=release.keystore
-   STORE_PASSWORD=...
-   KEY_ALIAS=ptext
-   KEY_PASSWORD=...
-   ```
-3. 再次运行 `build.bat`，脚本自动使用 release keystore；缺失时回退 debug keystore。
+1. 本地生成 `release.keystore`。
+2. 根目录创建 `release.properties`：
 
-更换签名密钥后，Android 不允许覆盖安装，需要卸载旧包再安装新包。
+```properties
+STORE_FILE=release.keystore
+STORE_PASSWORD=...
+KEY_ALIAS=ptext
+KEY_PASSWORD=...
+```
+
+3. 运行 `build.bat`。缺少上述文件时使用 debug keystore。
+
+更换签名密钥后必须卸载旧包。keystore 与 properties 不入库。
 
 ## 验证
 
-- 主机 fuzz：4,065,536 组随机 UTF-8 输入、65,536 组 GBK 双字节组合，ASan 通过。
-- 主机测试：`tests\run_tests.bat` 1,065,822 组编码用例；WSL/Linux 下 `tests/run_reader_tests.sh` 覆盖分页、缩进、行距、书签读写/跳转。
-- 导入大文件时按总大小显示 10% 粒度的 Toast 进度。
-- 设备 release 冒烟：UTF-8/GBK 导入、11MB 文件、空文件错误提示、阅读、书签标记/列表/跳转、设置持久化、强杀恢复通过；掉电/强制中断写盘不纳入测试范围。
+```bat
+tests\run_tests.bat
+```
+
+```sh
+sh tests/run_reader_tests.sh
+```
+
+- 编码测试：1,065,822 cases PASS。
+- reader/persist：PASS。
+- release 0.1 设备验证：UTF-8/GBK、11MB、空文件、书签列表/跳转、设置持久化、强杀恢复、旋转。
+- 掉电/强制中断写盘不测试。
 
 ## 限制
 
-- 无 CI。
-- GBK 使用 126×191 Unicode 表，覆盖 GB2312、GBK 扩展与 GB18030 四字节序列。
-- 编码按前 4 KiB 探测，长 ASCII 前缀的 GBK 文件可能误判。
-- 书签可以短按中心格 5 添加/移除并在页脚显示“*”；文件列表右侧 `[ * ]` 打开书签列表并跳转。
-- release keystore 和密码只保存在本地，不入库。
-- 系统字体覆盖与度量随设备变化；设备无 CJK 字体时中文不显示。
-- 进度在暂停、返回或终止时保存，不每次翻页；写入使用临时文件 + rename。
+- 仅 Android 17 / arm64-v8a。
+- 无 CI、无基准、无 Java/UI 自动化。
+- 无总页数；书签跳转从文件头扫描页码；其他任意跳转可能显示 `--`。
+- 编码探测仅前 4 KiB。
+- 文件列表上限 100 本。
+- 无目录 fsync；掉电可能丢失最后一次更新。
 - 不提供搜索、目录、章节识别。
 
 ## 许可

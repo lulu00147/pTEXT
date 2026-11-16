@@ -1,23 +1,23 @@
 # Tests
 
-## Encoding fuzz/regression
+## Encoding
 
-Windows, from a Visual Studio x64 developer prompt:
+Windows，Visual Studio x64 开发环境：
 
 ```bat
 run_tests.bat
 ```
 
-Covers 65,536 GBK byte pairs, 1,000,000 random UTF-8 buffers, fuzz seed cases and UTF-8 roundtrips.
+覆盖 65,536 组 GBK 双字节、1,000,000 组随机 UTF-8、fuzz 种子、UTF-8 往返。共 1,065,822 cases。
 
-## Reader pagination
+## Reader / Persist
 
-Linux or WSL with a C compiler:
+Linux 或 WSL：
 
 ```sh
 sh run_reader_tests.sh
 ```
 
-Covers empty files, long lines, multi-page iteration, indent, line gap, bookmark write/read and bookmark jump.
+覆盖空文件、长行、多页、缩进、行距、书签读写/扫描/跳转、原子写入失败清理。
 
-The tests use `render_host.c` as a deterministic renderer stub. They are not Android UI tests.
+`render_host.c` 是确定性渲染桩。测试不是 Android UI 测试。
