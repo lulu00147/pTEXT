@@ -57,7 +57,7 @@ static inline int32_t safe_iceil(float x) {
 typedef struct {
     uint32_t cp;
     float sz;
-    uint8_t bmp[GLYPH_MAX * GLYPH_MAX / 8];
+    uint8_t bmp[GLYPH_MAX * GLYPH_MAX / 2];  /* 4-bit alpha */
     uint8_t w, h;
     int16_t xo, yo;
     int32_t adv;
@@ -133,12 +133,14 @@ static G *gc_get(uint32_t cp)
         stbtt_MakeCodepointBitmap(&s_fi, s_glyph_tmp, g->w, g->h,
                                   g->w, s_sc, s_sc, cp);
         memset(g->bmp, 0, sizeof(g->bmp));
-        int32_t stride = (g->w + 7) >> 3;
+        int32_t stride = (g->w + 1) >> 1;
         for (int32_t y = 0; y < g->h; y++) {
             for (int32_t x = 0; x < g->w; x++) {
-                if (s_glyph_tmp[y * g->w + x] > 128) {
-                    g->bmp[y * stride + (x >> 3)] |= (1 << (x & 7));
-                }
+                uint8_t a = (uint8_t)(s_glyph_tmp[y * g->w + x] >> 4);
+                if (!a) continue;
+                uint8_t *cell = &g->bmp[y * stride + (x >> 1)];
+                if (x & 1) *cell = (uint8_t)((*cell & 0x0F) | (a << 4));
+                else       *cell = (uint8_t)((*cell & 0xF0) | a);
             }
         }
     }
@@ -362,6 +364,22 @@ void r_stroke_rect(int32_t l, int32_t t, int32_t r, int32_t b, int32_t width)
     }
 }
 
+static inline uint16_t blend565(uint16_t bg, uint16_t fg, int32_t a)
+{
+    if (a <= 0) return bg;
+    if (a >= 15) return fg;
+    int32_t br = (bg >> 11) & 0x1F;
+    int32_t bgc = (bg >> 5) & 0x3F;
+    int32_t bb = bg & 0x1F;
+    int32_t fr = (fg >> 11) & 0x1F;
+    int32_t fgc = (fg >> 5) & 0x3F;
+    int32_t fb = fg & 0x1F;
+    int32_t r = br + (((fr - br) * a + 7) / 15);
+    int32_t g = bgc + (((fgc - bgc) * a + 7) / 15);
+    int32_t b = bb + (((fb - bb) * a + 7) / 15);
+    return (uint16_t)((r << 11) | (g << 5) | b);
+}
+
 void r_draw_text(int32_t x, int32_t y, const uint32_t *s, int32_t n)
 {
     if (!s_locked || !s_font_ok) return;
@@ -374,37 +392,22 @@ void r_draw_text(int32_t x, int32_t y, const uint32_t *s, int32_t n)
             continue;
         }
         int32_t sx = x + g->xo, sy = y + g->yo;
-        int32_t stride = (g->w + 7) >> 3;
-        if (sx >= 0 && sy >= 0 && sx + g->w <= s_w && sy + g->h <= s_h) {
-            for (int32_t row = 0; row < g->h; row++) {
-                uint16_t *dst = &s_px[(sy + row) * s_stride + sx];
-                const uint8_t *src = &g->bmp[row * stride];
-                for (int32_t b = 0; b < stride; b++) {
-                    uint8_t byte = src[b];
-                    while (byte) {
-                        int32_t bit = __builtin_ctz(byte);
-                        dst[(b << 3) + bit] = fg;
-                        byte &= ~(1 << bit);
-                    }
-                }
-            }
-        } else {
-            int32_t y0 = sy < 0 ? 0 : sy;
-            int32_t y1 = sy + g->h;
-            if (y1 > s_h) y1 = s_h;
-            for (int32_t row = y0; row < y1; row++) {
-                int32_t src_row = row - sy;
-                uint16_t *dst = &s_px[row * s_stride];
-                const uint8_t *src = &g->bmp[src_row * stride];
-                int32_t x0 = sx < 0 ? 0 : sx;
-                int32_t x1 = sx + g->w;
-                if (x1 > s_w) x1 = s_w;
-                for (int32_t col = x0; col < x1; col++) {
-                    int32_t src_col = col - sx;
-                    if (src[src_col >> 3] & (1 << (src_col & 7))) {
-                        dst[col] = fg;
-                    }
-                }
+        int32_t stride = (g->w + 1) >> 1;
+        int32_t y0 = sy < 0 ? 0 : sy;
+        int32_t y1 = sy + g->h;
+        if (y1 > s_h) y1 = s_h;
+        int32_t x0 = sx < 0 ? 0 : sx;
+        int32_t x1 = sx + g->w;
+        if (x1 > s_w) x1 = s_w;
+        for (int32_t row = y0; row < y1; row++) {
+            int32_t src_row = row - sy;
+            uint16_t *dst = &s_px[row * s_stride];
+            const uint8_t *src = &g->bmp[src_row * stride];
+            for (int32_t col = x0; col < x1; col++) {
+                int32_t src_col = col - sx;
+                uint8_t packed = src[src_col >> 1];
+                int32_t a = (src_col & 1) ? (packed >> 4) : (packed & 0x0F);
+                if (a) dst[col] = blend565(dst[col], fg, a);
             }
         }
         x += g->adv + s_text_extra;
