@@ -228,9 +228,7 @@ static void draw_settings(void)
     int32_t indent_idx = clamp_i(s->indent_idx, 0, 2);
     int32_t gap_idx = clamp_i(s->gap_idx, 0, 2);
     int32_t theme = clamp_i(s->theme, 0, 1);
-    int32_t row_pad = (SETTINGS_ROW_H - r_font_h()) / 2;
-    if (row_pad < 0) row_pad = 0;
-    int32_t y = t + ui(20) + row_pad;
+    int32_t y = t + ui(50);
     char buf[64];
     snprintf(buf, sizeof(buf), "字号: %d", 18 + font_idx * 2);
     n = utf8_to_utf32(utxt, 127, buf);
@@ -306,25 +304,26 @@ static void handle_touch_reading(int32_t x, int32_t y)
         int32_t font_idx = clamp_i(s->font_idx, 0, 6);
         int32_t indent_idx = clamp_i(s->indent_idx, 0, 2);
         int32_t gap_idx = clamp_i(s->gap_idx, 0, 2);
-        int32_t ry = y - t;
+        int32_t rel = y - t - ui(50);
+        int32_t row = rel >= 0 ? (rel + SETTINGS_ROW_H / 2) / SETTINGS_ROW_H : -1;
         int32_t need_rebuild = 0;
         /* 字号行: [-] [+] */
-        if (ry >= 0 && ry < SETTINGS_ROW_H) {
+        if (row == 0) {
             if (x < r - ui(97)) rd_set_font_idx(font_idx > 0 ? font_idx - 1 : 0);
             else rd_set_font_idx(font_idx < 6 ? font_idx + 1 : 6);
             need_rebuild = 1;
         /* 缩进行: [<] [>] */
-        } else if (ry >= SETTINGS_ROW_H && ry < SETTINGS_ROW_H * 2) {
+        } else if (row == 1) {
             if (x < r - ui(97)) rd_set_indent_idx(indent_idx > 0 ? indent_idx - 1 : 0);
             else rd_set_indent_idx(indent_idx < 2 ? indent_idx + 1 : 2);
             need_rebuild = 1;
         /* 行距行: [<] [>] */
-        } else if (ry >= SETTINGS_ROW_H * 2 && ry < SETTINGS_ROW_H * 3) {
+        } else if (row == 2) {
             if (x < r - ui(97)) rd_set_gap_idx(gap_idx > 0 ? gap_idx - 1 : 0);
             else rd_set_gap_idx(gap_idx < 2 ? gap_idx + 1 : 2);
             need_rebuild = 1;
         /* 主题行: [夜间] [日间] */
-        } else if (ry >= SETTINGS_ROW_H * 3 && ry < SETTINGS_ROW_H * 4) {
+        } else if (row == 3) {
             if (x < r - ui(97)) rd_set_theme(0);
             else rd_set_theme(1);
             s_need_redraw = 1;
