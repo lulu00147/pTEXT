@@ -29,8 +29,8 @@ static int32_t ui(int32_t px)
 #define BM_ITEM_H       ui(60)   /* 书签列表项高度 */
 #define LY_BOTTOM_BTN   ui(80)   /* 底部按钮距底边距 */
 #define BOTTOM_BTN_ZONE ui(100)  /* 底部按钮区域高度 */
-#define READ_TITLE_Y    ui(20)   /* 阅读页标题 Y */
-#define READ_TEXT_Y0    ui(60)   /* 阅读页正文起始 Y */
+#define READ_MARGIN_X   ui(14)   /* 阅读页窄边距 */
+#define READ_TEXT_Y0    ui(16)   /* 阅读页正文起始 Y */
 #define SETTINGS_W      ui(360)  /* 设置面板宽 */
 #define SETTINGS_H      ui(320)  /* 设置面板高 */
 #define SETTINGS_ROW_H  ui(50)   /* 设置行高 */
@@ -132,18 +132,25 @@ static void draw_reading(void)
     r_clear();
     Page *p = rd_get_page();
     int32_t lh = rd_get_line_h();
-    r_draw_text(LX_MARGIN, READ_TITLE_Y, UI_TITLE, UI_LEN(UI_TITLE));
-    float pct = (rd_get_file_len() > 0) ?
-                ((float)p->start_offset / rd_get_file_len() * 100.0f) : 0.0f;
-    char hdr[64];
-    snprintf(hdr, sizeof(hdr), "%.1f%%", pct);
-    uint32_t utxt[64];
-    int32_t n = utf8_to_utf32(utxt, 63, hdr);
-    int32_t hdr_x = r_w() - r_text_width(utxt, n) - LX_MARGIN;
-    r_draw_text(hdr_x, READ_TITLE_Y, utxt, n);
     for (int32_t i = 0; i < p->count; i++) {
-        r_draw_text(LX_MARGIN, READ_TEXT_Y0 + i * lh, p->lines[i].text, p->lines[i].len);
+        r_draw_text(READ_MARGIN_X, READ_TEXT_Y0 + i * lh,
+                    p->lines[i].text, p->lines[i].len);
     }
+
+    int32_t fy = r_h() - ui(30);
+    char foot[64];
+    int32_t page_no = rd_get_page_no();
+    if (page_no > 0) snprintf(foot, sizeof(foot), "第 %d 页", page_no);
+    else snprintf(foot, sizeof(foot), "页码 --");
+    uint32_t utxt[64];
+    int32_t n = utf8_to_utf32(utxt, 63, foot);
+    r_draw_text(READ_MARGIN_X, fy, utxt, n);
+
+    float pct = (float)p->start_offset / (float)rd_get_file_len() * 100.0f;
+    char pct_buf[32];
+    snprintf(pct_buf, sizeof(pct_buf), "%.1f%%", pct);
+    n = utf8_to_utf32(utxt, 63, pct_buf);
+    r_draw_text(r_w() - r_text_width(utxt, n) - READ_MARGIN_X, fy, utxt, n);
 }
 
 static void get_settings_rect(int32_t *l, int32_t *t, int32_t *r, int32_t *b)
@@ -505,13 +512,7 @@ void android_main(struct android_app *app)
                 continue;
             }
             ARect dirty = {0, 0, r_w(), r_h()};
-            if (s_state == ST_READING) {
-                Page *p = rd_get_page();
-                int32_t lh = rd_get_line_h();
-                dirty.top = READ_TITLE_Y;
-                dirty.bottom = READ_TEXT_Y0 + p->count * lh;
-                if (dirty.bottom > r_h() - 50) dirty.bottom = r_h() - 50;
-            } else if (s_state == ST_SETTINGS) {
+            if (s_state == ST_SETTINGS) {
                 get_settings_rect(&dirty.left, &dirty.top,
                                   &dirty.right, &dirty.bottom);
             }

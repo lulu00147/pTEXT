@@ -21,9 +21,9 @@ static int32_t rd_ui(int32_t px)
     return (int32_t)(px * r_ui_scale() + 0.5f);
 }
 
-#define MARGIN_X   rd_ui(30)
-#define MARGIN_TOP rd_ui(60)
-#define MARGIN_BOT rd_ui(50)
+#define MARGIN_X   rd_ui(14)
+#define MARGIN_TOP rd_ui(16)
+#define MARGIN_BOT rd_ui(56)
 
 static char s_data_path[512];
 static char s_cur_name[256];
@@ -43,6 +43,7 @@ static int64_t s_prefetch_target = -1;
 
 static int64_t s_page_hist[MAX_PAGE_HIST];
 static int32_t s_hist_count;
+static int32_t s_page_no;
 
 static Settings s_settings = {2, 1, 1, 0};
 static Bookmark s_bms[MAX_BOOKMARKS];
@@ -258,14 +259,16 @@ int32_t rd_open_file(const char *path)
 
     int64_t saved_offset = start_offset;
     int64_t prev_offset = -1;
+    int64_t saved_page = -1;
     char ppath[512];
     snprintf(ppath, sizeof(ppath), "%s/.prog/%s.bin", s_data_path, s_cur_name);
     FILE *f = fopen(ppath, "rb");
     if (f) {
-        int64_t values[2];
-        size_t n = fread(values, sizeof(values[0]), 2, f);
+        int64_t values[3];
+        size_t n = fread(values, sizeof(values[0]), 3, f);
         if (n >= 1) saved_offset = values[0];
         if (n >= 2) prev_offset = values[1];
+        if (n >= 3) saved_page = values[2];
         fclose(f);
     }
     if (saved_offset < start_offset) saved_offset = start_offset;
@@ -298,6 +301,14 @@ int32_t rd_open_file(const char *path)
         s_page_hist[1] = s_page_curr->start_offset;
         s_hist_count = 2;
     }
+    if (saved_page >= 1 && saved_page <= INT32_MAX &&
+        (has_prev || saved_offset == start_offset)) {
+        s_page_no = (int32_t)saved_page;
+    } else if (saved_offset == start_offset) {
+        s_page_no = 1;
+    } else {
+        s_page_no = 0;
+    }
     return 0;
 }
 
@@ -310,6 +321,7 @@ void rd_close(void)
     s_page_curr->start_offset = 0;
     s_page_curr->next_offset = 0;
     s_hist_count = 0;
+    s_page_no = 0;
     rd_reset_prefetch();
 }
 
@@ -321,6 +333,11 @@ int64_t rd_get_file_len(void)
 Page* rd_get_page(void)
 {
     return s_page_curr;
+}
+
+int32_t rd_get_page_no(void)
+{
+    return s_page_no;
 }
 
 static int32_t page_max_lines(void)
@@ -435,9 +452,9 @@ static void save_prog(int64_t offset)
     snprintf(ppath, sizeof(ppath), "%s/.prog/%s.bin", s_data_path, s_cur_name);
     FILE *f = fopen(ppath, "wb");
     if (f) {
-        int64_t values[2] = {offset, -1};
+        int64_t values[3] = {offset, -1, s_page_no};
         if (s_hist_count > 1) values[1] = s_page_hist[s_hist_count - 2];
-        fwrite(values, sizeof(values[0]), 2, f);
+        fwrite(values, sizeof(values[0]), 3, f);
         fclose(f);
     }
 }
@@ -468,6 +485,7 @@ void rd_goto_offset(int64_t offset)
     paginate_full(offset, s_page_curr);
     rd_reset_prefetch();
     hist_reset(offset);
+    s_page_no = 0;
 
     if (s_page_curr->next_offset < s_mmap_len) {
         paginate_init(s_page_curr->next_offset);
@@ -490,6 +508,7 @@ void rd_next_page(void)
     }
 
     hist_push(s_page_curr->start_offset);
+    if (s_page_no > 0) s_page_no++;
 
     if (s_page_curr->next_offset < s_mmap_len) {
         paginate_init(s_page_curr->next_offset);
@@ -536,6 +555,8 @@ void rd_prev_page(void)
     if (s_page_curr->next_offset < s_mmap_len) {
         paginate_init(s_page_curr->next_offset);
     }
+    if (s_page_no > 1) s_page_no--;
+    else s_page_no = 0;
 }
 
 int32_t rd_can_next(void)

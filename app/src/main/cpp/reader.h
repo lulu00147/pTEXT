@@ -28,6 +28,7 @@ void rd_next_page(void);
 int32_t rd_can_prev(void);
 int32_t rd_can_next(void);
 Page* rd_get_page(void);
+int32_t rd_get_page_no(void);
 int64_t rd_get_file_len(void);
 Settings* rd_get_settings(void);
 void rd_set_font_idx(int32_t i);
