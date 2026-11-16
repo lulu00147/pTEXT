@@ -166,24 +166,11 @@ static void draw_reading(void)
     r_draw_text_at_size_color(r_w() - tw - HEADER_MARGIN_X, ui(28), utime, un, hts, hf_color);
 
     Page *p = rd_get_page();
-    int32_t lh = rd_get_line_h();
-    int32_t draw_i = 0;
-    for (int32_t i = 0; i < p->count; i++) {
-        Line *line = &p->lines[i];
-        if (draw_line_blank(line)) continue;
-        int32_t x = BODY_MARGIN_X + line->indent;
-        int32_t target = r_w() - BODY_MARGIN_X * 2 - line->indent;
-        int32_t y = READ_TEXT_Y0 + draw_i * lh;
-        if (line->justify && line->len > 1) {
-            r_draw_text_justified(x, y, line->text, line->len, target);
-        } else {
-            r_draw_text(x, y, line->text, line->len);
-        }
-        draw_i++;
-    }
+    int32_t footer_zone_top = r_h() - ui(43);
+    int32_t fy = r_h() - ui(8);
 
-    int32_t fy = r_h() - ui(10);
-    r_clear_rect(0, fy - ui(2), r_w(), r_h());
+    /* 先画页脚，再画正文；正文不得进入页脚带 */
+    r_clear_rect(0, footer_zone_top, r_w(), r_h());
     char foot[64];
     int32_t page_no = rd_get_page_no();
     if (page_no > 0) snprintf(foot, sizeof(foot), "第 %d 页", page_no);
@@ -198,6 +185,23 @@ static void draw_reading(void)
     n = utf8_to_utf32(utxt, 63, pct_buf);
     r_draw_text_at_size_color(r_w() - r_text_width_at_size(utxt, n, fs) - FOOTER_MARGIN_X,
                               fy, utxt, n, fs, hf_color);
+
+    int32_t lh = rd_get_line_h();
+    int32_t draw_i = 0;
+    for (int32_t i = 0; i < p->count; i++) {
+        Line *line = &p->lines[i];
+        if (draw_line_blank(line)) continue;
+        int32_t x = BODY_MARGIN_X + line->indent;
+        int32_t target = r_w() - BODY_MARGIN_X * 2 - line->indent;
+        int32_t y = READ_TEXT_Y0 + draw_i * lh;
+        if (y + lh > footer_zone_top) break;
+        if (line->justify && line->len > 1) {
+            r_draw_text_justified(x, y, line->text, line->len, target);
+        } else {
+            r_draw_text(x, y, line->text, line->len);
+        }
+        draw_i++;
+    }
 }
 
 static void get_settings_rect(int32_t *l, int32_t *t, int32_t *r, int32_t *b)
