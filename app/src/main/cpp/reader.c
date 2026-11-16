@@ -59,6 +59,7 @@ typedef struct {
 static PageContext s_ctx;
 
 static void load_settings(void);
+static void paginate_full(int64_t offset, Page *target);
 
 static int32_t clamp_int(int32_t v, int32_t lo, int32_t hi)
 {
@@ -313,16 +314,26 @@ int32_t rd_open_file(const char *path)
     }
 
     int64_t saved_offset = start_offset;
+    int64_t prev_offset = -1;
     char ppath[512];
     snprintf(ppath, sizeof(ppath), "%s/.prog/%s.bin", s_data_path, s_cur_name);
     FILE *f = fopen(ppath, "rb");
     if (f) {
-        int64_t v;
-        if (fread(&v, sizeof(v), 1, f) == 1) saved_offset = v;
+        int64_t values[2];
+        size_t n = fread(values, sizeof(values[0]), 2, f);
+        if (n >= 1) saved_offset = values[0];
+        if (n >= 2) prev_offset = values[1];
         fclose(f);
     }
     if (saved_offset < start_offset) saved_offset = start_offset;
     if (saved_offset >= len) saved_offset = len - 1;
+
+    int32_t has_prev = 0;
+    if (prev_offset >= 0 && prev_offset < saved_offset) {
+        Page probe;
+        paginate_full(prev_offset, &probe);
+        if (probe.next_offset == saved_offset) has_prev = 1;
+    }
 
     s_bm_count = 0;
     snprintf(ppath, sizeof(ppath), "%s/.bm/%s.bin", s_data_path, s_cur_name);
@@ -339,6 +350,11 @@ int32_t rd_open_file(const char *path)
     }
 
     rd_goto_offset(saved_offset);
+    if (has_prev) {
+        s_page_hist[0] = prev_offset;
+        s_page_hist[1] = s_page_curr->start_offset;
+        s_hist_count = 2;
+    }
     return 0;
 }
 
@@ -476,7 +492,9 @@ static void save_prog(int64_t offset)
     snprintf(ppath, sizeof(ppath), "%s/.prog/%s.bin", s_data_path, s_cur_name);
     FILE *f = fopen(ppath, "wb");
     if (f) {
-        fwrite(&offset, sizeof(offset), 1, f);
+        int64_t values[2] = {offset, -1};
+        if (s_hist_count > 1) values[1] = s_page_hist[s_hist_count - 2];
+        fwrite(values, sizeof(values[0]), 2, f);
         fclose(f);
     }
 }

@@ -107,6 +107,9 @@ static G *gc_get(uint32_t cp)
     g->sz = s_fsz;
     g->lru = ++s_lru;
 
+    /* stb 的字形分配在单次光栅化内完成；本次结束回滚水位，避免单调池耗尽。 */
+    uint32_t pool_mark = s_stb_pool_ptr;
+
     int32_t ix0, iy0, ix1, iy1;
     stbtt_GetCodepointBitmapBox(&s_fi, cp, s_sc, s_sc,
                                 &ix0, &iy0, &ix1, &iy1);
@@ -138,6 +141,7 @@ static G *gc_get(uint32_t cp)
     }
 
     g->adv = get_glyph_advance_fast(cp);
+    s_stb_pool_ptr = pool_mark;
     return g;
 }
 
