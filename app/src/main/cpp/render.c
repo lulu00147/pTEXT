@@ -513,7 +513,7 @@ void r_set_theme(int32_t theme)
         s_fg_color = 0x0000;   /* 黑字 */
         s_bg_byte  = 0xFF;
     } else {
-        s_fg_color = 0xFFFF;   /* 白字 */
+        s_fg_color = 0xAD55;   /* #A9A9A9，对齐 Legado 夜间正文 */
         s_bg_byte  = 0x00;
     }
 }
