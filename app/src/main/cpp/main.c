@@ -152,6 +152,7 @@ static JavaVM *s_jvm = NULL;
 static jclass s_main_activity_class_global = NULL;
 static jmethodID s_pick_file_mid = NULL;
 static jmethodID s_take_rescan_mid = NULL;
+static jmethodID s_reset_screen_mid = NULL;
 
 static void ensure_jni(void) {
     if (!s_jvm && s_app) {
@@ -206,6 +207,23 @@ int32_t takeRescanFlag(void) {
     return (*env)->CallStaticIntMethod(env, s_main_activity_class_global, s_take_rescan_mid);
 }
 
+static void reset_screen_on(void) {
+    ensure_jni();
+    if (!s_jvm || !s_main_activity_class_global) return;
+    JNIEnv *env = NULL;
+    (*s_jvm)->AttachCurrentThread(s_jvm, &env, NULL);
+    if (!env) return;
+    if (!s_reset_screen_mid) {
+        s_reset_screen_mid = (*env)->GetStaticMethodID(env, s_main_activity_class_global,
+                                                       "resetScreenOn", "()V");
+        if (!s_reset_screen_mid) {
+            (*env)->ExceptionClear(env);
+            return;
+        }
+    }
+    (*env)->CallStaticVoidMethod(env, s_main_activity_class_global, s_reset_screen_mid);
+}
+
 static void update_ui_scale(struct android_app *app)
 {
     AConfiguration *cfg = AConfiguration_new();
@@ -230,6 +248,7 @@ case APP_CMD_INIT_WINDOW:
             s_main_activity_class_global = NULL;
             s_pick_file_mid = NULL;
             s_take_rescan_mid = NULL;
+            s_reset_screen_mid = NULL;
         }
         /* activity->clazz 是 Activity 实例，不是 jclass；先取对象类。 */
         jclass clazz = (*env)->GetObjectClass(env, app->activity->clazz);
@@ -265,6 +284,7 @@ case APP_CMD_INIT_WINDOW:
                     s_main_activity_class_global = NULL;
                     s_pick_file_mid = NULL;
                     s_take_rescan_mid = NULL;
+                    s_reset_screen_mid = NULL;
                 }
             }
             r_deinit(); break;
@@ -355,6 +375,7 @@ static int32_t handle_input(struct android_app *app, AInputEvent *event)
         }
 
         if (masked == AMOTION_EVENT_ACTION_DOWN) {
+            reset_screen_on();
             if (s_state == ST_BMARKS) {
                 s_bm_touch_active = 1;
                 s_bm_dragging = 0;

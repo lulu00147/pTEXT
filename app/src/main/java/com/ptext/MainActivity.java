@@ -5,9 +5,14 @@ import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.OpenableColumns;
+import android.view.MotionEvent;
+import android.view.Window;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
+import android.view.WindowManager;
 import android.widget.Toast;
 
 import java.io.File;
@@ -19,9 +24,16 @@ import java.nio.charset.StandardCharsets;
 
 public class MainActivity extends NativeActivity {
     private static final int REQ = 1001;
+    private static final long SCREEN_ON_TIMEOUT_MS = 5 * 60 * 1000L;
     private static volatile MainActivity sInst;
     private static volatile int sRescan;
     private static int sFileCounter;
+
+    private final Handler screenHandler = new Handler(Looper.getMainLooper());
+    private final Runnable releaseScreenOn = () -> {
+        Window w = getWindow();
+        if (w != null) w.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+    };
 
     @Override
     protected void onCreate(Bundle b) {
@@ -37,7 +49,46 @@ public class MainActivity extends NativeActivity {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        keepScreenOn();
+    }
+
+    @Override
+    protected void onPause() {
+        screenHandler.removeCallbacks(releaseScreenOn);
+        Window w = getWindow();
+        if (w != null) w.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        super.onPause();
+    }
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent event) {
+        int action = event.getActionMasked();
+        if (action == MotionEvent.ACTION_DOWN ||
+            action == MotionEvent.ACTION_MOVE ||
+            action == MotionEvent.ACTION_POINTER_DOWN) {
+            keepScreenOn();
+        }
+        return super.dispatchTouchEvent(event);
+    }
+
+    private void keepScreenOn() {
+        Window w = getWindow();
+        if (w == null) return;
+        w.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        screenHandler.removeCallbacks(releaseScreenOn);
+        screenHandler.postDelayed(releaseScreenOn, SCREEN_ON_TIMEOUT_MS);
+    }
+
+    public static void resetScreenOn() {
+        MainActivity activity = sInst;
+        if (activity != null) activity.runOnUiThread(activity::keepScreenOn);
+    }
+
+    @Override
     protected void onDestroy() {
+        screenHandler.removeCallbacks(releaseScreenOn);
         sInst = null;
         super.onDestroy();
     }
