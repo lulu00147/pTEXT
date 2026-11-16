@@ -3,6 +3,8 @@
     android:versionCode="1" android:versionName="0.1">
     <application
         android:label="pTEXT"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen"
         android:allowBackup="false"
         android:extractNativeLibs="true"
