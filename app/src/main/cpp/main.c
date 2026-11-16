@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include "render.h"
 #include "reader.h"
+#include "utf8.h"
 #include <android/log.h>
 
 #define ST_FILELIST 0
@@ -85,62 +86,18 @@ static int32_t clamp_i(int32_t v, int32_t lo, int32_t hi)
     return v;
 }
 
-/* UTF-8 -> UTF-32：拒绝冗余编码、代理对、非字符和越界码点。 */
+/* UTF-8 -> UTF-32；非法/截断序列输出 U+FFFD。 */
 static int32_t utf8_to_utf32(uint32_t *dst, int32_t max, const char *src)
 {
+    const uint8_t *p = (const uint8_t *)src;
+    const uint8_t *end = p + strlen(src);
     int32_t n = 0;
 
-    while (*src && n < max) {
-        const unsigned char *p = (const unsigned char *)src;
-        unsigned char c = p[0];
-
-        if (c < 0x80) {
-            dst[n++] = c;
-            src++;
-            continue;
-        }
-
-        int32_t need;
-        uint32_t cp;
-        if ((c & 0xE0) == 0xC0) {
-            need = 1;
-            cp = c & 0x1F;
-        } else if ((c & 0xF0) == 0xE0) {
-            need = 2;
-            cp = c & 0x0F;
-        } else if ((c & 0xF8) == 0xF0) {
-            need = 3;
-            cp = c & 0x07;
-        } else {
-            src++;
-            dst[n++] = 0xFFFD;
-            continue;
-        }
-
-        int32_t j;
-        for (j = 1; j <= need; j++) {
-            unsigned char b = (unsigned char)src[j];
-            if (!b || (b & 0xC0) != 0x80) break;
-            cp = (cp << 6) | (b & 0x3F);
-        }
-
-        if (j <= need) {
-            src += j;
-            dst[n++] = 0xFFFD;
-            continue;
-        }
-
-        src += need + 1;
-
-        if (need == 1 && cp < 2) cp = 0xFFFD;
-        else if (need == 2 && cp < 0x800) cp = 0xFFFD;
-        else if (need == 3 && cp < 0x10000) cp = 0xFFFD;
-        if (cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF) ||
-            (cp & 0xFFFE) == 0xFFFE) {
-            cp = 0xFFFD;
-        }
-
-        dst[n++] = cp ? cp : 0xFFFD;
+    while (n < max && p < end) {
+        uint32_t cp = 0;
+        Utf8Result result = utf8_next(&p, end, &cp);
+        if (result == UTF8_END) break;
+        dst[n++] = result == UTF8_OK ? cp : 0xFFFD;
     }
 
     return n;

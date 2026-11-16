@@ -1,5 +1,6 @@
 #include "reader.h"
 #include "render.h"
+#include "utf8.h"
 
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -88,53 +89,13 @@ static uint32_t gbk_decode_fast(unsigned char b1, unsigned char b2)
 
 static uint32_t next_char_utf8(int64_t *off)
 {
-    int64_t start = *off;
-    if (start >= s_mmap_len) return 0;
+    const uint8_t *base = (const uint8_t *)s_mmap_data;
+    const uint8_t *p = base + *off;
+    uint32_t cp = 0;
 
-    unsigned char c = (unsigned char)s_mmap_data[start];
-    if (c < 0x80) {
-        *off = start + 1;
-        return c;
-    }
-
-    int32_t need;
-    uint32_t cp;
-    if ((c & 0xE0) == 0xC0) {
-        need = 1;
-        cp = c & 0x1F;
-    } else if ((c & 0xF0) == 0xE0) {
-        need = 2;
-        cp = c & 0x0F;
-    } else if ((c & 0xF8) == 0xF0) {
-        need = 3;
-        cp = c & 0x07;
-    } else {
-        *off = start + 1;
-        return 0xFFFD;
-    }
-
-    if (start + need >= s_mmap_len) {
-        *off = s_mmap_len;
-        return 0xFFFD;
-    }
-
-    for (int32_t j = 1; j <= need; j++) {
-        unsigned char b = (unsigned char)s_mmap_data[start + j];
-        if ((b & 0xC0) != 0x80) {
-            *off = start + j;
-            return 0xFFFD;
-        }
-        cp = (cp << 6) | (b & 0x3F);
-    }
-    *off = start + need + 1;
-
-    if (need == 1 && cp < 2) return 0xFFFD;
-    if (need == 2 && cp < 0x800) return 0xFFFD;
-    if (need == 3 && cp < 0x10000) return 0xFFFD;
-    if (cp > 0x10FFFF) return 0xFFFD;
-    if (cp >= 0xD800 && cp <= 0xDFFF) return 0xFFFD;
-    if ((cp & 0xFFFE) == 0xFFFE) return 0xFFFD;
-    return cp ? cp : 0xFFFD;
+    Utf8Result result = utf8_next(&p, base + s_mmap_len, &cp);
+    *off = p - base;
+    return result == UTF8_END ? 0 : cp;
 }
 
 static uint32_t next_char_gbk(int64_t *off)
@@ -152,38 +113,14 @@ static uint32_t next_char_gbk(int64_t *off)
 static int32_t utf8_prefix_ok(void)
 {
     int64_t limit = s_mmap_len < 4096 ? s_mmap_len : 4096;
-    int64_t pos = 0;
+    const uint8_t *p = (const uint8_t *)s_mmap_data;
+    const uint8_t *end = p + limit;
 
-    while (pos < limit) {
-        unsigned char c = (unsigned char)s_mmap_data[pos];
-        if (c < 0x80) {
-            pos++;
-            continue;
-        }
-
-        int32_t need;
-        if ((c & 0xE0) == 0xC0) {
-            if ((c & 0x1F) < 2) return 0;
-            need = 1;
-        } else if ((c & 0xF0) == 0xE0) {
-            need = 2;
-        } else if ((c & 0xF8) == 0xF0) {
-            need = 3;
-        } else {
-            return 0;
-        }
-
-        if (pos + need >= limit) return 1;
-        if (need == 2 && c == 0xE0 &&
-            ((unsigned char)s_mmap_data[pos + 1] & 0x3F) < 0x20) return 0;
-        if (need == 2 && c == 0xED &&
-            ((unsigned char)s_mmap_data[pos + 1] & 0x3F) >= 0x20) return 0;
-        if (need == 3 && c == 0xF0 &&
-            ((unsigned char)s_mmap_data[pos + 1] & 0x3F) < 0x10) return 0;
-        for (int32_t j = 1; j <= need; j++) {
-            if (((unsigned char)s_mmap_data[pos + j] & 0xC0) != 0x80) return 0;
-        }
-        pos += need + 1;
+    while (p < end) {
+        uint32_t cp;
+        Utf8Result result = utf8_next(&p, end, &cp);
+        if (result == UTF8_INVALID) return 0;
+        if (result == UTF8_TRUNCATED) return 1;
     }
     return 1;
 }
