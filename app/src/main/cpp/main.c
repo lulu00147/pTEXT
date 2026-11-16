@@ -38,8 +38,6 @@ static int32_t ui(int32_t px)
 #define SETTINGS_H      ui(320)  /* 设置面板高 */
 #define SETTINGS_ROW_H  ui(50)   /* 设置行高 */
 #define SETTINGS_TITLE_H ui(20)  /* 标题内边距 */
-#define TOUCH_ZONE_L     (r_w() / 4)       /* 左触摸区 */
-#define TOUCH_ZONE_R     (r_w() * 3 / 4)   /* 右触摸区 */
 
 static struct android_app *s_app;
 static int32_t s_state = ST_FILELIST;
@@ -266,6 +264,28 @@ static void draw_bookmarks(void)
     r_draw_text(LX_MARGIN, r_h() - LY_BOTTOM_BTN, UI_BACK_READ, UI_LEN(UI_BACK_READ));
 }
 
+static int32_t reading_cell(int32_t x, int32_t y)
+{
+    int32_t col = x * 3 / r_w();
+    int32_t row = y * 3 / r_h();
+    if (col < 0) col = 0;
+    if (col > 2) col = 2;
+    if (row < 0) row = 0;
+    if (row > 2) row = 2;
+    return row * 3 + col + 1;
+}
+
+static void reading_grid_action(int32_t cell)
+{
+    if (cell == 1 || cell == 2 || cell == 4 || cell == 7) {
+        if (rd_can_prev()) rd_prev_page();
+    } else if (cell == 3 || cell == 6 || cell == 8 || cell == 9) {
+        if (rd_can_next()) rd_next_page();
+    } else {
+        s_state = ST_SETTINGS;
+    }
+}
+
 static void handle_touch_reading(int32_t x, int32_t y)
 {
     int32_t l, t, r, b;
@@ -273,11 +293,7 @@ static void handle_touch_reading(int32_t x, int32_t y)
     if (s_state == ST_SETTINGS) {
         if (x < l || x > r || y < t || y > b) {
             s_state = ST_READING;
-            if (x < TOUCH_ZONE_L) {
-                if (rd_can_prev()) rd_prev_page();
-            } else if (x > TOUCH_ZONE_R) {
-                if (rd_can_next()) rd_next_page();
-            }
+            reading_grid_action(reading_cell(x, y));
             s_need_redraw = 1;
             return;
         }
@@ -323,13 +339,8 @@ static void handle_touch_reading(int32_t x, int32_t y)
         }
         s_need_redraw = 1; return;
     }
-    if (x < TOUCH_ZONE_L) {
-        if (rd_can_prev()) { rd_prev_page(); s_need_redraw = 1; }
-    } else if (x > TOUCH_ZONE_R) {
-        if (rd_can_next()) { rd_next_page(); s_need_redraw = 1; }
-    } else {
-        s_state = ST_SETTINGS; s_need_redraw = 1;
-    }
+    reading_grid_action(reading_cell(x, y));
+    s_need_redraw = 1;
 }
 
 /* ---- JNI 相关全局变量 ---- */
