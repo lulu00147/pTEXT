@@ -30,7 +30,7 @@ render.c               系统字体、stb_truetype 光栅、RGB565、字形缓�
 build.bat
 ```
 
-产物 `pTEXT.apk`：arm64-v8a，minSdk 29，targetSdk 34，compileSdk 37.2。首次构建生成 debug keystore，已被 `.gitignore` 排除。
+产物 `pTEXT.apk`：arm64-v8a，仅 Android 17 / API 37，targetSdk 37，compileSdk 37.2。首次构建生成 debug keystore，已被 `.gitignore` 排除。
 
 ## 限制
 
