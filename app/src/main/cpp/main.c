@@ -183,6 +183,7 @@ static void draw_reading(void)
     }
 
     int32_t fy = r_h() - ui(35);
+    r_clear_rect(0, fy - ui(2), r_w(), r_h());
     char foot[64];
     int32_t page_no = rd_get_page_no();
     if (page_no > 0) snprintf(foot, sizeof(foot), "第 %d 页", page_no);
