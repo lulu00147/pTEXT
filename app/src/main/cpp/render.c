@@ -443,6 +443,15 @@ void r_draw_text_at_size(int32_t x, int32_t y, const uint32_t *s, int32_t n, flo
     s_sc = old_sc;
 }
 
+void r_draw_text_at_size_color(int32_t x, int32_t y, const uint32_t *s, int32_t n,
+                               float size, uint16_t color)
+{
+    uint16_t old_fg = s_fg_color;
+    s_fg_color = color;
+    r_draw_text_at_size(x, y, s, n, size);
+    s_fg_color = old_fg;
+}
+
 int32_t r_char_advance(uint32_t cp)
 {
     if (!s_font_ok || !cp) return 0;

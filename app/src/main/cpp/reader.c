@@ -22,7 +22,7 @@ static int32_t rd_ui(int32_t px)
 }
 
 #define MARGIN_X   rd_ui(16)
-#define MARGIN_TOP rd_ui(40)
+#define MARGIN_TOP rd_ui(24)
 #define MARGIN_BOT rd_ui(56)
 
 static char s_data_path[512];
