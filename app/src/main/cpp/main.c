@@ -186,14 +186,14 @@ static void draw_reading(void)
     r_draw_text_at_size_color(r_w() - r_text_width_at_size(utxt, n, fs) - FOOTER_MARGIN_X,
                               fy, utxt, n, fs, hf_color);
 
-    int32_t lh = rd_get_line_h();
+    int32_t vstep_x10 = 707;
     int32_t draw_i = 0;
     for (int32_t i = 0; i < p->count; i++) {
         Line *line = &p->lines[i];
         if (draw_line_blank(line)) continue;
         int32_t x = BODY_MARGIN_X + line->indent;
         int32_t target = r_w() - BODY_MARGIN_X * 2 - line->indent;
-        int32_t y = READ_TEXT_Y0 + draw_i * lh;
+        int32_t y = READ_TEXT_Y0 + draw_i * vstep_x10 / 10;
         if (line->justify && line->len > 1) {
             r_draw_text_justified(x, y, line->text, line->len, target);
         } else {
