@@ -23,7 +23,7 @@ static int32_t rd_ui(int32_t px)
 
 #define MARGIN_X   rd_ui(5)
 #define MARGIN_TOP rd_ui(54)
-#define MARGIN_BOT rd_ui(43)
+#define MARGIN_BOT rd_ui(4)
 
 static char s_data_path[512];
 static char s_cur_name[256];
@@ -751,7 +751,7 @@ int32_t rd_get_line_h(void)
     int32_t fh = r_font_h();
     if (fh < 1) fh = 1;
     int32_t gap = clamp_int(s_settings.gap_idx, 0, 2);
-    int32_t lh = (rd_ui(47) + 1) / 2 + gap * rd_ui(2);
+    int32_t lh = (rd_ui(46) + 1) / 2 + gap * rd_ui(2);
     return lh;
 }
 

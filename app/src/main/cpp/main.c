@@ -166,7 +166,7 @@ static void draw_reading(void)
     r_draw_text_at_size_color(r_w() - tw - HEADER_MARGIN_X, ui(28), utime, un, hts, hf_color);
 
     Page *p = rd_get_page();
-    int32_t footer_zone_top = r_h() - ui(43);
+    int32_t footer_zone_top = r_h() - ui(10);
     int32_t fy = r_h() - ui(8);
 
     /* 先画页脚，再画正文；正文不得进入页脚带 */
@@ -194,7 +194,6 @@ static void draw_reading(void)
         int32_t x = BODY_MARGIN_X + line->indent;
         int32_t target = r_w() - BODY_MARGIN_X * 2 - line->indent;
         int32_t y = READ_TEXT_Y0 + draw_i * lh;
-        if (y + lh > footer_zone_top) break;
         if (line->justify && line->len > 1) {
             r_draw_text_justified(x, y, line->text, line->len, target);
         } else {
