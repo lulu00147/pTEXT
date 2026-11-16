@@ -26,9 +26,9 @@ NativeActivity (Java 壳)
 
 ### 前提
 
-- Windows + Android SDK（含 NDK 26.x、CMake 3.22+、Build Tools 34.x）
-- JDK 17+
-- 编辑 `build.bat` 中的 `SDK_ROOT`、`JAVA_HOME` 等路径
+- Windows
+- 仓库根目录有 `tools/`：NDK r30、CMake 4.5.0、Build Tools 37.0.0、JDK 25、Platform 37.2、Ninja 1.13.2（约 2.8 GB，不纳入 git）
+- `build.bat` 使用相对路径，不需要另装 Android SDK/JDK；首次构建会生成 `debug.keystore`（已忽略）
 
 ### 编译
 
@@ -36,7 +36,7 @@ NativeActivity (Java 壳)
 build.bat
 ```
 
-生成 `pTEXT.apk`（arm64-v8a, minSdk 29, targetSdk 34）。
+生成 `pTEXT.apk`（arm64-v8a, minSdk 29, targetSdk 34, compileSdk 37.2）。
 
 ## 字体
 

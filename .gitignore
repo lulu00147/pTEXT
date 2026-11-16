@@ -1,3 +1,6 @@
+# Local toolchain (NDK/JDK/build-tools/platform)
+/tools/
+
 # Build outputs
 /build/
 /build_cpp/

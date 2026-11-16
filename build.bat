@@ -1,34 +1,36 @@
 @echo off
 setlocal enabledelayedexpansion
+cd /d "%~dp0"
 
-:: ===== Set these paths to your local Android SDK =====
-set "SDK_ROOT=C:\Users\%USERNAME%\AppData\Local\Android\Sdk"
-set "JAVA_HOME=C:\Users\%USERNAME%\.jdks\jbr-17.0.14"
-set "NDK_VERSION=26.1.10909125"
-set "CMAKE_VER=3.22.1"
-set "BUILD_TOOLS_VER=34.0.0"
-set "API_LEVEL=34"
+:: ===== Bundled Android toolchain (tools/) =====
+set "TOOLS=%~dp0tools"
+set "NDK_PATH=%TOOLS%\android-ndk-r30"
+set "BUILD_TOOLS=%TOOLS%\build-tools_r37"
+set "CMAKE_PATH=%TOOLS%\cmake-4.5.0\bin\cmake.exe"
+set "NINJA_PATH=%TOOLS%\ninja-1.13.2\ninja.exe"
+set "JAVA_HOME=%TOOLS%\jdk-25.0.5.0.2+1"
+set "PLATFORM=%TOOLS%\platform-37.2_r01\android.jar"
 
 :: Derived paths
-set "NDK_PATH=%SDK_ROOT%\ndk\%NDK_VERSION%"
-set "PLATFORM=%SDK_ROOT%\platforms\android-%API_LEVEL%\android.jar"
-set "BUILD_TOOLS=%SDK_ROOT%\build-tools\%BUILD_TOOLS_VER%"
-set "CMAKE_PATH=%SDK_ROOT%\cmake\%CMAKE_VER%\bin\cmake.exe"
+set "NDK_TOOLCHAIN=%NDK_PATH%\build\cmake\android.toolchain.cmake"
+set "PATH=%JAVA_HOME%\bin;%TOOLS%\cmake-4.5.0\bin;%TOOLS%\ninja-1.13.2;%PATH%"
 
-if not exist "%PLATFORM%" ( echo [ERROR] android.jar not found. Check SDK_ROOT and API_LEVEL. & pause & exit )
-if not exist "%CMAKE_PATH%" ( echo [ERROR] NDK cmake not found. Check NDK_VERSION. & pause & exit )
+if not exist "%PLATFORM%" ( echo [ERROR] android.jar not found: %PLATFORM% & pause & exit )
+if not exist "%CMAKE_PATH%" ( echo [ERROR] cmake not found: %CMAKE_PATH% & pause & exit )
+if not exist "%NINJA_PATH%" ( echo [ERROR] ninja not found: %NINJA_PATH% & pause & exit )
+if not exist "%NDK_TOOLCHAIN%" ( echo [ERROR] NDK toolchain not found: %NDK_TOOLCHAIN% & pause & exit )
+if not exist "%JAVA_HOME%\bin\javac.exe" ( echo [ERROR] javac not found: %JAVA_HOME% & pause & exit )
+if not exist "%BUILD_TOOLS%\aapt2.exe" ( echo [ERROR] aapt2 not found: %BUILD_TOOLS% & pause & exit )
 
 echo [1/6] Building C code...
 if exist "build_cpp" rmdir /s /q build_cpp
 mkdir build_cpp
 cd build_cpp
 
-:: Add the NDK-bundled ninja and cmake to PATH
-set "PATH=%SDK_ROOT%\cmake\%CMAKE_VER%\bin;%PATH%"
-
-%CMAKE_PATH% -DCMAKE_TOOLCHAIN_FILE=%NDK_PATH%/build/cmake/android.toolchain.cmake -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-29 -DCMAKE_BUILD_TYPE=Release -DCMAKE_LIBRARY_OUTPUT_DIRECTORY=%cd%\..\build\lib\arm64-v8a -G "Ninja" ../app/src/main/cpp
+:: Tool paths are already prepended to PATH
+"%CMAKE_PATH%" -DCMAKE_TOOLCHAIN_FILE="%NDK_TOOLCHAIN%" -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-29 -DCMAKE_BUILD_TYPE=Release -DCMAKE_LIBRARY_OUTPUT_DIRECTORY="%cd%\..\build\lib\arm64-v8a" -DCMAKE_MAKE_PROGRAM="%NINJA_PATH%" -G "Ninja" ../app/src/main/cpp
 if %errorlevel% neq 0 ( echo [ERROR] CMake configure failed & cd .. & pause & exit )
-cmake --build .
+"%CMAKE_PATH%" --build .
 if %errorlevel% neq 0 ( echo [ERROR] C build failed & cd .. & pause & exit )
 cd ..
 
