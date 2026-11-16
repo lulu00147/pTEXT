@@ -1,7 +1,7 @@
 #include "reader.h"
 #include "render.h"
 #include "utf8.h"
-#include "gb2312_table.h"
+#include "gbk_table.h"
 
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -88,8 +88,8 @@ static int32_t is_para_start(int64_t off)
 
 static uint32_t gbk_decode_fast(unsigned char b1, unsigned char b2)
 {
-    if (b1 >= 0xA1 && b1 <= 0xF7 && b2 >= 0xA1 && b2 <= 0xFE) {
-        uint16_t cp = g_gb2312_table[(b1 - 0xA1) * 94 + (b2 - 0xA1)];
+    if (b1 >= 0x81 && b1 <= 0xFE && b2 >= 0x40 && b2 <= 0xFE && b2 != 0x7F) {
+        uint16_t cp = g_gbk_table[(b1 - 0x81) * 191 + (b2 - 0x40)];
         if (cp) return cp;
     }
     return '?';
@@ -112,6 +112,7 @@ static uint32_t next_char_gbk(int64_t *off)
 
     unsigned char b1 = (unsigned char)s_mmap_data[(*off)++];
     if (b1 < 0x80) return b1;
+    if (b1 == 0x80) return 0x20AC;
     if (*off >= s_mmap_len) return '?';
 
     unsigned char b2 = (unsigned char)s_mmap_data[(*off)++];
