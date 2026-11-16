@@ -121,7 +121,7 @@ static void draw_file_list(void)
     r_draw_text(LX_MARGIN, LY_TITLE, UI_TITLE, UI_LEN(UI_TITLE));
     if (count == 0) r_draw_text(LX_MARGIN, LY_ITEM0 + ITEM_H / 2, UI_EMPTY, UI_LEN(UI_EMPTY));
     for (int32_t i = 0; i < count; i++) {
-        int32_t y = LY_ITEM0 + i * ITEM_H;
+        int32_t y = LY_ITEM0 + i * ITEM_H + (ITEM_H - r_font_h()) / 2;
         if (y >= r_h()) break;
         uint32_t txt[256];
         int32_t n = utf8_to_utf32(txt, 255, files[i].name);
@@ -523,8 +523,10 @@ static int32_t handle_input(struct android_app *app, AInputEvent *event)
                 FileItem *files = rd_get_files(&count);
                 if (y > r_h() - BOTTOM_BTN_ZONE) {
                     pickFile();
-                } else if (y >= LY_ITEM0) {
-                    int32_t fidx = (y - LY_ITEM0) / ITEM_H;
+                } else if (count > 0 &&
+                           y >= LY_ITEM0 - ITEM_H / 2 &&
+                           y < LY_ITEM0 - ITEM_H / 2 + count * ITEM_H) {
+                    int32_t fidx = (y - (LY_ITEM0 - ITEM_H / 2)) / ITEM_H;
                     if (fidx >= 0 && fidx < count &&
                         rd_open_file(files[fidx].path) == 0) {
                         s_state = ST_READING;
