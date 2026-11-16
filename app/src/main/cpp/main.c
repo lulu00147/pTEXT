@@ -38,8 +38,8 @@ static int32_t ui(int32_t px)
 #define SETTINGS_H      ui(320)  /* 设置面板高 */
 #define SETTINGS_ROW_H  ui(50)   /* 设置行高 */
 #define SETTINGS_TITLE_H ui(20)  /* 标题内边距 */
-#define TOUCH_ZONE_L     (r_w() / 3)       /* 左触摸区 */
-#define TOUCH_ZONE_R     (r_w() * 2 / 3)   /* 右触摸区 */
+#define TOUCH_ZONE_L     (r_w() / 4)       /* 左触摸区 */
+#define TOUCH_ZONE_R     (r_w() * 3 / 4)   /* 右触摸区 */
 
 static struct android_app *s_app;
 static int32_t s_state = ST_FILELIST;
