@@ -35,6 +35,12 @@ build.bat
 
 产物 `pTEXT.apk`：arm64-v8a，仅 Android 17 / API 37，targetSdk 37，compileSdk 37.2。首次构建生成 debug keystore，已被 `.gitignore` 排除。
 
+## 验证
+
+- 主机 fuzz：4,065,536 组随机 UTF-8 输入、65,536 组 GBK 双字节组合，ASan 通过。
+- 设备冒烟：文件列表、打开阅读、下一页、短按5书签、长按5设置、面板外关闭、强杀后进度恢复、文件长按删除通过。
+- 未测：实际 GBK 文件导入、≥10 MB 文件、空文件、旋转、设置持久化。
+
 ## 限制
 
 - 无自动化测试；无 CI。
