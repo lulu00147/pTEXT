@@ -613,7 +613,7 @@ void android_main(struct android_app *app)
             struct timespec ts;
             clock_gettime(CLOCK_MONOTONIC, &ts);
             int64_t now_ns = (int64_t)ts.tv_sec * 1000000000LL + ts.tv_nsec;
-            if (now_ns - s_center_down_ns >= 1500000000LL) {
+            if (now_ns - s_center_down_ns >= 3000000000LL) {
                 s_center_long_fired = 1;
                 s_center_down_ns = 0;
                 s_state = ST_SETTINGS;
