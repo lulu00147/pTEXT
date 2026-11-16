@@ -167,7 +167,7 @@ static void draw_reading(void)
 
     Page *p = rd_get_page();
     int32_t footer_zone_top = r_h() - ui(10);
-    int32_t fy = r_h() - ui(8);
+    int32_t fy = r_h() - ui(6);
 
     /* 先画页脚，再画正文；正文不得进入页脚带 */
     r_clear_rect(0, footer_zone_top, r_w(), r_h());
