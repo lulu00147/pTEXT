@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <dirent.h>
 #include <stdlib.h>
+#include <errno.h>
 
 #define MAX_FILES 100
 #define MAX_BOOKMARKS 50
@@ -554,17 +555,47 @@ static void paginate_step(void)
     }
 }
 
+static int32_t write_atomic(const char *path, const void *buf, size_t len)
+{
+    char tmp[520];
+    int n = snprintf(tmp, sizeof(tmp), "%s.tmp", path);
+    if (n <= 0 || (size_t)n >= sizeof(tmp)) return -1;
+
+    int fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644);
+    if (fd < 0) return -1;
+
+    const uint8_t *p = (const uint8_t *)buf;
+    size_t done = 0;
+    while (done < len) {
+        ssize_t w = write(fd, p + done, len - done);
+        if (w < 0) {
+            if (errno == EINTR) continue;
+            close(fd);
+            unlink(tmp);
+            return -1;
+        }
+        if (w == 0) {
+            close(fd);
+            unlink(tmp);
+            return -1;
+        }
+        done += (size_t)w;
+    }
+
+    int32_t ok = fsync(fd) == 0;
+    if (close(fd) != 0) ok = 0;
+    if (ok && rename(tmp, path) == 0) return 0;
+    unlink(tmp);
+    return -1;
+}
+
 static void save_prog(int64_t offset)
 {
     char ppath[512];
     snprintf(ppath, sizeof(ppath), "%s/.prog/%s.bin", s_data_path, s_cur_name);
-    FILE *f = fopen(ppath, "wb");
-    if (f) {
-        int64_t values[3] = {offset, -1, s_page_no};
-        if (s_hist_count > 1) values[1] = s_page_hist[s_hist_count - 2];
-        fwrite(values, sizeof(values[0]), 3, f);
-        fclose(f);
-    }
+    int64_t values[3] = {offset, -1, s_page_no};
+    if (s_hist_count > 1) values[1] = s_page_hist[s_hist_count - 2];
+    write_atomic(ppath, values, sizeof(values));
 }
 
 static void hist_reset(int64_t start)
@@ -685,11 +716,7 @@ static void save_settings(void)
 {
     char spath[512];
     snprintf(spath, sizeof(spath), "%s/.prog/settings.bin", s_data_path);
-    FILE *f = fopen(spath, "wb");
-    if (f) {
-        fwrite(&s_settings, sizeof(s_settings), 1, f);
-        fclose(f);
-    }
+    write_atomic(spath, &s_settings, sizeof(s_settings));
 }
 
 static void load_settings(void)
@@ -817,11 +844,7 @@ void rd_toggle_bookmark(void)
 
     char path[512];
     snprintf(path, sizeof(path), "%s/.bm/%s.bin", s_data_path, s_cur_name);
-    FILE *f = fopen(path, "wb");
-    if (f) {
-        fwrite(s_bms, sizeof(Bookmark), (size_t)s_bm_count, f);
-        fclose(f);
-    }
+    write_atomic(path, s_bms, sizeof(Bookmark) * (size_t)s_bm_count);
 }
 
 int32_t rd_page_bookmarked(void)
@@ -849,19 +872,6 @@ int32_t rd_delete_file(const char *path)
 
     rd_scan_dir();
     return 0;
-}
-
-Bookmark* rd_get_bookmarks(int32_t *count)
-{
-    *count = s_bm_count;
-    return s_bms;
-}
-
-void rd_jump_bookmark(int32_t idx)
-{
-    if (idx >= 0 && idx < s_bm_count) {
-        rd_goto_offset(s_bms[idx].offset);
-    }
 }
 
 void rd_prefetch_step(void)

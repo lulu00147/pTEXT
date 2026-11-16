@@ -15,7 +15,6 @@
 #define ST_FILELIST 0
 #define ST_READING  1
 #define ST_SETTINGS 2
-#define ST_BMARKS   3
 #define ST_DELETE   4
 
 static int32_t ui(int32_t px)
@@ -28,7 +27,6 @@ static int32_t ui(int32_t px)
 #define LY_TITLE        ui(50)   /* 标题 Y */
 #define LY_ITEM0        ui(120)  /* 第一个列表项 Y */
 #define ITEM_H          ui(80)   /* 文件列表项高度 */
-#define BM_ITEM_H       ui(60)   /* 书签列表项高度 */
 #define LY_BOTTOM_BTN   ui(80)   /* 底部按钮距底边距 */
 #define BOTTOM_BTN_ZONE ui(100)  /* 底部按钮区域高度 */
 #define HEADER_MARGIN_X ui(14)  /* Legado 页眉左右边距 */
@@ -92,10 +90,6 @@ static const uint32_t UI_EMPTY[] = {0x6682,0x65E0,0x56FE,0x4E66,0xFF0C,0x70B9,
 static const uint32_t UI_IMPORT[] = {0x5B,0x20,0x2B,0x20,0x5D,0};
 static const uint32_t UI_SETTINGS_TITLE[] = {0x2D,0x2D,0x20,0x9605,0x8BFB,0x8BBE,
                                              0x7F6E,0x20,0x2D,0x2D,0};
-static const uint32_t UI_BM_TITLE[] = {0x2D,0x2D,0x20,0x4E66,0x7B7E,0x5217,
-                                       0x8868,0x20,0x2D,0x2D,0};
-static const uint32_t UI_BM_EMPTY[] = {0x6682,0x65E0,0x4E66,0x7B7E,0};
-static const uint32_t UI_BACK_READ[] = {0x8FD4,0x56DE,0x9605,0x8BFB,0};          /* 返回阅读 */
 static const uint32_t UI_BOOKMARKS[] = {0x4E66,0x7B7E,0};                        /* 书签 */
 #define UI_LEN(arr) (sizeof(arr)/sizeof(uint32_t) - 1)
 
@@ -346,25 +340,6 @@ static void draw_settings(void)
     draw_toggle_buttons(r, y, '-', '+');
 }
 
-static void draw_bookmarks(void)
-{
-    r_clear();
-    r_draw_text(LX_MARGIN, LY_TITLE, UI_BM_TITLE, UI_LEN(UI_BM_TITLE));
-    int32_t count;
-    Bookmark *bms = rd_get_bookmarks(&count);
-    if (count == 0) r_draw_text(LX_MARGIN, LY_ITEM0, UI_BM_EMPTY, UI_LEN(UI_BM_EMPTY));
-    for (int32_t i = 0; i < count; i++) {
-        int32_t y = LY_ITEM0 + i * BM_ITEM_H;
-        if (y >= r_h()) break;
-        char buf[64];
-        snprintf(buf, sizeof(buf), "%d. %s", i+1, bms[i].preview);
-        uint32_t utxt[64];
-        int32_t n = utf8_to_utf32(utxt, 63, buf);
-        r_draw_text(LX_MARGIN, y, utxt, n);
-    }
-    r_draw_text(LX_MARGIN, r_h() - LY_BOTTOM_BTN, UI_BACK_READ, UI_LEN(UI_BACK_READ));
-}
-
 static int32_t reading_cell(int32_t x, int32_t y)
 {
     int32_t w = r_w();
@@ -602,9 +577,6 @@ static int32_t handle_input(struct android_app *app, AInputEvent *event)
             if (s_state == ST_SETTINGS) {
                 s_state = ST_READING;
                 s_need_redraw = 1;
-            } else if (s_state == ST_BMARKS) {
-                s_state = ST_READING;
-                s_need_redraw = 1;
             } else if (s_state == ST_DELETE) {
                 s_state = ST_FILELIST;
                 s_delete_idx = -1;
@@ -754,15 +726,6 @@ static int32_t handle_input(struct android_app *app, AInputEvent *event)
             } else if (s_state == ST_READING || s_state == ST_SETTINGS) {
                 s_center_down_ns = 0;
                 handle_touch_reading(x, y);
-            } else if (s_state == ST_BMARKS) {
-                int32_t count;
-                rd_get_bookmarks(&count);
-                if (y >= LY_ITEM0) {
-                    int32_t bidx = (y - LY_ITEM0) / BM_ITEM_H;
-                    if (bidx >= 0 && bidx < count) rd_jump_bookmark(bidx);
-                }
-                s_state = ST_READING;
-                s_need_redraw = 1;
             }
             return 1;
         }
@@ -861,7 +824,6 @@ void android_main(struct android_app *app)
             if (s_state == ST_FILELIST) draw_file_list();
             else if (s_state == ST_READING) draw_reading();
             else if (s_state == ST_SETTINGS) { draw_reading(); draw_settings(); }
-            else if (s_state == ST_BMARKS) draw_bookmarks();
             else if (s_state == ST_DELETE) { draw_file_list(); draw_delete_dialog(); }
             r_end();
             s_need_redraw = 0;
