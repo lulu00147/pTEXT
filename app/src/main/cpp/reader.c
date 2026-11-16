@@ -763,8 +763,8 @@ int32_t rd_get_line_h(void)
 
 int32_t rd_get_indent_w(void)
 {
-    int32_t adv = r_char_advance(' ');
-    if (adv <= 0) adv = rd_ui(12);
+    int32_t adv = r_char_advance(0x4E2D);
+    if (adv <= 0) adv = rd_ui(16);
     return clamp_int(s_settings.indent_idx, 0, 2) * 2 * adv;
 }
 
