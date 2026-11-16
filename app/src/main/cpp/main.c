@@ -519,6 +519,7 @@ static int32_t handle_input(struct android_app *app, AInputEvent *event)
                             s_need_redraw = 1;
                         } else {
                             s_file_error = 1;
+                            s_need_redraw = 1;
                         }
                     }
                 }
