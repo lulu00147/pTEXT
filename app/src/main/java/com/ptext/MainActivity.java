@@ -81,9 +81,14 @@ public class MainActivity extends NativeActivity {
 
             Uri uri = data.getData();
             String displayName = null;
+            long totalSize = -1;
             try (Cursor c = getContentResolver().query(uri,
-                    new String[]{OpenableColumns.DISPLAY_NAME}, null, null, null)) {
-                if (c != null && c.moveToFirst()) displayName = c.getString(0);
+                    new String[]{OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE},
+                    null, null, null)) {
+                if (c != null && c.moveToFirst()) {
+                    displayName = c.getString(0);
+                    if (!c.isNull(1)) totalSize = c.getLong(1);
+                }
             } catch (Exception ignored) {}
 
             String base = displayName == null ? "" : displayName.trim();
@@ -108,8 +113,21 @@ public class MainActivity extends NativeActivity {
 
                 byte[] buf = new byte[8192];
                 int len;
+                long copied = 0;
+                int lastPct = -1;
                 while ((len = is.read(buf)) != -1) {
                     os.write(buf, 0, len);
+                    copied += len;
+                    if (totalSize > 0) {
+                        int pct = (int)(copied * 100 / totalSize);
+                        if (pct >= 100) pct = 99;
+                        if (pct / 10 != lastPct / 10) {
+                            lastPct = pct;
+                            final int shown = pct;
+                            runOnUiThread(() -> Toast.makeText(this,
+                                    "导入中: " + shown + "%", Toast.LENGTH_SHORT).show());
+                        }
+                    }
                 }
             }
 

@@ -1,0 +1,90 @@
+#include <assert.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+#include "reader.h"
+
+static void write_file(const char *path, const char *data, size_t len)
+{
+    FILE *f = fopen(path, "wb");
+    assert(f != NULL);
+    assert(fwrite(data, 1, len, f) == len);
+    fclose(f);
+}
+
+int main(void)
+{
+    char dir[] = "/tmp/ptext-reader-XXXXXX";
+    assert(mkdtemp(dir) != NULL);
+    assert(chdir(dir) == 0);
+    rd_init(dir);
+
+    const char *empty_path = "empty.txt";
+    write_file(empty_path, "", 0);
+    assert(rd_open_file(empty_path) != 0);
+
+    const char *long_path = "long.txt";
+    char *text = malloc(40001);
+    assert(text != NULL);
+    for (int i = 0; i < 40000; i++) text[i] = 'a';
+    write_file(long_path, text, 40000);
+    free(text);
+
+    assert(rd_open_file(long_path) == 0);
+    Page *p = rd_get_page();
+    assert(p->count > 0);
+    assert(p->count <= MAX_LINES);
+    assert(p->lines[0].len <= MAX_CHARS);
+
+    int32_t pages = 1;
+    int64_t last = p->start_offset;
+    while (rd_can_next() && pages < 200) {
+        rd_next_page();
+        p = rd_get_page();
+        assert(p->count > 0);
+        assert(p->start_offset > last);
+        last = p->start_offset;
+        pages++;
+    }
+    assert(pages > 1);
+    rd_close();
+
+    assert(rd_open_file(long_path) == 0);
+    rd_goto_offset(0);
+    int32_t normal_lines = rd_get_page()->count;
+    assert(normal_lines > 0);
+
+    rd_set_gap_idx(2);
+    rd_goto_offset(0);
+    int32_t gap_lines = rd_get_page()->count;
+    assert(gap_lines > 0 && gap_lines <= normal_lines);
+
+    rd_set_indent_idx(2);
+    rd_goto_offset(0);
+    assert(rd_get_page()->count > 0);
+
+    rd_toggle_bookmark();
+    assert(rd_page_bookmarked());
+    Bookmark bms[50];
+    int32_t bm_count = rd_read_bookmarks(long_path, bms, 50);
+    assert(bm_count == 1);
+    assert(bms[0].offset >= 0);
+    int64_t bookmark_offset = bms[0].offset;
+
+    rd_close();
+    assert(rd_open_file(long_path) == 0);
+    rd_goto_offset(bookmark_offset);
+    assert(rd_get_page()->start_offset == bookmark_offset);
+
+    rd_close();
+    assert(chdir("/") == 0);
+    char cleanup[512];
+    snprintf(cleanup, sizeof(cleanup), "rm -rf '%s'", dir);
+    assert(system(cleanup) == 0);
+
+    puts("reader tests passed");
+    return 0;
+}

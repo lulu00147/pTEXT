@@ -1,5 +1,9 @@
 #include "reader.h"
+#ifdef PTEXT_HOST_TEST
+#include "render_host.h"
+#else
 #include "render.h"
+#endif
 #include "encoding.h"
 
 #include <sys/mman.h>

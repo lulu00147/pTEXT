@@ -2,6 +2,7 @@
 #include <stdio.h>
 
 #include "encoding.h"
+#include "fuzz_seeds.h"
 
 int main(void)
 {
@@ -21,6 +22,19 @@ int main(void)
             }
             cases++;
         }
+    }
+
+    for (size_t i = 0; i < sizeof(fuzz_seeds) / sizeof(fuzz_seeds[0]); i++) {
+        int64_t off = 0;
+        while (off < (int64_t)fuzz_seeds[i].len) {
+            int64_t before = off;
+            uint32_t cp = enc_decode_utf8(fuzz_seeds[i].data, (int64_t)fuzz_seeds[i].len, &off);
+            if (off <= before || off > (int64_t)fuzz_seeds[i].len || cp > 0x10FFFF) {
+                fprintf(stderr, "bad seed decode: %zu\n", i);
+                return 1;
+            }
+        }
+        cases++;
     }
 
     for (int round = 0; round < 1000000; round++) {
