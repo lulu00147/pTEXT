@@ -228,7 +228,9 @@ static void draw_settings(void)
     int32_t indent_idx = clamp_i(s->indent_idx, 0, 2);
     int32_t gap_idx = clamp_i(s->gap_idx, 0, 2);
     int32_t theme = clamp_i(s->theme, 0, 1);
-    int32_t y = t + ui(20);
+    int32_t row_pad = (SETTINGS_ROW_H - r_font_h()) / 2;
+    if (row_pad < 0) row_pad = 0;
+    int32_t y = t + ui(20) + row_pad;
     char buf[64];
     snprintf(buf, sizeof(buf), "字号: %d", 18 + font_idx * 2);
     n = utf8_to_utf32(utxt, 127, buf);
