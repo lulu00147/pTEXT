@@ -539,6 +539,15 @@ static int32_t handle_input(struct android_app *app, AInputEvent *event)
                         s_need_redraw = 1;
                     }
                 }
+            } else if (s_state == ST_READING && reading_cell(x, y) == 5) {
+                int64_t down = AMotionEvent_getDownTime(event);
+                int64_t up = AMotionEvent_getEventTime(event);
+                if (down > 0 && up - down >= 600) {
+                    s_state = ST_SETTINGS;
+                } else {
+                    rd_toggle_bookmark();
+                }
+                s_need_redraw = 1;
             } else if (s_state == ST_READING || s_state == ST_SETTINGS) {
                 handle_touch_reading(x, y);
             } else if (s_state == ST_BMARKS) {
