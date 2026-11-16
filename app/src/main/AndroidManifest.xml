@@ -4,6 +4,7 @@
         android:label="pTEXT"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen"
         android:allowBackup="false"
+        android:extractNativeLibs="true"
         android:supportsRtl="false"
         android:hardwareAccelerated="true"
         android:largeHeap="false">
