@@ -207,6 +207,14 @@ static void get_settings_rect(int32_t *l, int32_t *t, int32_t *r, int32_t *b)
     *r = *l + SETTINGS_W;        *b = *t + SETTINGS_H;
 }
 
+static void draw_toggle_buttons(int32_t r, int32_t y, uint32_t left, uint32_t right)
+{
+    uint32_t lbtn[3] = {'[', left, ']'};
+    uint32_t rbtn[3] = {'[', right, ']'};
+    r_draw_text(r - ui(130), y, lbtn, 3);
+    r_draw_text(r - ui(65), y, rbtn, 3);
+}
+
 static void draw_settings(void)
 {
     int32_t l, t, r, b;
@@ -226,20 +234,24 @@ static void draw_settings(void)
     int32_t close_w = r_text_width(close_txt, 2);
     r_draw_text(r - close_w - ui(20), t + SETTINGS_TITLE_H, close_txt, 2);
     char buf[64];
-    snprintf(buf, sizeof(buf), "字号: %d  [-] [+]", 18 + font_idx * 2);
+    snprintf(buf, sizeof(buf), "字号: %d", 18 + font_idx * 2);
     n = utf8_to_utf32(utxt, 127, buf);
-    r_draw_text(l+ui(30), y, utxt, n); y += SETTINGS_ROW_H;
-    snprintf(buf, sizeof(buf), "缩进: %d字符  [<] [>]", indent_idx * 2);
+    r_draw_text(l+ui(30), y, utxt, n);
+    draw_toggle_buttons(r, y, '-', '+'); y += SETTINGS_ROW_H;
+    snprintf(buf, sizeof(buf), "缩进: %d字符", indent_idx * 2);
     n = utf8_to_utf32(utxt, 127, buf);
-    r_draw_text(l+ui(30), y, utxt, n); y += SETTINGS_ROW_H;
+    r_draw_text(l+ui(30), y, utxt, n);
+    draw_toggle_buttons(r, y, '<', '>'); y += SETTINGS_ROW_H;
     const char *gaps[] = {"0", "0.5", "1.0"};
-    snprintf(buf, sizeof(buf), "行距: %s  [<] [>]", gaps[gap_idx]);
+    snprintf(buf, sizeof(buf), "行距: %s", gaps[gap_idx]);
     n = utf8_to_utf32(utxt, 127, buf);
-    r_draw_text(l+ui(30), y, utxt, n); y += SETTINGS_ROW_H;
+    r_draw_text(l+ui(30), y, utxt, n);
+    draw_toggle_buttons(r, y, '<', '>'); y += SETTINGS_ROW_H;
     /* 主题行 */
-    snprintf(buf, sizeof(buf), "主题: %s  [<] [>]", theme ? "日间" : "夜间");
+    snprintf(buf, sizeof(buf), "主题: %s", theme ? "日间" : "夜间");
     n = utf8_to_utf32(utxt, 127, buf);
-    r_draw_text(l+ui(30), y, utxt, n); y += SETTINGS_ROW_H;
+    r_draw_text(l+ui(30), y, utxt, n);
+    draw_toggle_buttons(r, y, '<', '>'); y += SETTINGS_ROW_H;
     r_draw_text(l+ui(20), y, UI_BACK_READ, UI_LEN(UI_BACK_READ));
     int32_t bm_w = r_text_width(UI_BOOKMARKS, UI_LEN(UI_BOOKMARKS));
     r_draw_text(l + SETTINGS_W - bm_w - ui(20), y, UI_BOOKMARKS, UI_LEN(UI_BOOKMARKS));
@@ -310,22 +322,22 @@ static void handle_touch_reading(int32_t x, int32_t y)
         int32_t need_rebuild = 0;
         /* 字号行: [-] [+] */
         if (ry >= SETTINGS_ROW_H && ry < SETTINGS_ROW_H * 2) {
-            if (x < l + (r-l)/2) rd_set_font_idx(font_idx > 0 ? font_idx - 1 : 0);
+            if (x < r - ui(97)) rd_set_font_idx(font_idx > 0 ? font_idx - 1 : 0);
             else rd_set_font_idx(font_idx < 6 ? font_idx + 1 : 6);
             need_rebuild = 1;
         /* 缩进行: [<] [>] */
         } else if (ry >= SETTINGS_ROW_H * 2 && ry < SETTINGS_ROW_H * 3) {
-            if (x < l + (r-l)/2) rd_set_indent_idx(indent_idx > 0 ? indent_idx - 1 : 0);
+            if (x < r - ui(97)) rd_set_indent_idx(indent_idx > 0 ? indent_idx - 1 : 0);
             else rd_set_indent_idx(indent_idx < 2 ? indent_idx + 1 : 2);
             need_rebuild = 1;
         /* 行距行: [<] [>] */
         } else if (ry >= SETTINGS_ROW_H * 3 && ry < SETTINGS_ROW_H * 4) {
-            if (x < l + (r-l)/2) rd_set_gap_idx(gap_idx > 0 ? gap_idx - 1 : 0);
+            if (x < r - ui(97)) rd_set_gap_idx(gap_idx > 0 ? gap_idx - 1 : 0);
             else rd_set_gap_idx(gap_idx < 2 ? gap_idx + 1 : 2);
             need_rebuild = 1;
         /* 主题行: [夜间] [日间] */
         } else if (ry >= SETTINGS_ROW_H * 4 && ry < SETTINGS_ROW_H * 5) {
-            if (x < l + (r-l)/2) rd_set_theme(0);
+            if (x < r - ui(97)) rd_set_theme(0);
             else rd_set_theme(1);
             s_need_redraw = 1;
         /* "返回阅读/书签" 行 */
