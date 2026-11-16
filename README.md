@@ -21,7 +21,8 @@ Android 原生 TXT 阅读器。C11 + Java 11，NativeActivity。
 ```text
 MainActivity.java      NativeActivity 壳、SAF 导入
 main.c                 事件循环、UI 状态机、JNI
-reader.c               mmap、编码、分页、书签、设置
+reader.c               mmap、分页、书签、设置、持久化
+encoding.c             UTF-8/GBK 解码、编码探测
 render.c               系统字体、stb_truetype 光栅、RGB565、字形缓存
 ```
 
@@ -52,7 +53,7 @@ build.bat
 ## 验证
 
 - 主机 fuzz：4,065,536 组随机 UTF-8 输入、65,536 组 GBK 双字节组合，ASan 通过。
-- 主机测试：`tests\run_tests.bat`，1,065,536 组用例通过。
+- 主机测试：`tests\run_tests.bat`，1,065,807 组用例通过。
 - 设备冒烟：文件列表、打开阅读、下一页、短按5书签、长按5设置、面板外关闭、强杀后进度恢复、文件长按删除通过。
 - 未测：实际 GBK 文件导入、≥10 MB 文件、空文件、旋转、设置持久化。
 

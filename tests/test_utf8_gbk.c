@@ -1,16 +1,7 @@
 #include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
 
-#include "utf8.h"
-#include "gbk_table.h"
-
-static uint32_t gbk_pair(unsigned char b1, unsigned char b2)
-{
-    if (b1 >= 0x81 && b1 <= 0xFE && b2 >= 0x40 && b2 <= 0xFE && b2 != 0x7F)
-        return g_gbk_table[(b1 - 0x81) * 191 + (b2 - 0x40)];
-    return 0;
-}
+#include "encoding.h"
 
 int main(void)
 {
@@ -20,9 +11,12 @@ int main(void)
 
     for (int b1 = 0; b1 < 256; b1++) {
         for (int b2 = 0; b2 < 256; b2++) {
-            uint32_t cp = gbk_pair((unsigned char)b1, (unsigned char)b2);
-            if (cp > 0x10FFFF) {
-                fprintf(stderr, "bad GBK codepoint: %02X %02X => %X\n", b1, b2, cp);
+            uint8_t pair[2] = {(uint8_t)b1, (uint8_t)b2};
+            int64_t off = 0;
+            uint32_t cp = enc_decode_gbk(pair, 2, &off);
+            if (cp > 0x10FFFF || off < 1 || off > 2) {
+                fprintf(stderr, "bad GBK decode: %02X %02X => %X off=%lld\n",
+                        b1, b2, cp, (long long)off);
                 return 1;
             }
             cases++;
@@ -36,21 +30,32 @@ int main(void)
             rng = rng * 1664525u + 1013904223u;
             buf[i] = (uint8_t)(rng >> 24);
         }
-        const uint8_t *p = buf;
-        const uint8_t *end = buf + len;
-        while (p < end) {
-            const uint8_t *before = p;
-            uint32_t cp = 0;
-            Utf8Result r = utf8_next(&p, end, &cp);
-            if (p < before || p > end) {
-                fprintf(stderr, "UTF-8 pointer escaped\n");
+
+        int64_t off = 0;
+        while (off < (int64_t)len) {
+            int64_t before = off;
+            uint32_t cp = enc_decode_utf8(buf, (int64_t)len, &off);
+            if (off < before || off > (int64_t)len || cp > 0x10FFFF) {
+                fprintf(stderr, "bad UTF-8 decode\n");
                 return 1;
             }
-            if (r == UTF8_END) break;
-            if (r != UTF8_OK && cp != 0xFFFD) {
-                fprintf(stderr, "invalid UTF-8 result without replacement\n");
-                return 1;
-            }
+        }
+        cases++;
+    }
+
+    for (uint32_t cp = 0; cp <= 0x10FFFF; cp += 4093) {
+        if (cp == 0 || (cp >= 0xD800 && cp <= 0xDFFF)) continue;
+        char enc[4];
+        int32_t n = enc_utf8_encode(cp, enc);
+        if (n < 1 || n > 4) {
+            fprintf(stderr, "bad UTF-8 encode: %X\n", cp);
+            return 1;
+        }
+        int64_t off = 0;
+        uint32_t back = enc_decode_utf8((const uint8_t *)enc, n, &off);
+        if (off != n || back != cp) {
+            fprintf(stderr, "UTF-8 roundtrip failed: %X\n", cp);
+            return 1;
         }
         cases++;
     }

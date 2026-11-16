@@ -1,7 +1,6 @@
 #include "reader.h"
 #include "render.h"
-#include "utf8.h"
-#include "gbk_table.h"
+#include "encoding.h"
 
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -35,7 +34,7 @@ static int32_t s_file_count;
 
 static char *s_mmap_data;
 static int64_t s_mmap_len;
-static uint32_t (*s_decode)(int64_t *);
+static TextDecodeFn s_decode;
 
 static Page s_page_a;
 static Page s_page_b;
@@ -85,81 +84,6 @@ static int32_t is_para_start(int64_t off)
     if (!s_mmap_data || off <= 0) return 1;
     if (off > s_mmap_len) off = s_mmap_len;
     return s_mmap_data[off - 1] == '\n' || s_mmap_data[off - 1] == '\r';
-}
-
-static uint32_t gbk_decode_fast(unsigned char b1, unsigned char b2)
-{
-    if (b1 >= 0x81 && b1 <= 0xFE && b2 >= 0x40 && b2 <= 0xFE && b2 != 0x7F) {
-        uint16_t cp = g_gbk_table[(b1 - 0x81) * 191 + (b2 - 0x40)];
-        if (cp) return cp;
-    }
-    return '?';
-}
-
-static uint32_t next_char_utf8(int64_t *off)
-{
-    const uint8_t *base = (const uint8_t *)s_mmap_data;
-    const uint8_t *p = base + *off;
-    uint32_t cp = 0;
-
-    Utf8Result result = utf8_next(&p, base + s_mmap_len, &cp);
-    *off = p - base;
-    return result == UTF8_END ? 0 : cp;
-}
-
-static uint32_t next_char_gbk(int64_t *off)
-{
-    if (*off >= s_mmap_len) return 0;
-
-    unsigned char b1 = (unsigned char)s_mmap_data[(*off)++];
-    if (b1 < 0x80) return b1;
-    if (b1 == 0x80) return 0x20AC;
-    if (*off >= s_mmap_len) return '?';
-
-    unsigned char b2 = (unsigned char)s_mmap_data[(*off)++];
-    return gbk_decode_fast(b1, b2);
-}
-
-static int32_t utf8_prefix_ok(void)
-{
-    int64_t limit = s_mmap_len < 4096 ? s_mmap_len : 4096;
-    const uint8_t *p = (const uint8_t *)s_mmap_data;
-    const uint8_t *end = p + limit;
-
-    while (p < end) {
-        uint32_t cp;
-        Utf8Result result = utf8_next(&p, end, &cp);
-        if (result == UTF8_INVALID) return 0;
-        if (result == UTF8_TRUNCATED) return 1;
-    }
-    return 1;
-}
-
-static int32_t utf8_encode(uint32_t cp, char out[4])
-{
-    if (cp < 0x80) {
-        out[0] = (char)cp;
-        return 1;
-    }
-    if (cp < 0x800) {
-        out[0] = (char)(0xC0 | (cp >> 6));
-        out[1] = (char)(0x80 | (cp & 0x3F));
-        return 2;
-    }
-    if (cp < 0x10000) {
-        out[0] = (char)(0xE0 | (cp >> 12));
-        out[1] = (char)(0x80 | ((cp >> 6) & 0x3F));
-        out[2] = (char)(0x80 | (cp & 0x3F));
-        return 3;
-    }
-    if (cp <= 0x10FFFF) {
-        out[0] = (char)(0xF0 | (cp >> 18));
-        out[1] = (char)(0x80 | ((cp >> 12) & 0x3F));
-        out[2] = (char)(0x80 | ((cp >> 6) & 0x3F));
-        out[3] = (char)(0x80 | (cp & 0x3F));
-        return 4;
-    }
-    return 0;
 }
 
 static void close_mapping(void)
@@ -296,9 +220,10 @@ int32_t rd_open_file(const char *path)
         (unsigned char)s_mmap_data[1] == 0xBB &&
         (unsigned char)s_mmap_data[2] == 0xBF) {
         start_offset = 3;
-        s_decode = next_char_utf8;
+        s_decode = enc_decode_utf8;
     } else {
-        s_decode = utf8_prefix_ok() ? next_char_utf8 : next_char_gbk;
+        s_decode = enc_utf8_prefix_ok((const uint8_t *)s_mmap_data, s_mmap_len)
+            ? enc_decode_utf8 : enc_decode_gbk;
     }
     load_book_name(path);
 
@@ -437,7 +362,7 @@ static void layout_line(Line *line, LineCursor *cur)
         if (line->len >= MAX_CHARS - 1) break;
 
         int64_t prev = cur->off;
-        uint32_t cp = s_decode(&cur->off);
+        uint32_t cp = s_decode((const uint8_t *)s_mmap_data, s_mmap_len, &cur->off);
         if (cp == 0) break;
         if (cp == '\r') {
             if (cur->off < s_mmap_len && s_mmap_data[cur->off] == '\n') cur->off++;
@@ -808,11 +733,11 @@ static int32_t bookmark_preview(int64_t offset, char *out, int32_t cap)
     int64_t off = offset;
 
     while (off < s_mmap_len && n < cap - 1) {
-        uint32_t cp = s_decode(&off);
+        uint32_t cp = s_decode((const uint8_t *)s_mmap_data, s_mmap_len, &off);
         if (cp == 0 || cp == '\n' || cp == '\r') break;
 
         char enc[4];
-        int32_t len = utf8_encode(cp, enc);
+        int32_t len = enc_utf8_encode(cp, enc);
         if (len <= 0 || n + len > cap - 1) break;
         memcpy(out + n, enc, (size_t)len);
         n += len;
@@ -861,7 +786,10 @@ int32_t rd_delete_file(const char *path)
     const char *base = strrchr(path, '/');
     base = base ? base + 1 : path;
 
-    unlink(path);
+    if (unlink(path) != 0) {
+        rd_scan_dir();
+        return -1;
+    }
     char side[512];
     snprintf(side, sizeof(side), "%s.name", path);
     unlink(side);

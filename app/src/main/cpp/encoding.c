@@ -1,0 +1,80 @@
+#include "encoding.h"
+#include "utf8.h"
+#include "gbk_table.h"
+
+static uint32_t gbk_decode_fast(unsigned char b1, unsigned char b2)
+{
+    if (b1 >= 0x81 && b1 <= 0xFE && b2 >= 0x40 && b2 <= 0xFE && b2 != 0x7F) {
+        uint16_t cp = g_gbk_table[(b1 - 0x81) * 191 + (b2 - 0x40)];
+        if (cp) return cp;
+    }
+    return '?';
+}
+
+uint32_t enc_decode_utf8(const uint8_t *data, int64_t len, int64_t *off)
+{
+    const uint8_t *base = data;
+    const uint8_t *p = base + *off;
+    uint32_t cp = 0;
+
+    Utf8Result result = utf8_next(&p, base + len, &cp);
+    *off = p - base;
+    return result == UTF8_END ? 0 : cp;
+}
+
+uint32_t enc_decode_gbk(const uint8_t *data, int64_t len, int64_t *off)
+{
+    if (*off >= len) return 0;
+
+    unsigned char b1 = data[(*off)++];
+    if (b1 < 0x80) return b1;
+    if (b1 == 0x80) return 0x20AC;
+    if (*off >= len) return '?';
+
+    unsigned char b2 = data[(*off)++];
+    return gbk_decode_fast(b1, b2);
+}
+
+int32_t enc_utf8_prefix_ok(const uint8_t *data, int64_t len)
+{
+    int64_t limit = len < 4096 ? len : 4096;
+    const uint8_t *p = data;
+    const uint8_t *end = p + limit;
+
+    while (p < end) {
+        uint32_t cp;
+        Utf8Result result = utf8_next(&p, end, &cp);
+        if (result == UTF8_INVALID) return 0;
+        if (result == UTF8_TRUNCATED) return 1;
+    }
+    return 1;
+}
+
+int32_t enc_utf8_encode(uint32_t cp, char out[4])
+{
+    if (cp == 0 || cp > 0x10FFFF ||
+        (cp >= 0xD800 && cp <= 0xDFFF)) return 0;
+    if (cp < 0x80) {
+        out[0] = (char)cp;
+        return 1;
+    }
+    if (cp < 0x800) {
+        out[0] = (char)(0xC0 | (cp >> 6));
+        out[1] = (char)(0x80 | (cp & 0x3F));
+        return 2;
+    }
+    if (cp < 0x10000) {
+        out[0] = (char)(0xE0 | (cp >> 12));
+        out[1] = (char)(0x80 | ((cp >> 6) & 0x3F));
+        out[2] = (char)(0x80 | (cp & 0x3F));
+        return 3;
+    }
+    if (cp <= 0x10FFFF) {
+        out[0] = (char)(0xF0 | (cp >> 18));
+        out[1] = (char)(0x80 | ((cp >> 12) & 0x3F));
+        out[2] = (char)(0x80 | ((cp >> 6) & 0x3F));
+        out[3] = (char)(0x80 | (cp & 0x3F));
+        return 4;
+    }
+    return 0;
+}

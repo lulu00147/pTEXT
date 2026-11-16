@@ -55,6 +55,7 @@ static int64_t s_file_hold_start_ns = 0;
 static int32_t s_file_hold_idx = -1;
 static int32_t s_file_hold_fired = 0;
 static int32_t s_delete_idx = -1;
+static int32_t s_file_error = 0;
 void pickFile(void);
 int32_t takeRescanFlag(void);
 
@@ -91,6 +92,8 @@ static const uint32_t UI_IMPORT[] = {0x5B,0x20,0x2B,0x20,0x5D,0};
 static const uint32_t UI_SETTINGS_TITLE[] = {0x2D,0x2D,0x20,0x9605,0x8BFB,0x8BBE,
                                              0x7F6E,0x20,0x2D,0x2D,0};
 static const uint32_t UI_BOOKMARKS[] = {0x4E66,0x7B7E,0};                        /* 书签 */
+static const uint32_t UI_OPEN_FAIL[] = {0x65E0,0x6CD5,0x6253,0x5F00,0x6587,0x4EF6};
+static const uint32_t UI_DELETE_FAIL[] = {0x5220,0x9664,0x5931,0x8D25};
 #define UI_LEN(arr) (sizeof(arr)/sizeof(uint32_t) - 1)
 
 static int32_t clamp_i(int32_t v, int32_t lo, int32_t hi)
@@ -173,6 +176,13 @@ static void draw_file_list(void)
     int32_t import_w = r_text_width(UI_IMPORT, UI_LEN(UI_IMPORT));
     r_draw_text(r_w() - import_w - LX_MARGIN, r_h() - LY_BOTTOM_BTN,
                 UI_IMPORT, UI_LEN(UI_IMPORT));
+    if (s_file_error == 1) {
+        r_draw_text(LX_MARGIN, r_h() - BOTTOM_BTN_ZONE,
+                    UI_OPEN_FAIL, UI_LEN(UI_OPEN_FAIL));
+    } else if (s_file_error == 2) {
+        r_draw_text(LX_MARGIN, r_h() - BOTTOM_BTN_ZONE,
+                    UI_DELETE_FAIL, UI_LEN(UI_DELETE_FAIL));
+    }
 }
 
 static void get_delete_rect(int32_t *l, int32_t *t, int32_t *r, int32_t *b)
@@ -682,7 +692,7 @@ static int32_t handle_input(struct android_app *app, AInputEvent *event)
                         s_state = ST_FILELIST;
                         s_delete_idx = -1;
                     } else {
-                        rd_delete_file(files[s_delete_idx].path);
+                        s_file_error = rd_delete_file(files[s_delete_idx].path) == 0 ? 0 : 2;
                         s_delete_idx = -1;
                         s_state = ST_FILELIST;
                     }
@@ -705,6 +715,7 @@ static int32_t handle_input(struct android_app *app, AInputEvent *event)
                 int32_t count;
                 FileItem *files = rd_get_files(&count);
                 if (y > r_h() - BOTTOM_BTN_ZONE) {
+                    s_file_error = 0;
                     pickFile();
                 } else {
                     int32_t list_top = LY_ITEM0 - ITEM_H / 2;
@@ -714,8 +725,11 @@ static int32_t handle_input(struct android_app *app, AInputEvent *event)
                         int32_t fidx = (iy - list_top) / ITEM_H;
                         if (fidx >= 0 && fidx < count &&
                             rd_open_file(files[fidx].path) == 0) {
+                            s_file_error = 0;
                             s_state = ST_READING;
                             s_need_redraw = 1;
+                        } else {
+                            s_file_error = 1;
                         }
                     }
                 }
