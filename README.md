@@ -9,30 +9,15 @@ Android 17 TXT 阅读器。C11 + Java 11，NativeActivity，arm64-v8a。
 - mmap、页式排版、逐帧预排版
 - 文件列表：滚动、`[ + ]` 导入、长按删除、`[ * ]` 书签入口
 - 阅读页：3×3 九宫格；1/2/4/7 上一页，3/6/8/9 下一页
-- 前台保持常亮；5 分钟无触摸后释放常亮，交还系统熄屏
 - 5 短按书签，页脚显示 `*`；按住 3 秒设置
+- 书签列表显示首行文字，点击跳转
 - 设置四行：字号、缩进、行距、主题
-- 书签列表：滚动、点击跳转
+- 前台保持常亮；5 分钟无触摸后交还系统熄屏
 - 进度、书签、设置原子写入
-
-## 结构
-
-```text
-main.c            事件循环、输入、JNI
-ui_lists.c        文件列表、书签列表、删除确认
-ui_reading.c      阅读页绘制
-ui_settings.c     设置面板
-ui_util.c         dp 缩放、UTF-8 转换
-reader.c          mmap、分页、书签、设置
-persist.c         原子写入
-encoding.c        UTF-8/GBK/GB18030
-render.c          字体光栅、RGB565、字形缓存
-MainActivity.java NativeActivity 壳、SAF 导入
-```
 
 ## 构建
 
-需要 Windows 和仓库根 `tools/`：NDK r30、CMake 4.5.0、Build Tools 37.0.0、JDK 25、Platform 37.2、Ninja 1.13.2。
+需要 Windows 和仓库根 `tools/`：
 
 ```bat
 build.bat
@@ -52,9 +37,9 @@ KEY_ALIAS=ptext
 KEY_PASSWORD=...
 ```
 
-3. 运行 `build.bat`。缺少上述文件时使用 debug keystore。
+3. 运行 `build.bat`。缺少文件时使用 debug keystore。
 
-更换签名密钥后必须卸载旧包。keystore 与 properties 不入库。
+更换密钥后卸载旧包。keystore 与 properties 不入库。
 
 ## 验证
 
@@ -68,7 +53,6 @@ sh tests/run_reader_tests.sh
 
 - 编码测试：1,065,822 cases PASS。
 - reader/persist：PASS。
-- release 0.1 设备验证：UTF-8/GBK、11MB、空文件、书签列表/跳转、设置持久化、强杀恢复、旋转。
 
 ## 限制
 
