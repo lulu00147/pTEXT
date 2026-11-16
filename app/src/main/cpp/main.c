@@ -518,14 +518,6 @@ static int32_t handle_input(struct android_app *app, AInputEvent *event)
             int32_t x = (int32_t)AMotionEvent_getX(event, 0);
             int32_t y = (int32_t)AMotionEvent_getY(event, 0);
 
-            int64_t down = AMotionEvent_getDownTime(event);
-            int64_t up = AMotionEvent_getEventTime(event);
-            if (s_state == ST_READING && down > 0 && up - down >= 800) {
-                rd_toggle_bookmark();
-                s_need_redraw = 1;
-                return 1;
-            }
-
             if (s_state == ST_FILELIST) {
                 int32_t count;
                 FileItem *files = rd_get_files(&count);
