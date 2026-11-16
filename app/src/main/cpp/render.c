@@ -411,6 +411,16 @@ void r_draw_text(int32_t x, int32_t y, const uint32_t *s, int32_t n)
     }
 }
 
+static int justify_punct(uint32_t cp)
+{
+    if (cp < 0x80) return (cp == ',' || cp == '.' || cp == ';' || cp == ':' ||
+                           cp == '!' || cp == '?' || cp == ')');
+    return cp == 0x3001 || cp == 0x3002 || cp == 0xFF0C || cp == 0xFF1A ||
+           cp == 0xFF1B || cp == 0xFF01 || cp == 0xFF1F ||
+           cp == 0x300A || cp == 0x300B || cp == 0x201C || cp == 0x201D ||
+           cp == 0x2018 || cp == 0x2019 || cp == 0x2014 || cp == 0x2026;
+}
+
 void r_draw_text_justified(int32_t x, int32_t y, const uint32_t *s, int32_t n, int32_t target_width)
 {
     if (n < 2) {
@@ -418,15 +428,45 @@ void r_draw_text_justified(int32_t x, int32_t y, const uint32_t *s, int32_t n, i
         return;
     }
     int32_t natural = r_text_width(s, n);
-    int32_t extra = (target_width - natural) / (n - 1);
-    if (extra <= 0) {
+    int32_t diff = target_width - natural;
+    if (diff == 0) {
         r_draw_text(x, y, s, n);
         return;
     }
-    int32_t old = s_text_extra;
-    s_text_extra = extra;
-    r_draw_text(x, y, s, n);
-    s_text_extra = old;
+
+    int32_t gaps[256];
+    int32_t total_w = 0;
+    for (int32_t i = 0; i < n - 1; i++) {
+        int32_t w = 1;
+        if (diff < 0 && (justify_punct(s[i]) || justify_punct(s[i + 1]))) w = 3;
+        gaps[i] = w;
+        total_w += w;
+    }
+    if (total_w < 1) total_w = 1;
+
+    int32_t q = diff / total_w;
+    int32_t rem = diff - q * total_w;
+    for (int32_t i = 0; i < n - 1; i++) {
+        int32_t w = gaps[i];
+        int32_t g = q * w;
+        if (rem > 0) {
+            int32_t add = rem < w ? rem : w;
+            g += add;
+            rem -= add;
+        } else if (rem < 0) {
+            int32_t sub = (-rem) < w ? (-rem) : w;
+            g -= sub;
+            rem += sub;
+        }
+        gaps[i] = g;
+    }
+
+    int32_t px = x;
+    for (int32_t i = 0; i < n; i++) {
+        r_draw_text(px, y, &s[i], 1);
+        px += r_char_advance(s[i]);
+        if (i < n - 1) px += gaps[i];
+    }
 }
 
 int32_t r_text_width(const uint32_t *s, int32_t n)

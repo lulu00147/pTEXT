@@ -446,6 +446,13 @@ static void layout_line(Line *line, LineCursor *cur)
 
         int32_t cw = r_char_advance(cp);
         if (cur->x + cw > cur->max_x && line->len > 0) {
+            int32_t over = cur->x + cw - cur->max_x;
+            if (over <= rd_ui(6)) {
+                line->text[line->len++] = cp;
+                cur->x += cw;
+                line->justify = 1;
+                break;
+            }
             cur->off = prev;
             line->justify = 1;
             break;
