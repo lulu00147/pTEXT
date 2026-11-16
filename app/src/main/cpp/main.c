@@ -548,7 +548,7 @@ static int32_t handle_input(struct android_app *app, AInputEvent *event)
             } else if (s_state == ST_READING && reading_cell(x, y) == 5) {
                 int64_t down = AMotionEvent_getDownTime(event);
                 int64_t up = AMotionEvent_getEventTime(event);
-                if (down > 0 && up - down >= 1500) {
+                if (down > 0 && (up - down) / 1000000 >= 1500) {
                     s_state = ST_SETTINGS;
                 } else {
                     rd_toggle_bookmark();
