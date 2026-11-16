@@ -31,7 +31,7 @@ static int32_t ui(int32_t px)
 #define LY_BOTTOM_BTN   ui(80)   /* 底部按钮距底边距 */
 #define BOTTOM_BTN_ZONE ui(100)  /* 底部按钮区域高度 */
 #define READ_MARGIN_X   ui(16)   /* 阅读页左右边距 */
-#define READ_TEXT_Y0    ui(24)   /* 阅读页正文起始 Y */
+#define READ_TEXT_Y0    ui(30)   /* 阅读页正文起始 Y */
 #define SETTINGS_W      ui(360)  /* 设置面板宽 */
 #define SETTINGS_H      ui(320)  /* 设置面板高 */
 #define SETTINGS_ROW_H  ui(50)   /* 设置行高 */
@@ -133,7 +133,8 @@ static void draw_reading(void)
     if (!rd_get_file_len()) return;
     r_clear();
 
-    float hs = (float)ui(10);
+    float hs = (float)ui(14);
+    float fs = (float)ui(20);
     const uint16_t hf_color = 0x630C; /* #606060 in RGB565 */
     const char *book = rd_get_book_name();
     uint32_t title[128];
@@ -158,21 +159,21 @@ static void draw_reading(void)
                     p->lines[i].text, p->lines[i].len);
     }
 
-    int32_t fy = r_h() - ui(24);
+    int32_t fy = r_h() - ui(32);
     char foot[64];
     int32_t page_no = rd_get_page_no();
     if (page_no > 0) snprintf(foot, sizeof(foot), "第 %d 页", page_no);
     else snprintf(foot, sizeof(foot), "页码 --");
     uint32_t utxt[64];
     int32_t n = utf8_to_utf32(utxt, 63, foot);
-    r_draw_text_at_size_color(READ_MARGIN_X, fy, utxt, n, hs, hf_color);
+    r_draw_text_at_size_color(READ_MARGIN_X, fy, utxt, n, fs, hf_color);
 
     float pct = (float)p->start_offset / (float)rd_get_file_len() * 100.0f;
     char pct_buf[32];
     snprintf(pct_buf, sizeof(pct_buf), "%.1f%%", pct);
     n = utf8_to_utf32(utxt, 63, pct_buf);
-    r_draw_text_at_size_color(r_w() - r_text_width_at_size(utxt, n, hs) - READ_MARGIN_X,
-                              fy, utxt, n, hs, hf_color);
+    r_draw_text_at_size_color(r_w() - r_text_width_at_size(utxt, n, fs) - READ_MARGIN_X,
+                              fy, utxt, n, fs, hf_color);
 }
 
 static void get_settings_rect(int32_t *l, int32_t *t, int32_t *r, int32_t *b)
