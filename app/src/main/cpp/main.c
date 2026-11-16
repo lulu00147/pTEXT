@@ -192,6 +192,7 @@ static void draw_reading(void)
         int32_t x = BODY_MARGIN_X + line->indent;
         int32_t target = r_w() - BODY_MARGIN_X * 2 - line->indent;
         int32_t y = READ_TEXT_Y0 + draw_i * vstep_x10 / 10;
+        if (y > footer_zone_top) break;
         if (line->justify && line->len > 1) {
             r_draw_text_justified(x, y, line->text, line->len, target);
         } else {

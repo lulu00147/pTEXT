@@ -24,7 +24,7 @@ static int32_t rd_ui(int32_t px)
 
 #define MARGIN_X   rd_ui(5)
 #define MARGIN_TOP rd_ui(53)
-#define MARGIN_BOT 0
+#define MARGIN_BOT rd_ui(10)
 
 static char s_data_path[512];
 static char s_cur_name[256];
