@@ -33,7 +33,7 @@ static int32_t ui(int32_t px)
 #define HEADER_MARGIN_X ui(14)  /* Legado 页眉左右边距 */
 #define BODY_MARGIN_X   ui(5)   /* Legado 正文左右边距 */
 #define FOOTER_MARGIN_X ui(13)  /* Legado 页脚左右边距 */
-#define READ_TEXT_Y0    ui(50)  /* 阅读页正文起始 Y */
+#define READ_TEXT_Y0    ui(54)  /* 阅读页正文起始 Y */
 #define SETTINGS_W      ui(360)  /* 设置面板宽 */
 #define SETTINGS_H      ui(320)  /* 设置面板高 */
 #define SETTINGS_ROW_H  ui(50)   /* 设置行高 */
@@ -135,7 +135,8 @@ static void draw_reading(void)
     if (!rd_get_file_len()) return;
     r_clear();
 
-    float hs = (float)ui(18);
+    float hs = (float)ui(15);
+    float hts = (float)ui(14);
     float fs = (float)ui(14);
     const uint16_t hf_color = 0x630C; /* #606060 in RGB565 */
     const char *book = rd_get_book_name();
@@ -148,11 +149,11 @@ static void draw_reading(void)
     snprintf(clock, sizeof(clock), "%02d:%02d", tmv.tm_hour, tmv.tm_min);
     uint32_t utime[16];
     int32_t un = utf8_to_utf32(utime, 15, clock);
-    int32_t tw = r_text_width_at_size(utime, un, hs);
+    int32_t tw = r_text_width_at_size(utime, un, hts);
     int32_t max_title_w = r_w() - HEADER_MARGIN_X * 2 - tw - ui(12);
     while (tn > 0 && r_text_width_at_size(title, tn, hs) > max_title_w) tn--;
-    r_draw_text_at_size_color(HEADER_MARGIN_X, ui(30), title, tn, hs, hf_color);
-    r_draw_text_at_size_color(r_w() - tw - HEADER_MARGIN_X, ui(30), utime, un, hs, hf_color);
+    r_draw_text_at_size_color(HEADER_MARGIN_X, ui(28), title, tn, hs, hf_color);
+    r_draw_text_at_size_color(r_w() - tw - HEADER_MARGIN_X, ui(28), utime, un, hts, hf_color);
 
     Page *p = rd_get_page();
     int32_t lh = rd_get_line_h();
