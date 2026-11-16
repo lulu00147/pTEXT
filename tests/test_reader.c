@@ -21,6 +21,9 @@ int main(void)
     assert(mkdtemp(dir) != NULL);
     assert(chdir(dir) == 0);
     rd_init(dir);
+    char files_dir[512];
+    snprintf(files_dir, sizeof(files_dir), "%s/files", dir);
+    assert(chdir(files_dir) == 0);
 
     const char *empty_path = "empty.txt";
     write_file(empty_path, "", 0);
@@ -79,6 +82,15 @@ int main(void)
     int64_t bookmark_offset = bms[0].offset;
 
     rd_close();
+    rd_scan_dir();
+    int32_t file_count = 0;
+    FileItem *files = rd_get_files(&file_count);
+    int32_t marked = 0;
+    for (int32_t i = 0; i < file_count; i++) {
+        if (strcmp(files[i].name, long_path) == 0 && files[i].bookmarks == 1) marked = 1;
+    }
+    assert(marked == 1);
+
     assert(rd_open_file(long_path) == 0);
     rd_goto_offset(bookmark_offset);
     assert(rd_get_page()->start_offset == bookmark_offset);

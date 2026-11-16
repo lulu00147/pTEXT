@@ -143,7 +143,8 @@ void rd_scan_dir(void)
         f->bookmarks = 0;
 
         char bm_path[1024];
-        int bm_len = snprintf(bm_path, sizeof(bm_path), "%s/.bm/%s.bin", dpath, ent->d_name);
+        int bm_len = snprintf(bm_path, sizeof(bm_path), "%s/.bm/%s.bin",
+                              s_data_path, ent->d_name);
         if (bm_len > 0 && (size_t)bm_len < sizeof(bm_path)) {
             struct stat st;
             if (stat(bm_path, &st) == 0 && st.st_size >= (off_t)sizeof(Bookmark)) {
