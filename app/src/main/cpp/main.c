@@ -33,7 +33,7 @@ static int32_t ui(int32_t px)
 #define HEADER_MARGIN_X ui(14)  /* Legado 页眉左右边距 */
 #define BODY_MARGIN_X   ui(5)   /* Legado 正文左右边距 */
 #define FOOTER_MARGIN_X ui(13)  /* Legado 页脚左右边距 */
-#define READ_TEXT_Y0    ui(54)  /* 阅读页正文起始 Y */
+#define READ_TEXT_Y0    ui(53)  /* 阅读页正文起始 Y */
 #define SETTINGS_W      ui(360)  /* 设置面板宽 */
 #define SETTINGS_H      ui(320)  /* 设置面板高 */
 #define SETTINGS_ROW_H  ui(50)   /* 设置行高 */
