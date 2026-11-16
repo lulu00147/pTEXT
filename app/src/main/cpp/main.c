@@ -45,6 +45,11 @@ static int32_t s_need_redraw = 1;
 static int32_t s_last_min = -1;
 static int64_t s_center_down_ns = 0;
 static int32_t s_center_long_fired = 0;
+static int32_t s_file_scroll = 0;
+static int32_t s_file_touch_active = 0;
+static int32_t s_file_dragging = 0;
+static int32_t s_file_down_y = 0;
+static int32_t s_file_down_scroll = 0;
 void pickFile(void);
 int32_t takeRescanFlag(void);
 
@@ -113,19 +118,46 @@ static int32_t utf8_to_utf32(uint32_t *dst, int32_t max, const char *src)
     return n;
 }
 
+static int32_t file_list_max_scroll(int32_t count)
+{
+    int32_t top = LY_ITEM0 - ITEM_H / 2;
+    int32_t bottom = r_h() - BOTTOM_BTN_ZONE;
+    int32_t visible = bottom - top;
+    if (visible < ITEM_H) visible = ITEM_H;
+    int32_t max_scroll = count * ITEM_H - visible;
+    return max_scroll > 0 ? max_scroll : 0;
+}
+
 static void draw_file_list(void)
 {
     r_clear();
     int32_t count;
     FileItem *files = rd_get_files(&count);
+    int32_t max_scroll = file_list_max_scroll(count);
+    if (s_file_scroll > max_scroll) s_file_scroll = max_scroll;
+    if (s_file_scroll < 0) s_file_scroll = 0;
+
     r_draw_text(LX_MARGIN, LY_TITLE, UI_TITLE, UI_LEN(UI_TITLE));
-    if (count == 0) r_draw_text(LX_MARGIN, LY_ITEM0 + ITEM_H / 2, UI_EMPTY, UI_LEN(UI_EMPTY));
-    for (int32_t i = 0; i < count; i++) {
-        int32_t y = LY_ITEM0 + i * ITEM_H + (ITEM_H - r_font_h()) / 2;
-        if (y >= r_h()) break;
-        uint32_t txt[256];
-        int32_t n = utf8_to_utf32(txt, 255, files[i].name);
-        r_draw_text(LX_MARGIN, y, txt, n);
+    int32_t list_top = LY_ITEM0 - ITEM_H / 2;
+    int32_t list_bottom = r_h() - BOTTOM_BTN_ZONE;
+    int32_t max_text_w = r_w() - LX_MARGIN * 2;
+
+    if (count == 0) {
+        r_draw_text(LX_MARGIN, LY_ITEM0 + ITEM_H / 2, UI_EMPTY, UI_LEN(UI_EMPTY));
+    } else {
+        for (int32_t i = 0; i < count; i++) {
+            int32_t row_y = LY_ITEM0 + i * ITEM_H - s_file_scroll;
+            int32_t y = row_y + (ITEM_H - r_font_h()) / 2;
+            if (row_y + ITEM_H <= list_top || row_y >= list_bottom) continue;
+            if (y < list_top || y + r_font_h() > list_bottom) continue;
+
+            uint32_t txt[256];
+            int32_t n = utf8_to_utf32(txt, 255, files[i].name);
+            int32_t full_n = n;
+            while (n > 1 && r_text_width(txt, n) > max_text_w) n--;
+            if (full_n > n && n > 0) txt[n - 1] = 0x2026; /* … */
+            r_draw_text(LX_MARGIN, y, txt, n);
+        }
     }
     r_draw_text(LX_MARGIN, r_h() - LY_BOTTOM_BTN, UI_IMPORT, UI_LEN(UI_IMPORT));
 }
@@ -539,10 +571,45 @@ static int32_t handle_input(struct android_app *app, AInputEvent *event)
         }
 
         if (masked == AMOTION_EVENT_ACTION_DOWN) {
-            if (s_state == ST_READING && reading_cell(x, y) == 5) {
+            if (s_state == ST_FILELIST) {
+                if (y < r_h() - BOTTOM_BTN_ZONE) {
+                    s_file_touch_active = 1;
+                    s_file_dragging = 0;
+                    s_file_down_y = y;
+                    s_file_down_scroll = s_file_scroll;
+                }
+            } else if (s_state == ST_READING && reading_cell(x, y) == 5) {
                 s_center_down_ns = AMotionEvent_getEventTime(event);
                 s_center_long_fired = 0;
             }
+            return 1;
+        }
+
+        if (masked == AMOTION_EVENT_ACTION_MOVE) {
+            if (s_state == ST_FILELIST && s_file_touch_active) {
+                int32_t dy = y - s_file_down_y;
+                if (!s_file_dragging && (dy > ui(8) || dy < -ui(8))) {
+                    s_file_dragging = 1;
+                }
+                if (s_file_dragging) {
+                    int32_t count;
+                    rd_get_files(&count);
+                    int32_t max_scroll = file_list_max_scroll(count);
+                    int32_t v = s_file_down_scroll - dy;
+                    if (v < 0) v = 0;
+                    if (v > max_scroll) v = max_scroll;
+                    if (v != s_file_scroll) {
+                        s_file_scroll = v;
+                        s_need_redraw = 1;
+                    }
+                }
+            }
+            return 1;
+        }
+
+        if (masked == AMOTION_EVENT_ACTION_CANCEL) {
+            s_file_touch_active = 0;
+            s_file_dragging = 0;
             return 1;
         }
 
@@ -555,18 +622,26 @@ static int32_t handle_input(struct android_app *app, AInputEvent *event)
             }
 
             if (s_state == ST_FILELIST) {
+                int32_t was_dragging = s_file_dragging;
+                s_file_touch_active = 0;
+                s_file_dragging = 0;
+                if (was_dragging) return 1;
+
                 int32_t count;
                 FileItem *files = rd_get_files(&count);
                 if (y > r_h() - BOTTOM_BTN_ZONE) {
                     pickFile();
-                } else if (count > 0 &&
-                           y >= LY_ITEM0 - ITEM_H / 2 &&
-                           y < LY_ITEM0 - ITEM_H / 2 + count * ITEM_H) {
-                    int32_t fidx = (y - (LY_ITEM0 - ITEM_H / 2)) / ITEM_H;
-                    if (fidx >= 0 && fidx < count &&
-                        rd_open_file(files[fidx].path) == 0) {
-                        s_state = ST_READING;
-                        s_need_redraw = 1;
+                } else {
+                    int32_t list_top = LY_ITEM0 - ITEM_H / 2;
+                    int32_t iy = y + s_file_scroll;
+                    if (count > 0 && iy >= list_top &&
+                        iy < list_top + count * ITEM_H) {
+                        int32_t fidx = (iy - list_top) / ITEM_H;
+                        if (fidx >= 0 && fidx < count &&
+                            rd_open_file(files[fidx].path) == 0) {
+                            s_state = ST_READING;
+                            s_need_redraw = 1;
+                        }
                     }
                 }
             } else if (s_state == ST_READING && reading_cell(x, y) == 5) {
