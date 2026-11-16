@@ -133,7 +133,7 @@ static void draw_reading(void)
     if (!rd_get_file_len()) return;
     r_clear();
 
-    float hs = (float)ui(10);
+    float hs = (float)ui(14);
     float fs = (float)ui(20);
     const uint16_t hf_color = 0x630C; /* #606060 in RGB565 */
     const char *book = rd_get_book_name();
@@ -149,8 +149,8 @@ static void draw_reading(void)
     int32_t tw = r_text_width_at_size(utime, un, hs);
     int32_t max_title_w = r_w() - READ_MARGIN_X * 2 - tw - ui(12);
     while (tn > 0 && r_text_width_at_size(title, tn, hs) > max_title_w) tn--;
-    r_draw_text_at_size_color(READ_MARGIN_X, ui(12), title, tn, hs, hf_color);
-    r_draw_text_at_size_color(r_w() - tw - READ_MARGIN_X, ui(12), utime, un, hs, hf_color);
+    r_draw_text_at_size_color(READ_MARGIN_X, ui(20), title, tn, hs, hf_color);
+    r_draw_text_at_size_color(r_w() - tw - READ_MARGIN_X, ui(20), utime, un, hs, hf_color);
 
     Page *p = rd_get_page();
     int32_t lh = rd_get_line_h();
@@ -249,7 +249,14 @@ static void handle_touch_reading(int32_t x, int32_t y)
     get_settings_rect(&l, &t, &r, &b);
     if (s_state == ST_SETTINGS) {
         if (x < l || x > r || y < t || y > b) {
-            s_state = ST_READING; s_need_redraw = 1; return;
+            s_state = ST_READING;
+            if (x < TOUCH_ZONE_L) {
+                if (rd_can_prev()) rd_prev_page();
+            } else if (x > TOUCH_ZONE_R) {
+                if (rd_can_next()) rd_next_page();
+            }
+            s_need_redraw = 1;
+            return;
         }
         Settings *s = rd_get_settings();
         int32_t font_idx = clamp_i(s->font_idx, 0, 6);

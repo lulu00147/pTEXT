@@ -224,7 +224,7 @@ FileItem* rd_get_files(int32_t *count)
     return s_files;
 }
 
-static void load_book_name(const char *path, int64_t start)
+static void load_book_name(const char *path)
 {
     s_book_name[0] = '\0';
 
@@ -243,25 +243,11 @@ static void load_book_name(const char *path, int64_t start)
     }
 
     if (!s_book_name[0]) {
-        int64_t off = start;
-        int32_t n = 0;
-        while (off < s_mmap_len && n < (int32_t)sizeof(s_book_name) - 4) {
-            uint32_t cp = s_decode(&off);
-            if (!cp || cp == '\r' || cp == '\n') break;
-            if (n == 0 && (cp == ' ' || cp == '\t')) continue;
-            char enc[4];
-            int32_t el = utf8_encode(cp, enc);
-            if (el <= 0) continue;
-            if (n + el >= (int32_t)sizeof(s_book_name)) break;
-            memcpy(s_book_name + n, enc, (size_t)el);
-            n += el;
-        }
-        s_book_name[n] = '\0';
-    }
-
-    if (!s_book_name[0]) {
         snprintf(s_book_name, sizeof(s_book_name), "%s", s_cur_name);
     }
+
+    char *ext = strrchr(s_book_name, '.');
+    if (ext && strcasecmp(ext, ".txt") == 0) *ext = '\0';
 }
 
 int32_t rd_open_file(const char *path)
@@ -298,11 +284,10 @@ int32_t rd_open_file(const char *path)
     } else {
         s_decode = utf8_prefix_ok() ? next_char_utf8 : next_char_gbk;
     }
-    load_book_name(path, start_offset);
+    load_book_name(path);
 
     int64_t saved_offset = start_offset;
     int64_t prev_offset = -1;
-    int64_t saved_page = -1;
     char ppath[512];
     snprintf(ppath, sizeof(ppath), "%s/.prog/%s.bin", s_data_path, s_cur_name);
     FILE *f = fopen(ppath, "rb");
@@ -311,7 +296,6 @@ int32_t rd_open_file(const char *path)
         size_t n = fread(values, sizeof(values[0]), 3, f);
         if (n >= 1) saved_offset = values[0];
         if (n >= 2) prev_offset = values[1];
-        if (n >= 3) saved_page = values[2];
         fclose(f);
     }
     if (saved_offset < start_offset) saved_offset = start_offset;
@@ -339,19 +323,18 @@ int32_t rd_open_file(const char *path)
     }
 
     int64_t open_offset = saved_offset;
+    int32_t open_page_no = 1;
     if (saved_offset == start_offset) {
-        s_page_no = 1;
-    } else if (saved_page >= 1 && saved_page <= INT32_MAX && has_prev) {
-        s_page_no = (int32_t)saved_page;
+        open_page_no = 1;
     } else {
         int64_t page_start = 0;
-        s_page_no = page_for_offset(saved_offset, &page_start);
+        open_page_no = page_for_offset(saved_offset, &page_start);
         open_offset = page_start;
         has_prev = 0;
     }
 
     rd_goto_offset(open_offset);
-    s_page_no = s_page_no > 0 ? s_page_no : 1;
+    s_page_no = open_page_no > 0 ? open_page_no : 1;
     if (has_prev && open_offset == saved_offset) {
         s_page_hist[0] = prev_offset;
         s_page_hist[1] = s_page_curr->start_offset;
