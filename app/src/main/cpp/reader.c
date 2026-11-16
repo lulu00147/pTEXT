@@ -592,7 +592,6 @@ void rd_goto_offset(int64_t offset)
     paginate_full(offset, s_page_curr);
     rd_reset_prefetch();
     hist_reset(offset);
-    s_page_no = 0;
 
     if (s_page_curr->next_offset < s_mmap_len) {
         paginate_init(s_page_curr->next_offset);
