@@ -824,6 +824,14 @@ void rd_toggle_bookmark(void)
     }
 }
 
+int32_t rd_page_bookmarked(void)
+{
+    for (int32_t i = 0; i < s_bm_count; i++) {
+        if (s_bms[i].offset == s_page_curr->start_offset) return 1;
+    }
+    return 0;
+}
+
 Bookmark* rd_get_bookmarks(int32_t *count)
 {
     *count = s_bm_count;

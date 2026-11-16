@@ -38,6 +38,7 @@ void rd_set_gap_idx(int32_t i);
 int32_t rd_get_line_h(void);
 int32_t rd_get_indent_w(void);
 void rd_toggle_bookmark(void);
+int32_t rd_page_bookmarked(void);
 Bookmark* rd_get_bookmarks(int32_t *count);
 void rd_jump_bookmark(int32_t idx);
 void rd_set_theme(int32_t t);

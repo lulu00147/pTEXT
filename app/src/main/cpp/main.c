@@ -184,6 +184,12 @@ static void draw_reading(void)
     r_draw_text_at_size_color(r_w() - r_text_width_at_size(utxt, n, fs) - FOOTER_MARGIN_X,
                               fy, utxt, n, fs, hf_color);
 
+    if (rd_page_bookmarked()) {
+        const uint32_t bm[] = {0x4E66, 0x7B7E}; /* 书签 */
+        int32_t bw = r_text_width_at_size(bm, 2, fs);
+        r_draw_text_at_size_color((r_w() - bw) / 2, fy, bm, 2, fs, hf_color);
+    }
+
     int32_t vstep_x10 = rd_get_line_h() * 10 + 7;
     int32_t draw_i = 0;
     for (int32_t i = 0; i < p->count; i++) {
