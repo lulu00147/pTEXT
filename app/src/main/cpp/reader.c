@@ -201,7 +201,7 @@ void rd_init(const char *path)
     snprintf(s_data_path, sizeof(s_data_path), "%s", path ? path : "");
     mkdir(s_data_path, 0755);
 
-    char sub[512];
+    char sub[1024];
     snprintf(sub, sizeof(sub), "%s/.prog", s_data_path);
     mkdir(sub, 0755);
     snprintf(sub, sizeof(sub), "%s/.bm", s_data_path);
@@ -223,7 +223,7 @@ void rd_scan_dir(void)
 {
     s_file_count = 0;
     s_file_limit = 0;
-    char dpath[512];
+    char dpath[1024];
     snprintf(dpath, sizeof(dpath), "%s/files", s_data_path);
 
     DIR *d = opendir(dpath);
@@ -234,7 +234,7 @@ void rd_scan_dir(void)
         if (ent->d_name[0] == '.') continue;
         char *ext = strrchr(ent->d_name, '.');
         if (ext && strcasecmp(ext, ".part") == 0) {
-            char stale[768];
+            char stale[1400];
             int n = snprintf(stale, sizeof(stale), "%s/%s", dpath, ent->d_name);
             if (n > 0 && (size_t)n < sizeof(stale)) unlink(stale);
             continue;
@@ -294,7 +294,7 @@ static void load_book_name(const char *path)
 {
     s_book_name[0] = '\0';
 
-    char npath[512];
+    char npath[1024];
     int plen = snprintf(npath, sizeof(npath), "%s.name", path);
     if (plen > 0 && (size_t)plen < sizeof(npath)) {
         FILE *f = fopen(npath, "rb");
@@ -355,7 +355,7 @@ int32_t rd_open_file(const char *path)
 
     int64_t saved_offset = start_offset;
     int64_t prev_offset = -1;
-    char ppath[512];
+    char ppath[1024];
     snprintf(ppath, sizeof(ppath), "%s/.prog/%s.bin", s_data_path, s_cur_name);
     FILE *f = fopen(ppath, "rb");
     if (f) {
@@ -646,7 +646,7 @@ static void paginate_step(void)
 
 static void save_prog(int64_t offset)
 {
-    char ppath[512];
+    char ppath[1024];
     snprintf(ppath, sizeof(ppath), "%s/.prog/%s.bin", s_data_path, s_cur_name);
     int64_t values[3] = {offset, -1, s_page_no};
     if (s_hist_count > 1) values[1] = s_page_hist[s_hist_count - 2];
@@ -805,14 +805,14 @@ Settings* rd_get_settings(void)
 
 static void save_settings(void)
 {
-    char spath[512];
+    char spath[1024];
     snprintf(spath, sizeof(spath), "%s/.prog/settings.bin", s_data_path);
     persist_write_atomic(spath, &s_settings, sizeof(s_settings));
 }
 
 static void load_settings(void)
 {
-    char spath[512];
+    char spath[1024];
     snprintf(spath, sizeof(spath), "%s/.prog/settings.bin", s_data_path);
     FILE *f = fopen(spath, "rb");
     int32_t migrate = 1;

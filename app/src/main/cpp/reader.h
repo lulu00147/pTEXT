@@ -2,7 +2,7 @@
 #define READER_H
 #include <stdint.h>
 
-typedef struct { char path[512]; char name[256]; int32_t bookmarks; } FileItem;
+typedef struct { char path[1024]; char name[256]; int32_t bookmarks; } FileItem;
 typedef struct { int64_t offset; char preview[48]; } Bookmark;
 typedef struct { int32_t font_idx; int32_t indent_idx; int32_t gap_idx; int32_t theme; int32_t version; /* 新字段追加到末尾以保持二进制兼容 */ } Settings;
 
