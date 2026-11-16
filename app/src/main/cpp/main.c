@@ -204,6 +204,9 @@ static void draw_settings(void)
     int32_t theme = clamp_i(s->theme, 0, 1);
     int32_t y = t + SETTINGS_TITLE_H;
     r_draw_text(l+ui(40), y, UI_SETTINGS_TITLE, UI_LEN(UI_SETTINGS_TITLE)); y += SETTINGS_ROW_H;
+    const uint32_t close_txt[] = {0x5173,0x95ED,0};
+    int32_t close_w = r_text_width(close_txt, 2);
+    r_draw_text(r - close_w - ui(20), t + SETTINGS_TITLE_H, close_txt, 2);
     char buf[64];
     snprintf(buf, sizeof(buf), "字号: %d  [-] [+]", 18 + font_idx * 2);
     n = utf8_to_utf32(utxt, 127, buf);
@@ -263,6 +266,11 @@ static void handle_touch_reading(int32_t x, int32_t y)
         int32_t indent_idx = clamp_i(s->indent_idx, 0, 2);
         int32_t gap_idx = clamp_i(s->gap_idx, 0, 2);
         int32_t ry = y - t - SETTINGS_TITLE_H;
+        if (ry >= -SETTINGS_TITLE_H && ry < SETTINGS_ROW_H && x > r - ui(160)) {
+            s_state = ST_READING;
+            s_need_redraw = 1;
+            return;
+        }
         int32_t need_rebuild = 0;
         /* 字号行: [-] [+] */
         if (ry >= SETTINGS_ROW_H && ry < SETTINGS_ROW_H * 2) {
@@ -465,8 +473,13 @@ static int32_t handle_input(struct android_app *app, AInputEvent *event)
     if (AInputEvent_getType(event) == AINPUT_EVENT_TYPE_KEY) {
         if (AKeyEvent_getKeyCode(event) == AKEYCODE_BACK &&
             AKeyEvent_getAction(event) == AKEY_EVENT_ACTION_UP) {
-            if (s_state == ST_READING || s_state == ST_SETTINGS ||
-                s_state == ST_BMARKS) {
+            if (s_state == ST_SETTINGS) {
+                s_state = ST_READING;
+                s_need_redraw = 1;
+            } else if (s_state == ST_BMARKS) {
+                s_state = ST_READING;
+                s_need_redraw = 1;
+            } else if (s_state == ST_READING) {
                 s_state = ST_FILELIST;
                 rd_close();
                 s_need_redraw = 1;
@@ -486,7 +499,7 @@ static int32_t handle_input(struct android_app *app, AInputEvent *event)
 
             int64_t down = AMotionEvent_getDownTime(event);
             int64_t up = AMotionEvent_getEventTime(event);
-            if (s_state == ST_READING && down > 0 && up - down >= 500) {
+            if (s_state == ST_READING && down > 0 && up - down >= 800) {
                 rd_toggle_bookmark();
                 s_need_redraw = 1;
                 return 1;
