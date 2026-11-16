@@ -7,7 +7,6 @@
 #include <unistd.h>
 #include <android/font.h>
 #include <android/font_matcher.h>
-#include <android/log.h>
 
 /* 零堆保障：强制 16 字节对齐的静态分配器，扩大至 16 MB 以支持中文字体 */
 static uint8_t s_stb_pool[16 * 1024 * 1024] __attribute__((aligned(16)));
@@ -240,8 +239,6 @@ static int32_t load_system_font(void)
     if (try_font_match("zh-CN,zh-TW,ja-JP", 1)) return 1;
     if (try_font_match("ja-JP,zh-CN", 1)) return 1;
     if (try_font_match("en-US", 0)) return 1;
-
-    __android_log_print(ANDROID_LOG_ERROR, "pTEXT", "no usable system font");
     return 0;
 }
 

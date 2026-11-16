@@ -12,7 +12,6 @@
 #include "ui_reading.h"
 #include "ui_settings.h"
 #include "ui_util.h"
-#include <android/log.h>
 
 #define ST_FILELIST 0
 #define ST_READING  1
@@ -161,33 +160,21 @@ static void ensure_jni(void) {
 }
 
 void pickFile(void) {
-    __android_log_print(ANDROID_LOG_INFO, "pTEXT", "pickFile() called");
     ensure_jni();
-    if (!s_jvm) {
-        __android_log_print(ANDROID_LOG_ERROR, "pTEXT", "pickFile: s_jvm is NULL");
-        return;
-    }
+    if (!s_jvm) return;
     JNIEnv *env = NULL;
     (*s_jvm)->AttachCurrentThread(s_jvm, &env, NULL);
-    if (!env) {
-        __android_log_print(ANDROID_LOG_ERROR, "pTEXT", "pickFile: JNIEnv is NULL");
-        return;
-    }
-    if (!s_main_activity_class_global) {
-        __android_log_print(ANDROID_LOG_ERROR, "pTEXT", "pickFile: s_main_activity_class_global is NULL");
-        return;
-    }
+    if (!env) return;
+    if (!s_main_activity_class_global) return;
     if (!s_pick_file_mid) {
         s_pick_file_mid = (*env)->GetStaticMethodID(env, s_main_activity_class_global,
                                                     "pickFile", "()V");
         if (!s_pick_file_mid) {
-            __android_log_print(ANDROID_LOG_ERROR, "pTEXT", "pickFile: method not found");
             (*env)->ExceptionClear(env);
             return;
         }
     }
     (*env)->CallStaticVoidMethod(env, s_main_activity_class_global, s_pick_file_mid);
-    __android_log_print(ANDROID_LOG_INFO, "pTEXT", "pickFile: method called successfully");
 }
 
 int32_t takeRescanFlag(void) {
@@ -256,11 +243,8 @@ case APP_CMD_INIT_WINDOW:
             s_main_activity_class_global = (*env)->NewGlobalRef(env, clazz);
             (*env)->DeleteLocalRef(env, clazz);
         }
-        if (s_main_activity_class_global) {
-            __android_log_print(ANDROID_LOG_INFO, "pTEXT", "MainActivity class cached OK");
-        } else {
+        if (!s_main_activity_class_global) {
             (*env)->ExceptionClear(env);
-            __android_log_print(ANDROID_LOG_ERROR, "pTEXT", "Failed to cache MainActivity class");
         }
     }
     update_ui_scale(app);
