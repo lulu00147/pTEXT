@@ -31,7 +31,7 @@ static int32_t ui(int32_t px)
 #define LY_BOTTOM_BTN   ui(80)   /* 底部按钮距底边距 */
 #define BOTTOM_BTN_ZONE ui(100)  /* 底部按钮区域高度 */
 #define READ_MARGIN_X   ui(16)   /* 阅读页左右边距 */
-#define READ_TEXT_Y0    ui(30)   /* 阅读页正文起始 Y */
+#define READ_TEXT_Y0    ui(36)   /* 阅读页正文起始 Y */
 #define SETTINGS_W      ui(360)  /* 设置面板宽 */
 #define SETTINGS_H      ui(320)  /* 设置面板高 */
 #define SETTINGS_ROW_H  ui(50)   /* 设置行高 */
