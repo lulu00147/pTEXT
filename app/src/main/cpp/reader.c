@@ -832,6 +832,25 @@ int32_t rd_page_bookmarked(void)
     return 0;
 }
 
+int32_t rd_delete_file(const char *path)
+{
+    if (!path) return -1;
+    const char *base = strrchr(path, '/');
+    base = base ? base + 1 : path;
+
+    unlink(path);
+    char side[512];
+    snprintf(side, sizeof(side), "%s.name", path);
+    unlink(side);
+    snprintf(side, sizeof(side), "%s/.prog/%s.bin", s_data_path, base);
+    unlink(side);
+    snprintf(side, sizeof(side), "%s/.bm/%s.bin", s_data_path, base);
+    unlink(side);
+
+    rd_scan_dir();
+    return 0;
+}
+
 Bookmark* rd_get_bookmarks(int32_t *count)
 {
     *count = s_bm_count;
