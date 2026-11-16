@@ -15,6 +15,7 @@
 #define ST_FILELIST 0
 #define ST_READING  1
 #define ST_SETTINGS 2
+#define ST_BMARKS   3
 #define ST_DELETE   4
 
 static int32_t ui(int32_t px)
@@ -27,6 +28,7 @@ static int32_t ui(int32_t px)
 #define LY_TITLE        ui(50)   /* 标题 Y */
 #define LY_ITEM0        ui(120)  /* 第一个列表项 Y */
 #define ITEM_H          ui(80)   /* 文件列表项高度 */
+#define BM_ITEM_H       ui(60)   /* 书签列表项高度 */
 #define LY_BOTTOM_BTN   ui(80)   /* 底部按钮距底边距 */
 #define BOTTOM_BTN_ZONE ui(100)  /* 底部按钮区域高度 */
 #define HEADER_MARGIN_X ui(14)  /* Legado 页眉左右边距 */
@@ -56,6 +58,14 @@ static int32_t s_file_hold_idx = -1;
 static int32_t s_file_hold_fired = 0;
 static int32_t s_delete_idx = -1;
 static int32_t s_file_error = 0;
+static Bookmark s_bm_view[50];
+static int32_t s_bm_view_count = 0;
+static int32_t s_bm_scroll = 0;
+static int32_t s_bm_touch_active = 0;
+static int32_t s_bm_dragging = 0;
+static int32_t s_bm_down_y = 0;
+static int32_t s_bm_down_scroll = 0;
+static char s_bm_path[512];
 void pickFile(void);
 int32_t takeRescanFlag(void);
 
@@ -92,6 +102,10 @@ static const uint32_t UI_IMPORT[] = {0x5B,0x20,0x2B,0x20,0x5D,0};
 static const uint32_t UI_SETTINGS_TITLE[] = {0x2D,0x2D,0x20,0x9605,0x8BFB,0x8BBE,
                                              0x7F6E,0x20,0x2D,0x2D,0};
 static const uint32_t UI_BOOKMARKS[] = {0x4E66,0x7B7E,0};                        /* 书签 */
+static const uint32_t UI_BM_TITLE[] = {0x2D,0x2D,0x20,0x4E66,0x7B7E,0x5217,
+                                       0x8868,0x20,0x2D,0x2D,0};
+static const uint32_t UI_BM_EMPTY[] = {0x6682,0x65E0,0x4E66,0x7B7E,0};
+static const uint32_t UI_BM_MARK[] = {0x5B,0x20,0x2A,0x20,0x5D,0};
 static const uint32_t UI_OPEN_FAIL[] = {0x65E0,0x6CD5,0x6253,0x5F00,0x6587,0x4EF6};
 static const uint32_t UI_DELETE_FAIL[] = {0x5220,0x9664,0x5931,0x8D25};
 #define UI_LEN(arr) (sizeof(arr)/sizeof(uint32_t) - 1)
@@ -155,6 +169,7 @@ static void draw_file_list(void)
     int32_t list_top = LY_ITEM0 - ITEM_H / 2;
     int32_t list_bottom = r_h() - BOTTOM_BTN_ZONE;
     int32_t max_text_w = r_w() - LX_MARGIN * 2;
+    int32_t bm_w = r_text_width(UI_BM_MARK, UI_LEN(UI_BM_MARK));
 
     if (count == 0) {
         r_draw_text(LX_MARGIN, LY_ITEM0 + ITEM_H / 2, UI_EMPTY, UI_LEN(UI_EMPTY));
@@ -165,12 +180,20 @@ static void draw_file_list(void)
             if (row_y + ITEM_H <= list_top || row_y >= list_bottom) continue;
             if (y < list_top || y + r_font_h() > list_bottom) continue;
 
+            int32_t row_max_w = max_text_w;
+            if (files[i].bookmarks > 0) row_max_w -= bm_w + ui(16);
+
             uint32_t txt[256];
             int32_t n = utf8_to_utf32(txt, 255, files[i].name);
             int32_t full_n = n;
-            while (n > 1 && r_text_width(txt, n) > max_text_w) n--;
+            while (n > 1 && r_text_width(txt, n) > row_max_w) n--;
             if (full_n > n && n > 0) txt[n - 1] = 0x2026; /* … */
             r_draw_text(LX_MARGIN, y, txt, n);
+
+            if (files[i].bookmarks > 0) {
+                r_draw_text(r_w() - bm_w - LX_MARGIN, y,
+                            UI_BM_MARK, UI_LEN(UI_BM_MARK));
+            }
         }
     }
     int32_t import_w = r_text_width(UI_IMPORT, UI_LEN(UI_IMPORT));
@@ -220,6 +243,49 @@ static void draw_delete_dialog(void)
     r_draw_text(l + ui(40), b - ui(56), cancel, 2);
     int32_t dw = r_text_width(del, 2);
     r_draw_text(r - dw - ui(40), b - ui(56), del, 2);
+}
+
+static int32_t bm_list_max_scroll(void)
+{
+    int32_t top = LY_ITEM0 - BM_ITEM_H / 2;
+    int32_t bottom = r_h() - BOTTOM_BTN_ZONE;
+    int32_t visible = bottom - top;
+    if (visible < BM_ITEM_H) visible = BM_ITEM_H;
+    int32_t max_scroll = s_bm_view_count * BM_ITEM_H - visible;
+    return max_scroll > 0 ? max_scroll : 0;
+}
+
+static void draw_bookmarks(void)
+{
+    r_clear();
+    r_draw_text(LX_MARGIN, LY_TITLE, UI_BM_TITLE, UI_LEN(UI_BM_TITLE));
+    int32_t max_scroll = bm_list_max_scroll();
+    if (s_bm_scroll > max_scroll) s_bm_scroll = max_scroll;
+    if (s_bm_scroll < 0) s_bm_scroll = 0;
+
+    int32_t list_top = LY_ITEM0 - BM_ITEM_H / 2;
+    int32_t list_bottom = r_h() - BOTTOM_BTN_ZONE;
+    int32_t max_text_w = r_w() - LX_MARGIN * 2;
+
+    if (s_bm_view_count == 0) {
+        r_draw_text(LX_MARGIN, LY_ITEM0 + BM_ITEM_H / 2, UI_BM_EMPTY, UI_LEN(UI_BM_EMPTY));
+    } else {
+        for (int32_t i = 0; i < s_bm_view_count; i++) {
+            int32_t row_y = LY_ITEM0 + i * BM_ITEM_H - s_bm_scroll;
+            int32_t y = row_y + (BM_ITEM_H - r_font_h()) / 2;
+            if (row_y + BM_ITEM_H <= list_top || row_y >= list_bottom) continue;
+            if (y < list_top || y + r_font_h() > list_bottom) continue;
+
+            char buf[64];
+            snprintf(buf, sizeof(buf), "%d. %s", i + 1, s_bm_view[i].preview);
+            uint32_t txt[64];
+            int32_t n = utf8_to_utf32(txt, 63, buf);
+            int32_t full_n = n;
+            while (n > 1 && r_text_width(txt, n) > max_text_w) n--;
+            if (full_n > n && n > 0) txt[n - 1] = 0x2026;
+            r_draw_text(LX_MARGIN, y, txt, n);
+        }
+    }
 }
 
 static int32_t draw_line_blank(const Line *line)
@@ -587,6 +653,9 @@ static int32_t handle_input(struct android_app *app, AInputEvent *event)
             if (s_state == ST_SETTINGS) {
                 s_state = ST_READING;
                 s_need_redraw = 1;
+            } else if (s_state == ST_BMARKS) {
+                s_state = ST_FILELIST;
+                s_need_redraw = 1;
             } else if (s_state == ST_DELETE) {
                 s_state = ST_FILELIST;
                 s_delete_idx = -1;
@@ -594,6 +663,7 @@ static int32_t handle_input(struct android_app *app, AInputEvent *event)
             } else if (s_state == ST_READING) {
                 s_state = ST_FILELIST;
                 rd_close();
+                rd_scan_dir();
                 s_need_redraw = 1;
             } else {
                 ANativeActivity_finish(app->activity);
@@ -616,7 +686,12 @@ static int32_t handle_input(struct android_app *app, AInputEvent *event)
         }
 
         if (masked == AMOTION_EVENT_ACTION_DOWN) {
-            if (s_state == ST_FILELIST) {
+            if (s_state == ST_BMARKS) {
+                s_bm_touch_active = 1;
+                s_bm_dragging = 0;
+                s_bm_down_y = y;
+                s_bm_down_scroll = s_bm_scroll;
+            } else if (s_state == ST_FILELIST) {
                 if (y < r_h() - BOTTOM_BTN_ZONE) {
                     s_file_touch_active = 1;
                     s_file_dragging = 0;
@@ -635,7 +710,22 @@ static int32_t handle_input(struct android_app *app, AInputEvent *event)
         }
 
         if (masked == AMOTION_EVENT_ACTION_MOVE) {
-            if (s_state == ST_FILELIST && s_file_touch_active) {
+            if (s_state == ST_BMARKS && s_bm_touch_active) {
+                int32_t dy = y - s_bm_down_y;
+                if (!s_bm_dragging && (dy > ui(8) || dy < -ui(8))) {
+                    s_bm_dragging = 1;
+                }
+                if (s_bm_dragging) {
+                    int32_t max_scroll = bm_list_max_scroll();
+                    int32_t v = s_bm_down_scroll - dy;
+                    if (v < 0) v = 0;
+                    if (v > max_scroll) v = max_scroll;
+                    if (v != s_bm_scroll) {
+                        s_bm_scroll = v;
+                        s_need_redraw = 1;
+                    }
+                }
+            } else if (s_state == ST_FILELIST && s_file_touch_active) {
                 int32_t dy = y - s_file_down_y;
                 if (!s_file_dragging && (dy > ui(8) || dy < -ui(8))) {
                     s_file_dragging = 1;
@@ -659,6 +749,8 @@ static int32_t handle_input(struct android_app *app, AInputEvent *event)
         }
 
         if (masked == AMOTION_EVENT_ACTION_CANCEL) {
+            s_bm_touch_active = 0;
+            s_bm_dragging = 0;
             s_file_touch_active = 0;
             s_file_dragging = 0;
             s_file_hold_start_ns = 0;
@@ -676,6 +768,32 @@ static int32_t handle_input(struct android_app *app, AInputEvent *event)
             if (s_file_hold_fired) {
                 s_file_hold_start_ns = 0;
                 s_file_hold_fired = 0;
+                s_need_redraw = 1;
+                return 1;
+            }
+
+            if (s_state == ST_BMARKS) {
+                int32_t was_dragging = s_bm_dragging;
+                s_bm_touch_active = 0;
+                s_bm_dragging = 0;
+                if (!was_dragging) {
+                    int32_t list_top = LY_ITEM0 - BM_ITEM_H / 2;
+                    int32_t iy = y + s_bm_scroll;
+                    if (iy >= list_top) {
+                        int32_t idx = (iy - list_top) / BM_ITEM_H;
+                        if (idx >= 0 && idx < s_bm_view_count) {
+                            int64_t offset = s_bm_view[idx].offset;
+                            if (rd_open_file(s_bm_path) == 0) {
+                                rd_goto_offset(offset);
+                                s_file_error = 0;
+                                s_state = ST_READING;
+                            } else {
+                                s_file_error = 1;
+                                s_state = ST_FILELIST;
+                            }
+                        }
+                    }
+                }
                 s_need_redraw = 1;
                 return 1;
             }
@@ -723,13 +841,29 @@ static int32_t handle_input(struct android_app *app, AInputEvent *event)
                     if (count > 0 && iy >= list_top &&
                         iy < list_top + count * ITEM_H) {
                         int32_t fidx = (iy - list_top) / ITEM_H;
-                        if (fidx >= 0 && fidx < count &&
-                            rd_open_file(files[fidx].path) == 0) {
-                            s_file_error = 0;
-                            s_state = ST_READING;
-                            s_need_redraw = 1;
-                        } else {
-                            s_file_error = 1;
+                        if (fidx >= 0 && fidx < count) {
+                            int32_t bm_w = r_text_width(UI_BM_MARK, UI_LEN(UI_BM_MARK));
+                            int32_t mark_left = r_w() - bm_w - LX_MARGIN;
+                            if (files[fidx].bookmarks > 0 && x >= mark_left - ui(10)) {
+                                int32_t n = rd_read_bookmarks(files[fidx].path,
+                                                              s_bm_view, 50);
+                                if (n > 0) {
+                                    snprintf(s_bm_path, sizeof(s_bm_path), "%s",
+                                             files[fidx].path);
+                                    s_bm_view_count = n;
+                                    s_bm_scroll = 0;
+                                    s_state = ST_BMARKS;
+                                    s_need_redraw = 1;
+                                    return 1;
+                                }
+                            }
+                            if (rd_open_file(files[fidx].path) == 0) {
+                                s_file_error = 0;
+                                s_state = ST_READING;
+                                s_need_redraw = 1;
+                            } else {
+                                s_file_error = 1;
+                            }
                         }
                     }
                 }
@@ -838,6 +972,7 @@ void android_main(struct android_app *app)
             if (s_state == ST_FILELIST) draw_file_list();
             else if (s_state == ST_READING) draw_reading();
             else if (s_state == ST_SETTINGS) { draw_reading(); draw_settings(); }
+            else if (s_state == ST_BMARKS) draw_bookmarks();
             else if (s_state == ST_DELETE) { draw_file_list(); draw_delete_dialog(); }
             r_end();
             s_need_redraw = 0;

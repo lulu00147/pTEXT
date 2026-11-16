@@ -136,6 +136,18 @@ void rd_scan_dir(void)
         FileItem *f = &s_files[s_file_count];
         int path_len = snprintf(f->path, sizeof(f->path), "%s/%s", dpath, ent->d_name);
         if (path_len < 0 || (size_t)path_len >= sizeof(f->path)) continue;
+        f->bookmarks = 0;
+
+        char bm_path[1024];
+        int bm_len = snprintf(bm_path, sizeof(bm_path), "%s/.bm/%s.bin", dpath, ent->d_name);
+        if (bm_len > 0 && (size_t)bm_len < sizeof(bm_path)) {
+            struct stat st;
+            if (stat(bm_path, &st) == 0 && st.st_size >= (off_t)sizeof(Bookmark)) {
+                int64_t count = (int64_t)st.st_size / (int64_t)sizeof(Bookmark);
+                if (count > MAX_BOOKMARKS) count = MAX_BOOKMARKS;
+                f->bookmarks = (int32_t)count;
+            }
+        }
 
         f->name[0] = '\0';
         char name_path[sizeof(f->path) + 8];
@@ -800,6 +812,24 @@ int32_t rd_delete_file(const char *path)
 
     rd_scan_dir();
     return 0;
+}
+
+int32_t rd_read_bookmarks(const char *path, Bookmark *out, int32_t cap)
+{
+    if (!path || !out || cap <= 0) return 0;
+    const char *base = strrchr(path, '/');
+    base = base ? base + 1 : path;
+
+    char bm_path[768];
+    int n = snprintf(bm_path, sizeof(bm_path), "%s/.bm/%s.bin", s_data_path, base);
+    if (n <= 0 || (size_t)n >= sizeof(bm_path)) return 0;
+
+    FILE *f = fopen(bm_path, "rb");
+    if (!f) return 0;
+    int32_t count = (int32_t)fread(out, sizeof(Bookmark), (size_t)cap, f);
+    fclose(f);
+    for (int32_t i = 0; i < count; i++) out[i].preview[sizeof(out[i].preview) - 1] = '\0';
+    return count;
 }
 
 void rd_prefetch_step(void)

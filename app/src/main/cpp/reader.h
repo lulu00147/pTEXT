@@ -2,7 +2,7 @@
 #define READER_H
 #include <stdint.h>
 
-typedef struct { char path[512]; char name[256]; } FileItem;
+typedef struct { char path[512]; char name[256]; int32_t bookmarks; } FileItem;
 typedef struct { int64_t offset; char preview[48]; } Bookmark;
 typedef struct { int32_t font_idx; int32_t indent_idx; int32_t gap_idx; int32_t theme; int32_t version; /* 新字段追加到末尾以保持二进制兼容 */ } Settings;
 
@@ -40,6 +40,7 @@ int32_t rd_get_indent_w(void);
 void rd_toggle_bookmark(void);
 int32_t rd_page_bookmarked(void);
 int32_t rd_delete_file(const char *path);
+int32_t rd_read_bookmarks(const char *path, Bookmark *out, int32_t cap);
 void rd_set_theme(int32_t t);
 
 void rd_prefetch_step(void);
