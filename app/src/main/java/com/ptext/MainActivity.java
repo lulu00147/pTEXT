@@ -86,8 +86,20 @@ public class MainActivity extends NativeActivity {
                 if (c != null && c.moveToFirst()) displayName = c.getString(0);
             } catch (Exception ignored) {}
 
-            File dest = new File(dir,
-                    System.currentTimeMillis() + "_" + (++sFileCounter) + ".txt");
+            String base = displayName == null ? "" : displayName.trim();
+            base = base.replaceAll("[\\\\/:*?\"<>|]", "_");
+            if (base.length() > 80) base = base.substring(0, 80);
+            if (!base.isEmpty() && !base.toLowerCase().endsWith(".txt")) base += ".txt";
+            if (base.isEmpty()) base = System.currentTimeMillis() + "_" + (++sFileCounter) + ".txt";
+
+            File dest = new File(dir, base);
+            if (dest.exists()) {
+                String stem = base.substring(0, base.length() - 4);
+                int suffix = 1;
+                do {
+                    dest = new File(dir, stem + " (" + suffix++ + ").txt");
+                } while (dest.exists());
+            }
             tmp = new File(dir, dest.getName() + ".part");
 
             try (InputStream is = getContentResolver().openInputStream(uri);

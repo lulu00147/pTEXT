@@ -211,7 +211,22 @@ void rd_scan_dir(void)
         FileItem *f = &s_files[s_file_count];
         int path_len = snprintf(f->path, sizeof(f->path), "%s/%s", dpath, ent->d_name);
         if (path_len < 0 || (size_t)path_len >= sizeof(f->path)) continue;
-        snprintf(f->name, sizeof(f->name), "%s", ent->d_name);
+
+        f->name[0] = '\0';
+        char name_path[sizeof(f->path) + 8];
+        int np_len = snprintf(name_path, sizeof(name_path), "%s.name", f->path);
+        if (np_len > 0 && (size_t)np_len < sizeof(name_path)) {
+            FILE *nf = fopen(name_path, "rb");
+            if (nf) {
+                size_t n = fread(f->name, 1, sizeof(f->name) - 1, nf);
+                fclose(nf);
+                f->name[n] = '\0';
+                while (n > 0 && (f->name[n - 1] == '\n' || f->name[n - 1] == '\r')) {
+                    f->name[--n] = '\0';
+                }
+            }
+        }
+        if (!f->name[0]) snprintf(f->name, sizeof(f->name), "%s", ent->d_name);
         s_file_count++;
     }
     closedir(d);
