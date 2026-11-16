@@ -17,7 +17,7 @@ static void* pool_alloc(size_t size) {
     if (size == 0 || size > sizeof(s_stb_pool)) return NULL;
     /* 强制向上对齐到 16 字节 */
     uint32_t aligned_size = (uint32_t)((size + 15) & ~15);
-    if (s_stb_pool_ptr + aligned_size > sizeof(s_stb_pool)) return NULL;
+    if (aligned_size > sizeof(s_stb_pool) - s_stb_pool_ptr) return NULL;
     void *ptr = &s_stb_pool[s_stb_pool_ptr];
     s_stb_pool_ptr += aligned_size;
     return ptr;
@@ -435,6 +435,10 @@ void r_draw_text_justified(int32_t x, int32_t y, const uint32_t *s, int32_t n, i
         r_draw_text(x, y, s, n);
         return;
     }
+    if (n > 256) {
+        r_draw_text(x, y, s, n);
+        return;
+    }
     int32_t natural = r_text_width(s, n);
     int32_t diff = target_width - natural;
     if (diff == 0) {
@@ -556,6 +560,7 @@ void r_set_font_size(float s)
 void r_clear_cache(void) {
     memset(s_gc, 0, sizeof(s_gc));
     s_lru = 0;
+    s_stb_pool_ptr = 0;
 }
 
 int32_t r_w(void) { return s_w; }

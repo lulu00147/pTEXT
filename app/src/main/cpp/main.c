@@ -109,6 +109,7 @@ static int32_t clamp_i(int32_t v, int32_t lo, int32_t hi)
 /* UTF-8 -> UTF-32；非法/截断序列输出 U+FFFD。 */
 static int32_t utf8_to_utf32(uint32_t *dst, int32_t max, const char *src)
 {
+    if (!dst || !src || max <= 0) return 0;
     const uint8_t *p = (const uint8_t *)src;
     const uint8_t *end = p + strlen(src);
     int32_t n = 0;
@@ -366,8 +367,11 @@ static void draw_bookmarks(void)
 
 static int32_t reading_cell(int32_t x, int32_t y)
 {
-    int32_t col = x * 3 / r_w();
-    int32_t row = y * 3 / r_h();
+    int32_t w = r_w();
+    int32_t h = r_h();
+    if (w <= 0 || h <= 0) return 0;
+    int32_t col = x * 3 / w;
+    int32_t row = y * 3 / h;
     if (col < 0) col = 0;
     if (col > 2) col = 2;
     if (row < 0) row = 0;
