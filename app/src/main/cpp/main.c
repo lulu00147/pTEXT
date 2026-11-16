@@ -157,6 +157,7 @@ static void draw_settings(void)
     int32_t l, t, r, b;
     get_settings_rect(&l, &t, &r, &b);
     r_clear_rect(l, t, r, b);
+    r_stroke_rect(l, t, r, b, ui(2));
     uint32_t utxt[128];
     int32_t n;
     Settings *s = rd_get_settings();

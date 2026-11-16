@@ -336,6 +336,31 @@ void r_clear_rect(int32_t l, int32_t t, int32_t r, int32_t b)
     }
 }
 
+void r_stroke_rect(int32_t l, int32_t t, int32_t r, int32_t b, int32_t width)
+{
+    if (!s_locked || !s_px || width <= 0) return;
+    if (l < 0) l = 0;
+    if (t < 0) t = 0;
+    if (r > s_w) r = s_w;
+    if (b > s_h) b = s_h;
+    if (r <= l || b <= t) return;
+
+    int32_t max_w = (r - l < b - t ? r - l : b - t) / 2;
+    if (width > max_w) width = max_w;
+    if (width <= 0) return;
+
+    for (int32_t y = t; y < t + width; y++) {
+        for (int32_t x = l; x < r; x++) s_px[y * s_stride + x] = 0xFFFF;
+    }
+    for (int32_t y = b - width; y < b; y++) {
+        for (int32_t x = l; x < r; x++) s_px[y * s_stride + x] = 0xFFFF;
+    }
+    for (int32_t y = t + width; y < b - width; y++) {
+        for (int32_t x = l; x < l + width; x++) s_px[y * s_stride + x] = 0xFFFF;
+        for (int32_t x = r - width; x < r; x++) s_px[y * s_stride + x] = 0xFFFF;
+    }
+}
+
 void r_draw_text(int32_t x, int32_t y, const uint32_t *s, int32_t n)
 {
     if (!s_locked || !s_font_ok) return;
