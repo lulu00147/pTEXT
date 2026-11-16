@@ -43,6 +43,8 @@ static struct android_app *s_app;
 static int32_t s_state = ST_FILELIST;
 static int32_t s_need_redraw = 1;
 static int32_t s_last_min = -1;
+static int64_t s_center_down_ns = 0;
+static int32_t s_center_long_fired = 0;
 void pickFile(void);
 int32_t takeRescanFlag(void);
 
@@ -526,9 +528,31 @@ static int32_t handle_input(struct android_app *app, AInputEvent *event)
 
     if (AInputEvent_getType(event) == AINPUT_EVENT_TYPE_MOTION) {
         int32_t action = AMotionEvent_getAction(event);
-        if ((action & AMOTION_EVENT_ACTION_MASK) == AMOTION_EVENT_ACTION_UP) {
-            int32_t x = (int32_t)AMotionEvent_getX(event, 0);
-            int32_t y = (int32_t)AMotionEvent_getY(event, 0);
+        int32_t masked = action & AMOTION_EVENT_ACTION_MASK;
+        int32_t x = (int32_t)AMotionEvent_getX(event, 0);
+        int32_t y = (int32_t)AMotionEvent_getY(event, 0);
+
+        if (s_center_down_ns > 0 && !s_center_long_fired &&
+            ((masked == AMOTION_EVENT_ACTION_MOVE && reading_cell(x, y) != 5) ||
+             masked == AMOTION_EVENT_ACTION_CANCEL)) {
+            s_center_down_ns = 0;
+        }
+
+        if (masked == AMOTION_EVENT_ACTION_DOWN) {
+            if (s_state == ST_READING && reading_cell(x, y) == 5) {
+                s_center_down_ns = AMotionEvent_getEventTime(event);
+                s_center_long_fired = 0;
+            }
+            return 1;
+        }
+
+        if (masked == AMOTION_EVENT_ACTION_UP) {
+            if (s_center_long_fired) {
+                s_center_down_ns = 0;
+                s_center_long_fired = 0;
+                s_need_redraw = 1;
+                return 1;
+            }
 
             if (s_state == ST_FILELIST) {
                 int32_t count;
@@ -546,15 +570,11 @@ static int32_t handle_input(struct android_app *app, AInputEvent *event)
                     }
                 }
             } else if (s_state == ST_READING && reading_cell(x, y) == 5) {
-                int64_t down = AMotionEvent_getDownTime(event);
-                int64_t up = AMotionEvent_getEventTime(event);
-                if (down > 0 && (up - down) / 1000000 >= 1500) {
-                    s_state = ST_SETTINGS;
-                } else {
-                    rd_toggle_bookmark();
-                }
+                rd_toggle_bookmark();
+                s_center_down_ns = 0;
                 s_need_redraw = 1;
             } else if (s_state == ST_READING || s_state == ST_SETTINGS) {
+                s_center_down_ns = 0;
                 handle_touch_reading(x, y);
             } else if (s_state == ST_BMARKS) {
                 int32_t count;
@@ -583,9 +603,22 @@ void android_main(struct android_app *app)
         struct android_poll_source *source;
         int32_t timeout = (app->window && s_need_redraw) ? 0 : -1;
         if (timeout < 0 && s_state == ST_READING) timeout = 1000;
+        if (s_center_down_ns > 0 && !s_center_long_fired) timeout = 20;
 
         if (ALooper_pollOnce(timeout, NULL, &events, (void**)&source) >= 0) {
             if (source) source->process(app, source);
+        }
+
+        if (s_center_down_ns > 0 && !s_center_long_fired) {
+            struct timespec ts;
+            clock_gettime(CLOCK_MONOTONIC, &ts);
+            int64_t now_ns = (int64_t)ts.tv_sec * 1000000000LL + ts.tv_nsec;
+            if (now_ns - s_center_down_ns >= 1500000000LL) {
+                s_center_long_fired = 1;
+                s_center_down_ns = 0;
+                s_state = ST_SETTINGS;
+                s_need_redraw = 1;
+            }
         }
 
         if (s_state == ST_READING) {
