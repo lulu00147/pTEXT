@@ -411,6 +411,11 @@ void r_draw_text(int32_t x, int32_t y, const uint32_t *s, int32_t n)
     }
 }
 
+static int justify_space(uint32_t cp)
+{
+    return cp == ' ' || cp == '\t' || cp == 0x3000;
+}
+
 static int justify_punct(uint32_t cp)
 {
     if (cp < 0x80) return (cp == ',' || cp == '.' || cp == ';' || cp == ':' ||
@@ -438,11 +443,18 @@ void r_draw_text_justified(int32_t x, int32_t y, const uint32_t *s, int32_t n, i
     int32_t total_w = 0;
     for (int32_t i = 0; i < n - 1; i++) {
         int32_t w = 1;
-        if (diff < 0 && (justify_punct(s[i]) || justify_punct(s[i + 1]))) w = 3;
+        if (diff < 0) {
+            int comp = justify_punct(s[i]) || justify_punct(s[i + 1]) ||
+                       justify_space(s[i]) || justify_space(s[i + 1]);
+            w = comp ? 3 : 0;
+        }
         gaps[i] = w;
         total_w += w;
     }
-    if (total_w < 1) total_w = 1;
+    if (total_w < 1) {
+        r_draw_text(x, y, s, n);
+        return;
+    }
 
     int32_t q = diff / total_w;
     int32_t rem = diff - q * total_w;

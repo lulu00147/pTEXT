@@ -425,12 +425,24 @@ static int32_t page_for_offset(int64_t target, int64_t *page_start)
     return number;
 }
 
+static int cp_is_compressible(uint32_t cp)
+{
+    if (cp == ' ' || cp == '\t' || cp == 0x3000) return 1;
+    if (cp < 0x80) return cp == ',' || cp == '.' || cp == ';' || cp == ':' ||
+                          cp == '!' || cp == '?' || cp == ')';
+    return cp == 0x3001 || cp == 0x3002 || cp == 0xFF0C || cp == 0xFF1A ||
+           cp == 0xFF1B || cp == 0xFF01 || cp == 0xFF1F ||
+           cp == 0x300A || cp == 0x300B || cp == 0x201C || cp == 0x201D ||
+           cp == 0x2018 || cp == 0x2019 || cp == 0x2014 || cp == 0x2026;
+}
+
 static void layout_line(Line *line, LineCursor *cur)
 {
     line->len = 0;
     line->indent = cur->para_start ? cur->indent_w : 0;
     line->justify = 0;
     cur->x = line->indent;
+    int32_t compressible = 0;
 
     while (cur->off < s_mmap_len) {
         if (line->len >= MAX_CHARS - 1) break;
@@ -447,7 +459,7 @@ static void layout_line(Line *line, LineCursor *cur)
         int32_t cw = r_char_advance(cp);
         if (cur->x + cw > cur->max_x && line->len > 0) {
             int32_t over = cur->x + cw - cur->max_x;
-            if (over <= rd_ui(6)) {
+            if (compressible > 0 && over <= rd_ui(6)) {
                 line->text[line->len++] = cp;
                 cur->x += cw;
                 line->justify = 1;
@@ -459,6 +471,7 @@ static void layout_line(Line *line, LineCursor *cur)
         }
         line->text[line->len++] = cp;
         cur->x += cw;
+        if (cp_is_compressible(cp)) compressible++;
     }
 
     cur->para_start = is_para_start(cur->off);
