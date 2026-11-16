@@ -1,6 +1,24 @@
 #include "encoding.h"
 #include "utf8.h"
 #include "gbk_table.h"
+#include "gb18030_table.h"
+
+static uint32_t gb18030_lookup(uint32_t idx)
+{
+    int32_t lo = 0, hi = GB18030_RANGE_COUNT - 1;
+    while (lo <= hi) {
+        int32_t mid = lo + (hi - lo) / 2;
+        const Gb18030Range *r = &g_gb18030_ranges[mid];
+        if (idx < r->idx) {
+            hi = mid - 1;
+        } else if (idx - r->idx >= r->count) {
+            lo = mid + 1;
+        } else {
+            return r->cp + (idx - r->idx);
+        }
+    }
+    return '?';
+}
 
 static uint32_t gbk_decode_fast(unsigned char b1, unsigned char b2)
 {
@@ -31,7 +49,23 @@ uint32_t enc_decode_gbk(const uint8_t *data, int64_t len, int64_t *off)
     if (b1 == 0x80) return 0x20AC;
     if (*off >= len) return '?';
 
-    unsigned char b2 = data[(*off)++];
+    unsigned char b2 = data[*off];
+    if (b2 >= 0x30 && b2 <= 0x39) {
+        (*off)++;
+        if (*off >= len) return '?';
+        unsigned char b3 = data[(*off)++];
+        if (b3 < 0x81 || b3 > 0xFE) return '?';
+        if (*off >= len) return '?';
+        unsigned char b4 = data[(*off)++];
+        if (b4 < 0x30 || b4 > 0x39) return '?';
+        uint32_t idx = (uint32_t)((b1 - 0x81) * 10 * 126 * 10 +
+                                  (b2 - 0x30) * 126 * 10 +
+                                  (b3 - 0x81) * 10 +
+                                  (b4 - 0x30));
+        return gb18030_lookup(idx);
+    }
+
+    (*off)++;
     return gbk_decode_fast(b1, b2);
 }
 

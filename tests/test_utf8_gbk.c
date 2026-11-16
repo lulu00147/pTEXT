@@ -37,8 +37,27 @@ int main(void)
         cases++;
     }
 
-    for (int round = 0; round < 1000000; round++) {
-        rng = rng * 1664525u + 1013904223u;
+    static const struct {
+        uint8_t bytes[4];
+        uint32_t cp;
+    } gb4[] = {
+        {{0x81,0x30,0x81,0x30}, 0x80},
+        {{0x90,0x30,0x81,0x30}, 0x10000},
+        {{0x94,0x39,0xFC,0x36}, 0x1F600},
+        {{0x95,0x32,0x82,0x36}, 0x20000},
+        {{0x84,0x31,0xA4,0x39}, 0xFFFF},
+    };
+    for (size_t i = 0; i < sizeof(gb4) / sizeof(gb4[0]); i++) {
+        int64_t off = 0;
+        uint32_t cp = enc_decode_gbk(gb4[i].bytes, 4, &off);
+        if (cp != gb4[i].cp || off != 4) {
+            fprintf(stderr, "bad GB18030: %X off=%lld\n", cp, (long long)off);
+            return 1;
+        }
+        cases++;
+    }
+
+    for (int round = 0; round < 1000000; round++) {        rng = rng * 1664525u + 1013904223u;
         size_t len = (size_t)(rng % 257);
         for (size_t i = 0; i < len; i++) {
             rng = rng * 1664525u + 1013904223u;
