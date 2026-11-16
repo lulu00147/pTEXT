@@ -9,5 +9,5 @@ cl /nologo /O2 /I..\app\src\main\cpp test_utf8_gbk.c ..\app\src\main\cpp\encodin
 if errorlevel 1 exit /b 1
 test_utf8_gbk.exe
 set "RC=%errorlevel%"
-del /q test_utf8_gbk.exe test_utf8_gbk.obj >nul 2>nul
+del /q test_utf8_gbk.exe test_utf8_gbk.obj encoding.obj >nul 2>nul
 exit /b %RC%
