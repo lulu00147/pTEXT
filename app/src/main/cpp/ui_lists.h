@@ -4,8 +4,8 @@
 #include <stdint.h>
 #include "reader.h"
 
-void ui_draw_file_list(int32_t scroll, int32_t error);
-void ui_draw_bookmarks(const Bookmark *bms, int32_t count, int32_t scroll);
+void ui_draw_file_list(int32_t *scroll, int32_t error);
+void ui_draw_bookmarks(const Bookmark *bms, int32_t count, int32_t *scroll);
 void ui_draw_delete_dialog(const char *name);
 
 int32_t ui_file_max_scroll(int32_t count);

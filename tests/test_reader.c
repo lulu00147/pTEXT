@@ -58,6 +58,7 @@ int main(void)
     }
     assert(pages > 1);
     rd_close();
+    assert(unlink("../.prog/long.txt.bin") == 0);
 
     assert(rd_open_file(long_path) == 0);
     rd_goto_offset(0);
@@ -73,6 +74,8 @@ int main(void)
     rd_goto_offset(0);
     assert(rd_get_page()->count > 0);
 
+    rd_next_page();
+    assert(rd_get_page_no() == 2);
     rd_toggle_bookmark();
     assert(rd_page_bookmarked());
     Bookmark bms[50];
@@ -92,7 +95,8 @@ int main(void)
     assert(marked == 1);
 
     assert(rd_open_file(long_path) == 0);
-    rd_goto_offset(bookmark_offset);
+    rd_jump_to_offset(bookmark_offset);
+    assert(rd_get_page_no() == 2);
     assert(rd_get_page()->start_offset == bookmark_offset);
 
     rd_close();

@@ -446,7 +446,7 @@ static int32_t handle_input(struct android_app *app, AInputEvent *event)
                     if (idx >= 0 && idx < s_bm_view_count) {
                         int64_t offset = s_bm_view[idx].offset;
                         if (rd_open_file(s_bm_path) == 0) {
-                            rd_goto_offset(offset);
+                            rd_jump_to_offset(offset);
                             s_file_error = 0;
                             s_state = ST_READING;
                         } else {
@@ -625,16 +625,16 @@ void android_main(struct android_app *app)
             r_set_dirty(&dirty);
 
             r_begin();
-            if (s_state == ST_FILELIST) ui_draw_file_list(s_file_scroll, s_file_error);
+            if (s_state == ST_FILELIST) ui_draw_file_list(&s_file_scroll, s_file_error);
             else if (s_state == ST_READING) ui_draw_reading();
             else if (s_state == ST_SETTINGS) { ui_draw_reading(); ui_draw_settings(); }
-            else if (s_state == ST_BMARKS) ui_draw_bookmarks(s_bm_view, s_bm_view_count, s_bm_scroll);
+            else if (s_state == ST_BMARKS) ui_draw_bookmarks(s_bm_view, s_bm_view_count, &s_bm_scroll);
             else if (s_state == ST_DELETE) {
                 int32_t count;
                 FileItem *files = rd_get_files(&count);
                 const char *name = (s_delete_idx >= 0 && s_delete_idx < count)
                     ? files[s_delete_idx].name : "";
-                ui_draw_file_list(s_file_scroll, s_file_error);
+                ui_draw_file_list(&s_file_scroll, s_file_error);
                 ui_draw_delete_dialog(name);
             }
             r_end();

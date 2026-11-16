@@ -553,6 +553,18 @@ void rd_goto_offset(int64_t offset)
     }
 }
 
+void rd_jump_to_offset(int64_t offset)
+{
+    if (!s_mmap_data || s_mmap_len <= 0) return;
+    if (offset < 0) offset = 0;
+    if (offset >= s_mmap_len) offset = s_mmap_len - 1;
+
+    int64_t page_start = 0;
+    int32_t page_no = page_for_offset(offset, &page_start);
+    rd_goto_offset(page_start);
+    s_page_no = page_no > 0 ? page_no : 1;
+}
+
 void rd_next_page(void)
 {
     if (!rd_can_next()) return;
@@ -765,7 +777,7 @@ void rd_toggle_bookmark(void)
         bookmark_preview(b->offset, b->preview, (int32_t)sizeof(b->preview));
     }
 
-    char path[512];
+    char path[1024];
     snprintf(path, sizeof(path), "%s/.bm/%s.bin", s_data_path, s_cur_name);
     persist_write_atomic(path, s_bms, sizeof(Bookmark) * (size_t)s_bm_count);
 }
@@ -788,7 +800,7 @@ int32_t rd_delete_file(const char *path)
         rd_scan_dir();
         return -1;
     }
-    char side[512];
+    char side[1024];
     snprintf(side, sizeof(side), "%s.name", path);
     unlink(side);
     snprintf(side, sizeof(side), "%s/.prog/%s.bin", s_data_path, base);
@@ -806,7 +818,7 @@ int32_t rd_read_bookmarks(const char *path, Bookmark *out, int32_t cap)
     const char *base = strrchr(path, '/');
     base = base ? base + 1 : path;
 
-    char bm_path[768];
+    char bm_path[1024];
     int n = snprintf(bm_path, sizeof(bm_path), "%s/.bm/%s.bin", s_data_path, base);
     if (n <= 0 || (size_t)n >= sizeof(bm_path)) return 0;
 

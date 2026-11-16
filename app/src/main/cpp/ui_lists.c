@@ -58,14 +58,16 @@ int32_t ui_file_import_hit(int32_t y)
     return y > r_h() - BOTTOM_BTN_ZONE;
 }
 
-void ui_draw_file_list(int32_t scroll, int32_t error)
+void ui_draw_file_list(int32_t *scroll_ptr, int32_t error)
 {
     r_clear();
+    int32_t scroll = scroll_ptr ? *scroll_ptr : 0;
     int32_t count;
     FileItem *files = rd_get_files(&count);
     int32_t max_scroll = ui_file_max_scroll(count);
     if (scroll > max_scroll) scroll = max_scroll;
     if (scroll < 0) scroll = 0;
+    if (scroll_ptr) *scroll_ptr = scroll;
 
     r_draw_text(LX_MARGIN, LY_TITLE, UI_TITLE, UI_LEN(UI_TITLE));
     int32_t list_top = LY_ITEM0 - ITEM_H / 2;
@@ -129,13 +131,15 @@ int32_t ui_bm_index_at(int32_t y, int32_t scroll)
     return (iy - list_top) / BM_ITEM_H;
 }
 
-void ui_draw_bookmarks(const Bookmark *bms, int32_t count, int32_t scroll)
+void ui_draw_bookmarks(const Bookmark *bms, int32_t count, int32_t *scroll_ptr)
 {
     r_clear();
     r_draw_text(LX_MARGIN, LY_TITLE, UI_BM_TITLE, UI_LEN(UI_BM_TITLE));
+    int32_t scroll = scroll_ptr ? *scroll_ptr : 0;
     int32_t max_scroll = ui_bm_max_scroll(count);
     if (scroll > max_scroll) scroll = max_scroll;
     if (scroll < 0) scroll = 0;
+    if (scroll_ptr) *scroll_ptr = scroll;
 
     int32_t list_top = LY_ITEM0 - BM_ITEM_H / 2;
     int32_t list_bottom = r_h() - BOTTOM_BTN_ZONE;

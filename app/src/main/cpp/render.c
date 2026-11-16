@@ -351,16 +351,17 @@ void r_stroke_rect(int32_t l, int32_t t, int32_t r, int32_t b, int32_t width)
     int32_t max_w = (r - l < b - t ? r - l : b - t) / 2;
     if (width > max_w) width = max_w;
     if (width <= 0) return;
+    uint16_t color = s_theme ? 0x0000 : 0xFFFF;
 
     for (int32_t y = t; y < t + width; y++) {
-        for (int32_t x = l; x < r; x++) s_px[y * s_stride + x] = 0xFFFF;
+        for (int32_t x = l; x < r; x++) s_px[y * s_stride + x] = color;
     }
     for (int32_t y = b - width; y < b; y++) {
-        for (int32_t x = l; x < r; x++) s_px[y * s_stride + x] = 0xFFFF;
+        for (int32_t x = l; x < r; x++) s_px[y * s_stride + x] = color;
     }
     for (int32_t y = t + width; y < b - width; y++) {
-        for (int32_t x = l; x < l + width; x++) s_px[y * s_stride + x] = 0xFFFF;
-        for (int32_t x = r - width; x < r; x++) s_px[y * s_stride + x] = 0xFFFF;
+        for (int32_t x = l; x < l + width; x++) s_px[y * s_stride + x] = color;
+        for (int32_t x = r - width; x < r; x++) s_px[y * s_stride + x] = color;
     }
 }
 
