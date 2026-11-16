@@ -14,7 +14,7 @@ set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -flto -Wl,--gc-secti
 
 # 在这里增加 android_native_app_glue.c
 add_library(ptext SHARED
-    main.c render.c reader.c encoding.c
+    main.c render.c reader.c encoding.c ui_util.c ui_reading.c ui_settings.c
     ${ANDROID_NDK}/sources/android/native_app_glue/android_native_app_glue.c
 )
 target_link_libraries(ptext android m log)

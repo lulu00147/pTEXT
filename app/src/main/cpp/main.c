@@ -10,6 +10,8 @@
 #include "render.h"
 #include "reader.h"
 #include "utf8.h"
+#include "ui_reading.h"
+#include "ui_settings.h"
 #include <android/log.h>
 
 #define ST_FILELIST 0
@@ -31,12 +33,6 @@ static int32_t ui(int32_t px)
 #define BM_ITEM_H       ui(60)   /* 书签列表项高度 */
 #define LY_BOTTOM_BTN   ui(80)   /* 底部按钮距底边距 */
 #define BOTTOM_BTN_ZONE ui(100)  /* 底部按钮区域高度 */
-#define HEADER_MARGIN_X ui(14)  /* Legado 页眉左右边距 */
-#define FOOTER_MARGIN_X ui(13)  /* Legado 页脚左右边距 */
-#define SETTINGS_W      ui(360)  /* 设置面板宽 */
-#define SETTINGS_H      ui(240)  /* 设置面板高 */
-#define SETTINGS_ROW_H  ui(50)   /* 设置行高 */
-#define SETTINGS_TITLE_H ui(20)  /* 标题内边距 */
 #define DELETE_W        ui(320)
 #define DELETE_H        ui(200)
 
@@ -97,9 +93,6 @@ static const uint32_t UI_TITLE[] = {0x70,0x54,0x45,0x58,0x54,0};
 static const uint32_t UI_EMPTY[] = {0x6682,0x65E0,0x56FE,0x4E66,0xFF0C,0x70B9,
                                     0x51FB,0x4E0B,0x65B9,0x5BFC,0x5165,0};
 static const uint32_t UI_IMPORT[] = {0x5B,0x20,0x2B,0x20,0x5D,0};
-static const uint32_t UI_SETTINGS_TITLE[] = {0x2D,0x2D,0x20,0x9605,0x8BFB,0x8BBE,
-                                             0x7F6E,0x20,0x2D,0x2D,0};
-static const uint32_t UI_BOOKMARKS[] = {0x2A,0};                                  /* 书签标记 */
 static const uint32_t UI_BM_TITLE[] = {0x2D,0x2D,0x20,0x4E66,0x7B7E,0x5217,
                                        0x8868,0x20,0x2D,0x2D,0};
 static const uint32_t UI_BM_EMPTY[] = {0x6682,0x65E0,0x4E66,0x7B7E,0};
@@ -286,135 +279,6 @@ static void draw_bookmarks(void)
     }
 }
 
-static int32_t draw_line_blank(const Line *line)
-{
-    if (line->len == 0) return 1;
-    for (int32_t i = 0; i < line->len; i++) {
-        uint32_t cp = line->text[i];
-        if (cp != ' ' && cp != '\t' && cp != 0x3000) return 0;
-    }
-    return 1;
-}
-
-static void draw_reading(void)
-{
-    if (!rd_get_file_len()) return;
-    r_clear();
-
-    float hs = (float)ui(15);
-    float hts = (float)ui(14);
-    float fs = (float)ui(14);
-    const uint16_t hf_color = 0x630C; /* #606060 in RGB565 */
-    const char *book = rd_get_book_name();
-    uint32_t title[128];
-    int32_t tn = utf8_to_utf32(title, 127, book ? book : "");
-    char clock[16];
-    time_t now = time(NULL);
-    struct tm tmv;
-    localtime_r(&now, &tmv);
-    snprintf(clock, sizeof(clock), "%02d:%02d", tmv.tm_hour, tmv.tm_min);
-    uint32_t utime[16];
-    int32_t un = utf8_to_utf32(utime, 15, clock);
-    int32_t tw = r_text_width_at_size(utime, un, hts);
-    int32_t max_title_w = r_w() - HEADER_MARGIN_X * 2 - tw - ui(12);
-    while (tn > 0 && r_text_width_at_size(title, tn, hs) > max_title_w) tn--;
-    r_draw_text_at_size_color(HEADER_MARGIN_X, ui(28), title, tn, hs, hf_color);
-    r_draw_text_at_size_color(r_w() - tw - HEADER_MARGIN_X, ui(28), utime, un, hts, hf_color);
-
-    Page *p = rd_get_page();
-    PageLayout pl = rd_get_layout();
-    int32_t footer_zone_top = r_h() - pl.margin_bot;
-    int32_t fy = r_h() - ui(6);
-
-    /* 先画页脚，再画正文；正文不得进入页脚带 */
-    r_clear_rect(0, footer_zone_top, r_w(), r_h());
-    char foot[64];
-    int32_t page_no = rd_get_page_no();
-    if (page_no > 0) snprintf(foot, sizeof(foot), "第 %d 页", page_no);
-    else snprintf(foot, sizeof(foot), "页码 --");
-    uint32_t utxt[64];
-    int32_t n = utf8_to_utf32(utxt, 63, foot);
-    r_draw_text_at_size_color(FOOTER_MARGIN_X, fy, utxt, n, fs, hf_color);
-
-    float pct = (float)p->start_offset / (float)rd_get_file_len() * 100.0f;
-    char pct_buf[32];
-    snprintf(pct_buf, sizeof(pct_buf), "%.1f%%", pct);
-    n = utf8_to_utf32(utxt, 63, pct_buf);
-    r_draw_text_at_size_color(r_w() - r_text_width_at_size(utxt, n, fs) - FOOTER_MARGIN_X,
-                              fy, utxt, n, fs, hf_color);
-
-    if (rd_page_bookmarked()) {
-        const uint32_t bm[] = {0x2A}; /* 书签标记 */
-        int32_t bw = r_text_width_at_size(bm, 1, fs);
-        r_draw_text_at_size_color((r_w() - bw) / 2, fy, bm, 1, fs, hf_color);
-    }
-
-    int32_t vstep_x10 = rd_get_line_h() * 10 + 7;
-    int32_t draw_i = 0;
-    for (int32_t i = 0; i < p->count; i++) {
-        Line *line = &p->lines[i];
-        if (draw_line_blank(line)) continue;
-        int32_t x = pl.margin_x + line->indent;
-        int32_t target = pl.text_width - line->indent;
-        int32_t y = pl.margin_top + draw_i * vstep_x10 / 10;
-        if (y > footer_zone_top) break;
-        if (line->justify && line->len > 1) {
-            r_draw_text_justified(x, y, line->text, line->len, target);
-        } else {
-            r_draw_text(x, y, line->text, line->len);
-        }
-        draw_i++;
-    }
-}
-
-static void get_settings_rect(int32_t *l, int32_t *t, int32_t *r, int32_t *b)
-{
-    *l = r_w()/2 - SETTINGS_W/2; *t = r_h()/2 - SETTINGS_H/2;
-    *r = *l + SETTINGS_W;        *b = *t + SETTINGS_H;
-}
-
-static void draw_toggle_buttons(int32_t r, int32_t y, uint32_t left, uint32_t right)
-{
-    uint32_t lbtn[3] = {'[', left, ']'};
-    uint32_t rbtn[3] = {'[', right, ']'};
-    r_draw_text(r - ui(130), y, lbtn, 3);
-    r_draw_text(r - ui(65), y, rbtn, 3);
-}
-
-static void draw_settings(void)
-{
-    int32_t l, t, r, b;
-    get_settings_rect(&l, &t, &r, &b);
-    r_clear_rect(l, t, r, b);
-    r_stroke_rect(l, t, r, b, ui(2));
-    uint32_t utxt[128];
-    int32_t n;
-    Settings *s = rd_get_settings();
-    int32_t font_idx = clamp_i(s->font_idx, 0, 6);
-    int32_t indent_idx = clamp_i(s->indent_idx, 0, 2);
-    int32_t gap_idx = clamp_i(s->gap_idx, 0, 2);
-    int32_t theme = clamp_i(s->theme, 0, 1);
-    int32_t y = t + ui(50);
-    char buf[64];
-    snprintf(buf, sizeof(buf), "字号: %d", 18 + font_idx * 2);
-    n = utf8_to_utf32(utxt, 127, buf);
-    r_draw_text(l+ui(30), y, utxt, n);
-    draw_toggle_buttons(r, y, '-', '+'); y += SETTINGS_ROW_H;
-    snprintf(buf, sizeof(buf), "缩进: %d字符", indent_idx * 2);
-    n = utf8_to_utf32(utxt, 127, buf);
-    r_draw_text(l+ui(30), y, utxt, n);
-    draw_toggle_buttons(r, y, '-', '+'); y += SETTINGS_ROW_H;
-    const char *gaps[] = {"0", "0.5", "1.0"};
-    snprintf(buf, sizeof(buf), "行距: %s", gaps[gap_idx]);
-    n = utf8_to_utf32(utxt, 127, buf);
-    r_draw_text(l+ui(30), y, utxt, n);
-    draw_toggle_buttons(r, y, '-', '+'); y += SETTINGS_ROW_H;
-    snprintf(buf, sizeof(buf), "主题: %s", theme ? "日间" : "夜间");
-    n = utf8_to_utf32(utxt, 127, buf);
-    r_draw_text(l+ui(30), y, utxt, n);
-    draw_toggle_buttons(r, y, '-', '+');
-}
-
 static int32_t reading_cell(int32_t x, int32_t y)
 {
     int32_t w = r_w();
@@ -442,10 +306,8 @@ static void reading_grid_action(int32_t cell)
 
 static void handle_touch_reading(int32_t x, int32_t y)
 {
-    int32_t l, t, r, b;
-    get_settings_rect(&l, &t, &r, &b);
     if (s_state == ST_SETTINGS) {
-        if (x < l || x > r || y < t || y > b) {
+        if (!ui_settings_contains(x, y)) {
             s_state = ST_READING;
             s_need_redraw = 1;
             return;
@@ -454,35 +316,31 @@ static void handle_touch_reading(int32_t x, int32_t y)
         int32_t font_idx = clamp_i(s->font_idx, 0, 6);
         int32_t indent_idx = clamp_i(s->indent_idx, 0, 2);
         int32_t gap_idx = clamp_i(s->gap_idx, 0, 2);
-        int32_t rel = y - t - ui(50);
-        int32_t row = rel >= 0 ? (rel + SETTINGS_ROW_H / 2) / SETTINGS_ROW_H : -1;
+        int32_t row = ui_settings_row_at(y);
+        int32_t left = ui_settings_button_at(x) == 0;
         int32_t need_rebuild = 0;
-        /* 字号行: [-] [+] */
         if (row == 0) {
-            if (x < r - ui(97)) rd_set_font_idx(font_idx > 0 ? font_idx - 1 : 0);
-            else rd_set_font_idx(font_idx < 6 ? font_idx + 1 : 6);
+            rd_set_font_idx(left ? (font_idx > 0 ? font_idx - 1 : 0)
+                                 : (font_idx < 6 ? font_idx + 1 : 6));
             need_rebuild = 1;
-        /* 缩进行: [<] [>] */
         } else if (row == 1) {
-            if (x < r - ui(97)) rd_set_indent_idx(indent_idx > 0 ? indent_idx - 1 : 0);
-            else rd_set_indent_idx(indent_idx < 2 ? indent_idx + 1 : 2);
+            rd_set_indent_idx(left ? (indent_idx > 0 ? indent_idx - 1 : 0)
+                                   : (indent_idx < 2 ? indent_idx + 1 : 2));
             need_rebuild = 1;
-        /* 行距行: [<] [>] */
         } else if (row == 2) {
-            if (x < r - ui(97)) rd_set_gap_idx(gap_idx > 0 ? gap_idx - 1 : 0);
-            else rd_set_gap_idx(gap_idx < 2 ? gap_idx + 1 : 2);
+            rd_set_gap_idx(left ? (gap_idx > 0 ? gap_idx - 1 : 0)
+                                : (gap_idx < 2 ? gap_idx + 1 : 2));
             need_rebuild = 1;
-        /* 主题行: [夜间] [日间] */
         } else if (row == 3) {
-            if (x < r - ui(97)) rd_set_theme(0);
-            else rd_set_theme(1);
+            rd_set_theme(left ? 0 : 1);
             s_need_redraw = 1;
         }
         if (need_rebuild) {
             rd_reset_prefetch();
             rd_goto_offset(rd_get_page()->start_offset);
         }
-        s_need_redraw = 1; return;
+        s_need_redraw = 1;
+        return;
     }
     reading_grid_action(reading_cell(x, y));
     s_need_redraw = 1;
@@ -962,15 +820,15 @@ void android_main(struct android_app *app)
             }
             ARect dirty = {0, 0, r_w(), r_h()};
             if (s_state == ST_SETTINGS) {
-                get_settings_rect(&dirty.left, &dirty.top,
-                                  &dirty.right, &dirty.bottom);
+                ui_get_settings_rect(&dirty.left, &dirty.top,
+                                     &dirty.right, &dirty.bottom);
             }
             r_set_dirty(&dirty);
 
             r_begin();
             if (s_state == ST_FILELIST) draw_file_list();
-            else if (s_state == ST_READING) draw_reading();
-            else if (s_state == ST_SETTINGS) { draw_reading(); draw_settings(); }
+            else if (s_state == ST_READING) ui_draw_reading();
+            else if (s_state == ST_SETTINGS) { ui_draw_reading(); ui_draw_settings(); }
             else if (s_state == ST_BMARKS) draw_bookmarks();
             else if (s_state == ST_DELETE) { draw_file_list(); draw_delete_dialog(); }
             r_end();
