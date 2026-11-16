@@ -31,7 +31,7 @@ static int32_t ui(int32_t px)
 #define LY_BOTTOM_BTN   ui(80)   /* 底部按钮距底边距 */
 #define BOTTOM_BTN_ZONE ui(100)  /* 底部按钮区域高度 */
 #define READ_MARGIN_X   ui(16)   /* 阅读页左右边距 */
-#define READ_TEXT_Y0    ui(30)   /* 阅读页正文起始 Y */
+#define READ_TEXT_Y0    ui(44)   /* 阅读页正文起始 Y */
 #define SETTINGS_W      ui(360)  /* 设置面板宽 */
 #define SETTINGS_H      ui(320)  /* 设置面板高 */
 #define SETTINGS_ROW_H  ui(50)   /* 设置行高 */
@@ -133,7 +133,7 @@ static void draw_reading(void)
     if (!rd_get_file_len()) return;
     r_clear();
 
-    float hs = (float)ui(14);
+    float hs = (float)ui(10);
     float fs = (float)ui(20);
     const uint16_t hf_color = 0x630C; /* #606060 in RGB565 */
     const char *book = rd_get_book_name();
@@ -149,8 +149,8 @@ static void draw_reading(void)
     int32_t tw = r_text_width_at_size(utime, un, hs);
     int32_t max_title_w = r_w() - READ_MARGIN_X * 2 - tw - ui(12);
     while (tn > 0 && r_text_width_at_size(title, tn, hs) > max_title_w) tn--;
-    r_draw_text_at_size_color(READ_MARGIN_X, ui(2), title, tn, hs, hf_color);
-    r_draw_text_at_size_color(r_w() - tw - READ_MARGIN_X, ui(2), utime, un, hs, hf_color);
+    r_draw_text_at_size_color(READ_MARGIN_X, ui(12), title, tn, hs, hf_color);
+    r_draw_text_at_size_color(r_w() - tw - READ_MARGIN_X, ui(12), utime, un, hs, hf_color);
 
     Page *p = rd_get_page();
     int32_t lh = rd_get_line_h();
