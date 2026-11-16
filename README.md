@@ -31,7 +31,85 @@ Android 17 纯文本阅读器。C11 + Java 11，NativeActivity，arm64-v8a。
 4. `layout_line`、`paginate_full`、`paginate_step` 生成页。
 5. 进度、书签、设置原子写入 `.prog` / `.bm`。
 
-## 3. 构建
+## 3. 函数图谱
+
+静态调用关系，省略系统库。
+
+### 3.1 模块级
+
+```mermaid
+flowchart TD
+  GLUE["android_native_app_glue.c"]
+  MAIN["main.c<br/>android_main / handle_input / handle_cmd"]
+  UIL["ui_lists.c"]
+  UIR["ui_reading.c"]
+  UIS["ui_settings.c"]
+  UTIL["ui_util.c"]
+  READER["reader.c"]
+  ENC["encoding.c"]
+  PERSIST["persist.c"]
+  RENDER["render.c"]
+  STB["stb_truetype.h<br/>build-time download"]
+  JAVA["MainActivity.java"]
+  NOLOG["nolog.c"]
+
+  GLUE --> MAIN
+  GLUE -.-> NOLOG
+  MAIN --> UIL
+  MAIN --> UIR
+  MAIN --> UIS
+  MAIN --> UTIL
+  MAIN --> READER
+  MAIN --> RENDER
+  UIL --> UTIL
+  UIL --> READER
+  UIL --> RENDER
+  UIR --> READER
+  UIR --> RENDER
+  UIR --> UTIL
+  UIS --> READER
+  UIS --> RENDER
+  UIS --> UTIL
+  READER --> ENC
+  READER --> PERSIST
+  READER --> RENDER
+  RENDER --> STB
+  MAIN -. JNI .-> JAVA
+  JAVA -. sRescan .-> MAIN
+```
+
+### 3.2 热路径
+
+```mermaid
+flowchart LR
+  MAIN["android_main"] --> INPUT["handle_input"]
+  MAIN --> DRAW["ui_draw_reading"]
+  INPUT --> GRID["reading_grid_action"]
+  GRID --> NEXT["rd_next_page / rd_prev_page"]
+  NEXT --> PAGE["paginate_init / paginate_full"]
+  PAGE --> LINE["layout_line"]
+  LINE --> DEC["enc_decode_utf8 / enc_decode_gbk"]
+  LINE --> ADV["r_char_advance"]
+
+  DRAW --> TEXT["r_draw_text / r_draw_text_justified"]
+  TEXT --> GC["gc_get"]
+  GC --> STB["stbtt_MakeCodepointBitmap"]
+
+  INPUT --> JUMP["rd_jump_to_offset"]
+  JUMP --> CKPT["page_checkpoint_find"]
+  JUMP --> GOTO["rd_goto_offset"]
+
+  INPUT --> BM["rd_toggle_bookmark"]
+  BM --> PREVIEW["bookmark_preview"]
+  PREVIEW --> SAVE["save_bookmarks"]
+  SAVE --> WRITE["persist_write_atomic"]
+
+  JAVA["MainActivity.onActivityResult"] --> COPY["SAF copy + fsync + rename"]
+  COPY --> FLAG["sRescan = 1"]
+  FLAG --> SCAN["rd_scan_dir"]
+```
+
+## 4. 构建
 
 需要 Windows 和仓库根 `tools/`：
 
@@ -73,7 +151,7 @@ KEY_PASSWORD=...
 
 keystore 与 properties 不入库。
 
-## 4. 交互
+## 5. 交互
 
 - 阅读页九宫格：1/2/4/7 上一页，3/6/8/9 下一页。
 - 5 短按添加/移除当前页书签；页脚中央显示 `*`。
@@ -83,7 +161,7 @@ keystore 与 properties 不入库。
 - 书签列表：显示书签页首行文字，点击跳转。
 - 前台保持常亮；5 分钟无触摸后清除常亮，交还系统熄屏。
 
-## 5. 数据目录
+## 6. 数据目录
 
 ```text
 files/<name>.txt        正文
@@ -95,7 +173,7 @@ files/<name>.txt.name   原始显示名
 
 书签文件使用 `BmHeader`：magic、version、count、FNV checksum；兼容旧裸 `Bookmark` 文件。
 
-## 6. 验证
+## 7. 验证
 
 ```bat
 tests\run_tests.bat
@@ -110,14 +188,14 @@ sh tests/run_reader_tests.sh
 - 设备曾验证：冷启动、UTF-8/GBK、11MB 文件、空文件、书签列表/跳转、设置持久化、强杀恢复、旋转。
 - 待设备验证：最新图标、无日志构建、5 分钟常亮、前后台重绘。
 
-## 7. 范围
+## 8. 范围
 
 - 仅 Android 17 / arm64-v8a。
 - 系统字体，不打包字体。
 - 100 文件、50 书签、64 页历史、80 行/页、200 字符/行。
 - 不提供搜索、目录、章节识别、Markdown。
 
-## 8. 许可证
+## 9. 许可证
 
 代码 MIT，见 [LICENSE](LICENSE)。
 
