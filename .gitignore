@@ -1,0 +1,23 @@
+# Build outputs
+/build/
+/build_cpp/
+/build_java/
+/gen/
+/res/
+*.apk
+*.idsig
+
+# Local signing
+*.keystore
+*.jks
+
+# IDE / local
+.gradle/
+.idea/
+*.iml
+local.properties
+
+# Logs
+*.log
+Thumbs.db
+.DS_Store
