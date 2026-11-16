@@ -30,8 +30,10 @@ static int32_t ui(int32_t px)
 #define BM_ITEM_H       ui(60)   /* 书签列表项高度 */
 #define LY_BOTTOM_BTN   ui(80)   /* 底部按钮距底边距 */
 #define BOTTOM_BTN_ZONE ui(100)  /* 底部按钮区域高度 */
-#define READ_MARGIN_X   ui(16)   /* 阅读页左右边距 */
-#define READ_TEXT_Y0    ui(36)   /* 阅读页正文起始 Y */
+#define HEADER_MARGIN_X ui(10)  /* Legado 页眉左右边距 */
+#define BODY_MARGIN_X   ui(5)   /* Legado 正文左右边距 */
+#define FOOTER_MARGIN_X ui(13)  /* Legado 页脚左右边距 */
+#define READ_TEXT_Y0    ui(30)  /* 阅读页正文起始 Y */
 #define SETTINGS_W      ui(360)  /* 设置面板宽 */
 #define SETTINGS_H      ui(320)  /* 设置面板高 */
 #define SETTINGS_ROW_H  ui(50)   /* 设置行高 */
@@ -147,17 +149,17 @@ static void draw_reading(void)
     uint32_t utime[16];
     int32_t un = utf8_to_utf32(utime, 15, clock);
     int32_t tw = r_text_width_at_size(utime, un, hs);
-    int32_t max_title_w = r_w() - READ_MARGIN_X * 2 - tw - ui(12);
+    int32_t max_title_w = r_w() - HEADER_MARGIN_X * 2 - tw - ui(12);
     while (tn > 0 && r_text_width_at_size(title, tn, hs) > max_title_w) tn--;
-    r_draw_text_at_size_color(READ_MARGIN_X, ui(12), title, tn, hs, hf_color);
-    r_draw_text_at_size_color(r_w() - tw - READ_MARGIN_X, ui(12), utime, un, hs, hf_color);
+    r_draw_text_at_size_color(HEADER_MARGIN_X, ui(13), title, tn, hs, hf_color);
+    r_draw_text_at_size_color(r_w() - tw - HEADER_MARGIN_X, ui(13), utime, un, hs, hf_color);
 
     Page *p = rd_get_page();
     int32_t lh = rd_get_line_h();
     for (int32_t i = 0; i < p->count; i++) {
         Line *line = &p->lines[i];
-        int32_t x = READ_MARGIN_X + line->indent;
-        int32_t target = r_w() - READ_MARGIN_X * 2 - line->indent;
+        int32_t x = BODY_MARGIN_X + line->indent;
+        int32_t target = r_w() - BODY_MARGIN_X * 2 - line->indent;
         int32_t y = READ_TEXT_Y0 + i * lh;
         if (line->justify && line->len > 1) {
             r_draw_text_justified(x, y, line->text, line->len, target);
@@ -166,20 +168,20 @@ static void draw_reading(void)
         }
     }
 
-    int32_t fy = r_h() - ui(24);
+    int32_t fy = r_h() - ui(12);
     char foot[64];
     int32_t page_no = rd_get_page_no();
     if (page_no > 0) snprintf(foot, sizeof(foot), "第 %d 页", page_no);
     else snprintf(foot, sizeof(foot), "页码 --");
     uint32_t utxt[64];
     int32_t n = utf8_to_utf32(utxt, 63, foot);
-    r_draw_text_at_size_color(READ_MARGIN_X, fy, utxt, n, fs, hf_color);
+    r_draw_text_at_size_color(FOOTER_MARGIN_X, fy, utxt, n, fs, hf_color);
 
     float pct = (float)p->start_offset / (float)rd_get_file_len() * 100.0f;
     char pct_buf[32];
     snprintf(pct_buf, sizeof(pct_buf), "%.1f%%", pct);
     n = utf8_to_utf32(utxt, 63, pct_buf);
-    r_draw_text_at_size_color(r_w() - r_text_width_at_size(utxt, n, fs) - READ_MARGIN_X,
+    r_draw_text_at_size_color(r_w() - r_text_width_at_size(utxt, n, fs) - FOOTER_MARGIN_X,
                               fy, utxt, n, fs, hf_color);
 }
 

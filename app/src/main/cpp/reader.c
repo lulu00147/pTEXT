@@ -21,9 +21,9 @@ static int32_t rd_ui(int32_t px)
     return (int32_t)(px * r_ui_scale() + 0.5f);
 }
 
-#define MARGIN_X   rd_ui(16)
-#define MARGIN_TOP rd_ui(36)
-#define MARGIN_BOT rd_ui(56)
+#define MARGIN_X   rd_ui(5)
+#define MARGIN_TOP rd_ui(30)
+#define MARGIN_BOT rd_ui(14)
 
 static char s_data_path[512];
 static char s_cur_name[256];
