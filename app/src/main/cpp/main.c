@@ -6,6 +6,7 @@
 #include "android_native_app_glue.h"
 #include <string.h>
 #include <stdio.h>
+#include <time.h>
 #include "render.h"
 #include "reader.h"
 #include "utf8.h"
@@ -29,8 +30,8 @@ static int32_t ui(int32_t px)
 #define BM_ITEM_H       ui(60)   /* 书签列表项高度 */
 #define LY_BOTTOM_BTN   ui(80)   /* 底部按钮距底边距 */
 #define BOTTOM_BTN_ZONE ui(100)  /* 底部按钮区域高度 */
-#define READ_MARGIN_X   ui(14)   /* 阅读页窄边距 */
-#define READ_TEXT_Y0    ui(16)   /* 阅读页正文起始 Y */
+#define READ_MARGIN_X   ui(16)   /* 阅读页左右边距 */
+#define READ_TEXT_Y0    ui(40)   /* 阅读页正文起始 Y */
 #define SETTINGS_W      ui(360)  /* 设置面板宽 */
 #define SETTINGS_H      ui(320)  /* 设置面板高 */
 #define SETTINGS_ROW_H  ui(50)   /* 设置行高 */
@@ -41,6 +42,7 @@ static int32_t ui(int32_t px)
 static struct android_app *s_app;
 static int32_t s_state = ST_FILELIST;
 static int32_t s_need_redraw = 1;
+static int32_t s_last_min = -1;
 void pickFile(void);
 int32_t takeRescanFlag(void);
 
@@ -130,6 +132,24 @@ static void draw_reading(void)
 {
     if (!rd_get_file_len()) return;
     r_clear();
+
+    float hs = (float)ui(12);
+    const char *book = rd_get_book_name();
+    uint32_t title[128];
+    int32_t tn = utf8_to_utf32(title, 127, book ? book : "");
+    char clock[16];
+    time_t now = time(NULL);
+    struct tm tmv;
+    localtime_r(&now, &tmv);
+    snprintf(clock, sizeof(clock), "%02d:%02d", tmv.tm_hour, tmv.tm_min);
+    uint32_t utime[16];
+    int32_t un = utf8_to_utf32(utime, 15, clock);
+    int32_t tw = r_text_width_at_size(utime, un, hs);
+    int32_t max_title_w = r_w() - READ_MARGIN_X * 2 - tw - ui(12);
+    while (tn > 0 && r_text_width_at_size(title, tn, hs) > max_title_w) tn--;
+    r_draw_text_at_size(READ_MARGIN_X, ui(4), title, tn, hs);
+    r_draw_text_at_size(r_w() - tw - READ_MARGIN_X, ui(4), utime, un, hs);
+
     Page *p = rd_get_page();
     int32_t lh = rd_get_line_h();
     for (int32_t i = 0; i < p->count; i++) {
@@ -144,7 +164,7 @@ static void draw_reading(void)
     else snprintf(foot, sizeof(foot), "页码 --");
     uint32_t utxt[64];
     int32_t n = utf8_to_utf32(utxt, 63, foot);
-    r_draw_text((r_w() - r_text_width(utxt, n)) / 2, fy, utxt, n);
+    r_draw_text(READ_MARGIN_X, fy, utxt, n);
 
     float pct = (float)p->start_offset / (float)rd_get_file_len() * 100.0f;
     char pct_buf[32];
@@ -496,9 +516,20 @@ void android_main(struct android_app *app)
         int32_t events;
         struct android_poll_source *source;
         int32_t timeout = (app->window && s_need_redraw) ? 0 : -1;
+        if (timeout < 0 && s_state == ST_READING) timeout = 1000;
 
         if (ALooper_pollOnce(timeout, NULL, &events, (void**)&source) >= 0) {
             if (source) source->process(app, source);
+        }
+
+        if (s_state == ST_READING) {
+            time_t now = time(NULL);
+            struct tm tmv;
+            localtime_r(&now, &tmv);
+            if (tmv.tm_min != s_last_min) {
+                s_last_min = tmv.tm_min;
+                s_need_redraw = 1;
+            }
         }
 
         if (takeRescanFlag() == 1) {

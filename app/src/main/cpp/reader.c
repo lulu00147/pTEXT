@@ -21,12 +21,13 @@ static int32_t rd_ui(int32_t px)
     return (int32_t)(px * r_ui_scale() + 0.5f);
 }
 
-#define MARGIN_X   rd_ui(14)
-#define MARGIN_TOP rd_ui(16)
+#define MARGIN_X   rd_ui(16)
+#define MARGIN_TOP rd_ui(40)
 #define MARGIN_BOT rd_ui(56)
 
 static char s_data_path[512];
 static char s_cur_name[256];
+static char s_book_name[256];
 static FileItem s_files[MAX_FILES];
 static int32_t s_file_count;
 
@@ -45,7 +46,7 @@ static int64_t s_page_hist[MAX_PAGE_HIST];
 static int32_t s_hist_count;
 static int32_t s_page_no;
 
-static Settings s_settings = {2, 1, 1, 0};
+static Settings s_settings = {1, 1, 0, 0, 2};
 static Bookmark s_bms[MAX_BOOKMARKS];
 static int32_t s_bm_count;
 
@@ -223,6 +224,46 @@ FileItem* rd_get_files(int32_t *count)
     return s_files;
 }
 
+static void load_book_name(const char *path, int64_t start)
+{
+    s_book_name[0] = '\0';
+
+    char npath[512];
+    int plen = snprintf(npath, sizeof(npath), "%s.name", path);
+    if (plen > 0 && (size_t)plen < sizeof(npath)) {
+        FILE *f = fopen(npath, "rb");
+        if (f) {
+            size_t n = fread(s_book_name, 1, sizeof(s_book_name) - 1, f);
+            fclose(f);
+            s_book_name[n] = '\0';
+            while (n > 0 && (s_book_name[n - 1] == '\n' || s_book_name[n - 1] == '\r')) {
+                s_book_name[--n] = '\0';
+            }
+        }
+    }
+
+    if (!s_book_name[0]) {
+        int64_t off = start;
+        int32_t n = 0;
+        while (off < s_mmap_len && n < (int32_t)sizeof(s_book_name) - 4) {
+            uint32_t cp = s_decode(&off);
+            if (!cp || cp == '\r' || cp == '\n') break;
+            if (n == 0 && (cp == ' ' || cp == '\t')) continue;
+            char enc[4];
+            int32_t el = utf8_encode(cp, enc);
+            if (el <= 0) continue;
+            if (n + el >= (int32_t)sizeof(s_book_name)) break;
+            memcpy(s_book_name + n, enc, (size_t)el);
+            n += el;
+        }
+        s_book_name[n] = '\0';
+    }
+
+    if (!s_book_name[0]) {
+        snprintf(s_book_name, sizeof(s_book_name), "%s", s_cur_name);
+    }
+}
+
 int32_t rd_open_file(const char *path)
 {
     if (!path) return -1;
@@ -257,6 +298,7 @@ int32_t rd_open_file(const char *path)
     } else {
         s_decode = utf8_prefix_ok() ? next_char_utf8 : next_char_gbk;
     }
+    load_book_name(path, start_offset);
 
     int64_t saved_offset = start_offset;
     int64_t prev_offset = -1;
@@ -328,6 +370,7 @@ void rd_close(void)
     s_page_curr->next_offset = 0;
     s_hist_count = 0;
     s_page_no = 0;
+    s_book_name[0] = '\0';
     rd_reset_prefetch();
 }
 
@@ -344,6 +387,11 @@ Page* rd_get_page(void)
 int32_t rd_get_page_no(void)
 {
     return s_page_no;
+}
+
+const char* rd_get_book_name(void)
+{
+    return s_book_name;
 }
 
 static int32_t page_max_lines(void)
@@ -613,6 +661,7 @@ static void load_settings(void)
     char spath[512];
     snprintf(spath, sizeof(spath), "%s/.prog/settings.bin", s_data_path);
     FILE *f = fopen(spath, "rb");
+    int32_t migrate = 1;
     if (f) {
         if (fseek(f, 0, SEEK_END) == 0) {
             long fsize = ftell(f);
@@ -626,10 +675,22 @@ static void load_settings(void)
                     s_settings.indent_idx = clamp_int(tmp.indent_idx, 0, 2);
                     s_settings.gap_idx = clamp_int(tmp.gap_idx, 0, 2);
                     if (rn >= 16) s_settings.theme = clamp_int(tmp.theme, 0, 1);
+                    if (rn >= sizeof(Settings) && tmp.version >= 2) {
+                        s_settings.version = tmp.version;
+                        migrate = 0;
+                    }
                 }
             }
         }
         fclose(f);
+    }
+
+    if (migrate) {
+        s_settings.font_idx = 1;
+        s_settings.indent_idx = 1;
+        s_settings.gap_idx = 0;
+        s_settings.version = 2;
+        save_settings();
     }
 
     r_set_theme(s_settings.theme);

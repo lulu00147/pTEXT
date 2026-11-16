@@ -417,6 +417,32 @@ int32_t r_text_width(const uint32_t *s, int32_t n)
     return w;
 }
 
+int32_t r_text_width_at_size(const uint32_t *s, int32_t n, float size)
+{
+    if (!s_font_ok) return 0;
+    if (size < 1.0f) size = 1.0f;
+    if (size > 128.0f) size = 128.0f;
+    float old_sz = s_fsz, old_sc = s_sc;
+    s_fsz = size;
+    s_sc = stbtt_ScaleForPixelHeight(&s_fi, size);
+    int32_t w = r_text_width(s, n);
+    s_fsz = old_sz;
+    s_sc = old_sc;
+    return w;
+}
+
+void r_draw_text_at_size(int32_t x, int32_t y, const uint32_t *s, int32_t n, float size)
+{
+    if (size < 1.0f) size = 1.0f;
+    if (size > 128.0f) size = 128.0f;
+    float old_sz = s_fsz, old_sc = s_sc;
+    s_fsz = size;
+    if (s_font_ok) s_sc = stbtt_ScaleForPixelHeight(&s_fi, size);
+    r_draw_text(x, y, s, n);
+    s_fsz = old_sz;
+    s_sc = old_sc;
+}
+
 int32_t r_char_advance(uint32_t cp)
 {
     if (!s_font_ok || !cp) return 0;

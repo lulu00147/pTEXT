@@ -2,7 +2,10 @@ package com.ptext;
 
 import android.app.NativeActivity;
 import android.content.Intent;
+import android.database.Cursor;
+import android.net.Uri;
 import android.os.Bundle;
+import android.provider.OpenableColumns;
 import android.widget.Toast;
 
 import java.io.File;
@@ -10,6 +13,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
 
 public class MainActivity extends NativeActivity {
     private static final int REQ = 1001;
@@ -65,11 +70,18 @@ public class MainActivity extends NativeActivity {
                 throw new IOException("mkdirs failed");
             }
 
+            Uri uri = data.getData();
+            String displayName = null;
+            try (Cursor c = getContentResolver().query(uri,
+                    new String[]{OpenableColumns.DISPLAY_NAME}, null, null, null)) {
+                if (c != null && c.moveToFirst()) displayName = c.getString(0);
+            } catch (Exception ignored) {}
+
             File dest = new File(dir,
                     System.currentTimeMillis() + "_" + (++sFileCounter) + ".txt");
             tmp = new File(dir, dest.getName() + ".part");
 
-            try (InputStream is = getContentResolver().openInputStream(data.getData());
+            try (InputStream is = getContentResolver().openInputStream(uri);
                  OutputStream os = new FileOutputStream(tmp)) {
                 if (is == null) throw new IOException("openInputStream returned null");
 
@@ -82,6 +94,15 @@ public class MainActivity extends NativeActivity {
 
             if (!tmp.renameTo(dest)) throw new IOException("rename failed");
             tmp = null;
+
+            if (displayName != null && !displayName.isEmpty()) {
+                File nameFile = new File(dir, dest.getName() + ".name");
+                try (OutputStreamWriter w = new OutputStreamWriter(
+                        new FileOutputStream(nameFile), StandardCharsets.UTF_8)) {
+                    w.write(displayName);
+                } catch (Exception ignored) {}
+            }
+
             sRescan = 1;
         } catch (Exception e) {
             if (tmp != null) tmp.delete();

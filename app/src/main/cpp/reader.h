@@ -4,7 +4,7 @@
 
 typedef struct { char path[512]; char name[256]; } FileItem;
 typedef struct { int64_t offset; char preview[48]; } Bookmark;
-typedef struct { int32_t font_idx; int32_t indent_idx; int32_t gap_idx; int32_t theme; /* 新字段追加到末尾以保持二进制兼容 */ } Settings;
+typedef struct { int32_t font_idx; int32_t indent_idx; int32_t gap_idx; int32_t theme; int32_t version; /* 新字段追加到末尾以保持二进制兼容 */ } Settings;
 
 void rd_init(const char *data_path);
 void rd_scan_dir(void);
@@ -29,6 +29,7 @@ int32_t rd_can_prev(void);
 int32_t rd_can_next(void);
 Page* rd_get_page(void);
 int32_t rd_get_page_no(void);
+const char* rd_get_book_name(void);
 int64_t rd_get_file_len(void);
 Settings* rd_get_settings(void);
 void rd_set_font_idx(int32_t i);
