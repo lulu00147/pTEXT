@@ -55,8 +55,8 @@ typedef struct {
     float sz;
     uint8_t bmp[512];
     uint8_t w, h;
-    int8_t xo, yo;
-    uint16_t adv;
+    int16_t xo, yo;
+    int32_t adv;
     uint32_t lru;
 } G;
 
@@ -104,18 +104,27 @@ static G *gc_get(uint32_t cp)
     g->cp = cp;
     g->sz = s_fsz;
     g->lru = ++s_lru;
+
     int32_t ix0, iy0, ix1, iy1;
     stbtt_GetCodepointBitmapBox(&s_fi, cp, s_sc, s_sc,
                                 &ix0, &iy0, &ix1, &iy1);
-    g->w = (uint8_t)(ix1 - ix0);
-    g->h = (uint8_t)(iy1 - iy0);
-    g->xo = (int8_t)ix0;
-    g->yo = (int8_t)iy0;
 
-    if (g->w > 0 && g->h > 0 && g->w <= 64 && g->h <= 64) {
+    int32_t gw = ix1 - ix0;
+    int32_t gh = iy1 - iy0;
+    g->w = 0;
+    g->h = 0;
+    g->xo = 0;
+    g->yo = 0;
+
+    if (gw > 0 && gh > 0 && gw <= 64 && gh <= 64) {
+        g->w = (uint8_t)gw;
+        g->h = (uint8_t)gh;
+        g->xo = (int16_t)ix0;
+        g->yo = (int16_t)iy0;
+
         stbtt_MakeCodepointBitmap(&s_fi, s_glyph_tmp, g->w, g->h,
                                   g->w, s_sc, s_sc, cp);
-        memset(g->bmp, 0, 512);
+        memset(g->bmp, 0, sizeof(g->bmp));
         int32_t stride = (g->w + 7) >> 3;
         for (int32_t y = 0; y < g->h; y++) {
             for (int32_t x = 0; x < g->w; x++) {
@@ -124,10 +133,9 @@ static G *gc_get(uint32_t cp)
                 }
             }
         }
-    } else {
-        g->w = 0;
     }
-    g->adv = (uint16_t)get_glyph_advance_fast(cp);
+
+    g->adv = get_glyph_advance_fast(cp);
     return g;
 }
 
@@ -153,8 +161,11 @@ void r_init(ANativeWindow *w, AAssetManager *a)
     s_font_ok = 0;
     r_clear_cache();
 
-    /* 加载 OPPOSans 字体，优先正斜杠（主流 aapt2），失败回退反斜杠 */
-    s_font_asset = AAssetManager_open(a, "fonts\\OPPOSans.ttf", AASSET_MODE_BUFFER);
+    /* assets 内的路径使用正斜杠；反斜杠仅作旧构建回退。 */
+    s_font_asset = AAssetManager_open(a, "fonts/OPPOSans.ttf", AASSET_MODE_BUFFER);
+    if (!s_font_asset) {
+        s_font_asset = AAssetManager_open(a, "fonts\\OPPOSans.ttf", AASSET_MODE_BUFFER);
+    }
     if (s_font_asset) {
         s_font_len = (size_t)AAsset_getLength(s_font_asset);
         s_font_map = AAsset_getBuffer(s_font_asset);
@@ -196,11 +207,23 @@ void r_set_dirty(const ARect *rect) {
 void r_begin(void)
 {
     if (!s_win) return;
-    if (ANativeWindow_lock(s_win, &s_buf, NULL) == 0) {
-        s_px = (uint16_t *)s_buf.bits;
-        s_stride = s_buf.stride;
-        s_locked = 1;
+    if (ANativeWindow_lock(s_win, &s_buf, NULL) != 0) return;
+
+    if (!s_buf.bits) {
+        ANativeWindow_unlockAndPost(s_win);
+        return;
     }
+    if (s_buf.width <= 0 || s_buf.height <= 0 ||
+        s_buf.stride < s_buf.width) {
+        ANativeWindow_unlockAndPost(s_win);
+        return;
+    }
+
+    s_px = (uint16_t *)s_buf.bits;
+    s_stride = s_buf.stride;
+    s_w = s_buf.width;
+    s_h = s_buf.height;
+    s_locked = 1;
 }
 
 void r_end(void)
@@ -223,8 +246,10 @@ void r_clear_rect(int32_t l, int32_t t, int32_t r, int32_t b)
     if (t < 0) t = 0;
     if (r > s_w) r = s_w;
     if (b > s_h) b = s_h;
+    if (r <= l || b <= t) return;
+
     for (int32_t y = t; y < b; y++) {
-        memset(&s_px[y * s_stride + l], s_bg_byte, (r - l) * 2);
+        memset(&s_px[y * s_stride + l], s_bg_byte, (size_t)(r - l) * 2);
     }
 }
 
@@ -295,10 +320,16 @@ int32_t r_char_advance(uint32_t cp)
     return get_glyph_advance_fast(cp);
 }
 
-int32_t r_font_h(void) { return (int32_t)(s_fsz * 1.2f); }
+int32_t r_font_h(void)
+{
+    int32_t h = (int32_t)(s_fsz * 1.2f);
+    return h > 0 ? h : 1;
+}
 
 void r_set_font_size(float s)
 {
+    if (s < 1.0f) s = 1.0f;
+    if (s > 96.0f) s = 96.0f;
     s_fsz = s;
     if (s_font_ok) s_sc = stbtt_ScaleForPixelHeight(&s_fi, s_fsz);
     r_clear_cache();

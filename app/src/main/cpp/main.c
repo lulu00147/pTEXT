@@ -78,43 +78,71 @@ static const uint32_t UI_BACK_READ[] = {0x8FD4,0x56DE,0x9605,0x8BFB,0};         
 static const uint32_t UI_BOOKMARKS[] = {0x4E66,0x7B7E,0};                        /* 书签 */
 #define UI_LEN(arr) (sizeof(arr)/sizeof(uint32_t) - 1)
 
-/* 稳健 UTF-8→UTF-32 解码器：拒绝冗余编码、代理对、非法续字节 */
+static int32_t clamp_i(int32_t v, int32_t lo, int32_t hi)
+{
+    if (v < lo) return lo;
+    if (v > hi) return hi;
+    return v;
+}
+
+/* UTF-8 -> UTF-32：拒绝冗余编码、代理对、非字符和越界码点。 */
 static int32_t utf8_to_utf32(uint32_t *dst, int32_t max, const char *src)
 {
     int32_t n = 0;
+
     while (*src && n < max) {
-        unsigned char c = (unsigned char)*src++;
+        const unsigned char *p = (const unsigned char *)src;
+        unsigned char c = p[0];
+
         if (c < 0x80) {
             dst[n++] = c;
+            src++;
             continue;
         }
-        uint32_t cp;
+
         int32_t need;
-        if ((c & 0xE0) == 0xC0)      { cp = c & 0x1F; need = 1; }
-        else if ((c & 0xF0) == 0xE0) { cp = c & 0x0F; need = 2; }
-        else if ((c & 0xF8) == 0xF0) { cp = c & 0x07; need = 3; }
-        else continue;
+        uint32_t cp;
+        if ((c & 0xE0) == 0xC0) {
+            need = 1;
+            cp = c & 0x1F;
+        } else if ((c & 0xF0) == 0xE0) {
+            need = 2;
+            cp = c & 0x0F;
+        } else if ((c & 0xF8) == 0xF0) {
+            need = 3;
+            cp = c & 0x07;
+        } else {
+            src++;
+            dst[n++] = 0xFFFD;
+            continue;
+        }
 
-        /* 冗余编码：最短形式检验 */
-        if (need == 1 && cp < 2) { src += need; continue; }
-        if (need == 2 && cp == 0 && ((unsigned char)src[0] & 0x3F) < 0x20) { src += need; continue; }
-
-        int32_t ok = 1, j;
-        for (j = 0; j < need && src[j]; j++) {
+        int32_t j;
+        for (j = 1; j <= need; j++) {
             unsigned char b = (unsigned char)src[j];
-            if ((b & 0xC0) != 0x80) { ok = 0; break; }
+            if (!b || (b & 0xC0) != 0x80) break;
             cp = (cp << 6) | (b & 0x3F);
         }
-        if (j != need) ok = 0;
-        src += j;
 
-        /* 拒绝代理对 U+D800-U+DFFF、U+FFFE/FFFF、超范围 */
-        if (ok && cp >= 0xD800 && cp <= 0xDFFF) ok = 0;
-        if (ok && cp > 0x10FFFF) ok = 0;
-        if (ok && (cp & 0xFFFE) == 0xFFFE) ok = 0;
+        if (j <= need) {
+            src += j;
+            dst[n++] = 0xFFFD;
+            continue;
+        }
 
-        dst[n++] = ok ? cp : 0xFFFD;
+        src += need + 1;
+
+        if (need == 1 && cp < 2) cp = 0xFFFD;
+        else if (need == 2 && cp < 0x800) cp = 0xFFFD;
+        else if (need == 3 && cp < 0x10000) cp = 0xFFFD;
+        if (cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF) ||
+            (cp & 0xFFFE) == 0xFFFE) {
+            cp = 0xFFFD;
+        }
+
+        dst[n++] = cp ? cp : 0xFFFD;
     }
+
     return n;
 }
 
@@ -166,21 +194,25 @@ static void draw_settings(void)
     uint32_t utxt[128];
     int32_t n;
     Settings *s = rd_get_settings();
+    int32_t font_idx = clamp_i(s->font_idx, 0, 6);
+    int32_t indent_idx = clamp_i(s->indent_idx, 0, 2);
+    int32_t gap_idx = clamp_i(s->gap_idx, 0, 2);
+    int32_t theme = clamp_i(s->theme, 0, 1);
     int32_t y = t + SETTINGS_TITLE_H;
     r_draw_text(l+40, y, UI_SETTINGS_TITLE, UI_LEN(UI_SETTINGS_TITLE)); y += SETTINGS_ROW_H;
     char buf[64];
-    snprintf(buf, sizeof(buf), "字号: %d  [-] [+]", 18 + s->font_idx * 2);
+    snprintf(buf, sizeof(buf), "字号: %d  [-] [+]", 18 + font_idx * 2);
     n = utf8_to_utf32(utxt, 127, buf);
     r_draw_text(l+30, y, utxt, n); y += SETTINGS_ROW_H;
-    snprintf(buf, sizeof(buf), "缩进: %d字符  [<] [>]", s->indent_idx * 2);
+    snprintf(buf, sizeof(buf), "缩进: %d字符  [<] [>]", indent_idx * 2);
     n = utf8_to_utf32(utxt, 127, buf);
     r_draw_text(l+30, y, utxt, n); y += SETTINGS_ROW_H;
     const char *gaps[] = {"0", "0.5", "1.0"};
-    snprintf(buf, sizeof(buf), "行距: %s  [<] [>]", gaps[s->gap_idx]);
+    snprintf(buf, sizeof(buf), "行距: %s  [<] [>]", gaps[gap_idx]);
     n = utf8_to_utf32(utxt, 127, buf);
     r_draw_text(l+30, y, utxt, n); y += SETTINGS_ROW_H;
     /* 主题行 */
-    snprintf(buf, sizeof(buf), "主题: %s  [<] [>]", s->theme ? "日间" : "夜间");
+    snprintf(buf, sizeof(buf), "主题: %s  [<] [>]", theme ? "日间" : "夜间");
     n = utf8_to_utf32(utxt, 127, buf);
     r_draw_text(l+30, y, utxt, n); y += SETTINGS_ROW_H;
     r_draw_text(l+20, y, UI_BACK_READ, UI_LEN(UI_BACK_READ));
@@ -214,22 +246,25 @@ static void handle_touch_reading(int32_t x, int32_t y)
             s_state = ST_READING; s_need_redraw = 1; return;
         }
         Settings *s = rd_get_settings();
+        int32_t font_idx = clamp_i(s->font_idx, 0, 6);
+        int32_t indent_idx = clamp_i(s->indent_idx, 0, 2);
+        int32_t gap_idx = clamp_i(s->gap_idx, 0, 2);
         int32_t ry = y - t - SETTINGS_TITLE_H;
         int32_t need_rebuild = 0;
         /* 字号行: [-] [+] */
         if (ry >= SETTINGS_ROW_H && ry < SETTINGS_ROW_H * 2) {
-            if (x < l + (r-l)/2) rd_set_font_idx(s->font_idx > 0 ? s->font_idx-1 : 0);
-            else rd_set_font_idx(s->font_idx < 6 ? s->font_idx+1 : 6);
+            if (x < l + (r-l)/2) rd_set_font_idx(font_idx > 0 ? font_idx - 1 : 0);
+            else rd_set_font_idx(font_idx < 6 ? font_idx + 1 : 6);
             need_rebuild = 1;
         /* 缩进行: [<] [>] */
         } else if (ry >= SETTINGS_ROW_H * 2 && ry < SETTINGS_ROW_H * 3) {
-            if (x < l + (r-l)/2) rd_set_indent_idx(s->indent_idx > 0 ? s->indent_idx-1 : 0);
-            else rd_set_indent_idx(s->indent_idx < 2 ? s->indent_idx+1 : 2);
+            if (x < l + (r-l)/2) rd_set_indent_idx(indent_idx > 0 ? indent_idx - 1 : 0);
+            else rd_set_indent_idx(indent_idx < 2 ? indent_idx + 1 : 2);
             need_rebuild = 1;
         /* 行距行: [<] [>] */
         } else if (ry >= SETTINGS_ROW_H * 3 && ry < SETTINGS_ROW_H * 4) {
-            if (x < l + (r-l)/2) rd_set_gap_idx(s->gap_idx > 0 ? s->gap_idx-1 : 0);
-            else rd_set_gap_idx(s->gap_idx < 2 ? s->gap_idx+1 : 2);
+            if (x < l + (r-l)/2) rd_set_gap_idx(gap_idx > 0 ? gap_idx - 1 : 0);
+            else rd_set_gap_idx(gap_idx < 2 ? gap_idx + 1 : 2);
             need_rebuild = 1;
         /* 主题行: [夜间] [日间] */
         } else if (ry >= SETTINGS_ROW_H * 4 && ry < SETTINGS_ROW_H * 5) {
@@ -390,12 +425,20 @@ static int32_t handle_input(struct android_app *app, AInputEvent *event)
             int32_t x = (int32_t)AMotionEvent_getX(event, 0);
             int32_t y = (int32_t)AMotionEvent_getY(event, 0);
 
+            int64_t down = AMotionEvent_getDownTime(event);
+            int64_t up = AMotionEvent_getEventTime(event);
+            if (s_state == ST_READING && down > 0 && up - down >= 500) {
+                rd_toggle_bookmark();
+                s_need_redraw = 1;
+                return 1;
+            }
+
             if (s_state == ST_FILELIST) {
                 int32_t count;
                 FileItem *files = rd_get_files(&count);
                 if (y > r_h() - BOTTOM_BTN_ZONE) {
                     pickFile();
-                } else {
+                } else if (y >= LY_ITEM0) {
                     int32_t fidx = (y - LY_ITEM0) / ITEM_H;
                     if (fidx >= 0 && fidx < count &&
                         rd_open_file(files[fidx].path) == 0) {
@@ -408,8 +451,10 @@ static int32_t handle_input(struct android_app *app, AInputEvent *event)
             } else if (s_state == ST_BMARKS) {
                 int32_t count;
                 rd_get_bookmarks(&count);
-                int32_t bidx = (y - LY_ITEM0) / BM_ITEM_H;
-                if (bidx >= 0 && bidx < count) rd_jump_bookmark(bidx);
+                if (y >= LY_ITEM0) {
+                    int32_t bidx = (y - LY_ITEM0) / BM_ITEM_H;
+                    if (bidx >= 0 && bidx < count) rd_jump_bookmark(bidx);
+                }
                 s_state = ST_READING;
                 s_need_redraw = 1;
             }
@@ -428,7 +473,7 @@ void android_main(struct android_app *app)
     while (1) {
         int32_t events;
         struct android_poll_source *source;
-        int32_t timeout = s_need_redraw ? 0 : -1;
+        int32_t timeout = (app->window && s_need_redraw) ? 0 : -1;
 
         if (ALooper_pollOnce(timeout, NULL, &events, (void**)&source) >= 0) {
             if (source) source->process(app, source);

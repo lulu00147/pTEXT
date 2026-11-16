@@ -13,8 +13,8 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ffast-math -funsafe-math-optimizations -fno
 set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -flto -Wl,--gc-sections -Wl,--strip-all")
 
 # 在这里增加 android_native_app_glue.c
-add_library(ptext SHARED 
-    main.c render.c reader.c 
+add_library(ptext SHARED
+    main.c render.c reader.c
     ${ANDROID_NDK}/sources/android/native_app_glue/android_native_app_glue.c
 )
 target_link_libraries(ptext android m log)
