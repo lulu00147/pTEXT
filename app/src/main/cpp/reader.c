@@ -452,6 +452,20 @@ static int32_t line_blank(const Line *line)
     return 1;
 }
 
+static int32_t line_punct_only(const Line *line)
+{
+    if (line->len == 0 || line->len > 4) return 0;
+    for (int32_t i = 0; i < line->len; i++) {
+        uint32_t cp = line->text[i];
+        if (cp != ',' && cp != '.' && cp != '!' && cp != '?' && cp != ';' && cp != ':' &&
+            cp != 0xFF0C && cp != 0x3002 && cp != 0xFF01 && cp != 0xFF1F &&
+            cp != 0xFF1B && cp != 0xFF1A && cp != 0x3001 && cp != 0x2026 && cp != 0x2014) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 static void paginate_full(int64_t offset, Page *target)
 {
     target->count = 0;
@@ -473,6 +487,7 @@ static void paginate_full(int64_t offset, Page *target)
     while (i < max_lines && cur.off < s_mmap_len) {
         layout_line(&target->lines[i], &cur);
         if (line_blank(&target->lines[i])) continue;
+        if (i == 0 && line_punct_only(&target->lines[i])) continue;
         target->count++;
         i++;
     }
@@ -504,6 +519,7 @@ static void paginate_step(void)
          s_ctx.i < s_ctx.max_lines && s_ctx.cur.off < s_mmap_len; step++) {
         layout_line(&s_page_next->lines[s_ctx.i], &s_ctx.cur);
         if (line_blank(&s_page_next->lines[s_ctx.i])) continue;
+        if (s_ctx.i == 0 && line_punct_only(&s_page_next->lines[s_ctx.i])) continue;
         s_page_next->count++;
         s_ctx.i++;
     }
