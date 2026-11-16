@@ -16,10 +16,94 @@
 #include <unistd.h>
 #include <dirent.h>
 #include <stdlib.h>
+#include <errno.h>
 
 #define MAX_FILES 100
 #define MAX_BOOKMARKS 50
 #define MAX_PAGE_HIST 64
+#define BM_MAGIC 0x314D4250u
+#define BM_VERSION 1u
+
+static Bookmark s_bms[MAX_BOOKMARKS];
+static int32_t s_bm_count;
+
+typedef struct {
+    uint32_t magic;
+    uint32_t version;
+    uint32_t count;
+    uint32_t checksum;
+} BmHeader;
+
+static uint32_t bm_checksum(const Bookmark *b, int32_t count)
+{
+    const uint8_t *p = (const uint8_t *)b;
+    size_t n = sizeof(Bookmark) * (size_t)count;
+    uint32_t h = 2166136261u;
+    for (size_t i = 0; i < n; i++) {
+        h ^= p[i];
+        h *= 16777619u;
+    }
+    return h;
+}
+
+static int32_t load_bookmarks(const char *path, Bookmark *out, int32_t cap)
+{
+    if (!path || !out || cap <= 0) return 0;
+
+    FILE *f = fopen(path, "rb");
+    if (!f) return 0;
+
+    BmHeader h;
+    if (fread(&h, sizeof(h), 1, f) != 1) {
+        fclose(f);
+        return 0;
+    }
+
+    int32_t count;
+    if (h.magic == BM_MAGIC) {
+        if (h.version != BM_VERSION || h.count > MAX_BOOKMARKS ||
+            h.count > (uint32_t)cap || fseek(f, 0, SEEK_END) != 0) {
+            fclose(f);
+            return 0;
+        }
+        long size = ftell(f);
+        long expect = (long)sizeof(BmHeader) + (long)h.count * (long)sizeof(Bookmark);
+        if (size != expect ||
+            fseek(f, (long)sizeof(BmHeader), SEEK_SET) != 0 ||
+            fread(out, sizeof(Bookmark), h.count, f) != h.count ||
+            bm_checksum(out, (int32_t)h.count) != h.checksum) {
+            fclose(f);
+            return 0;
+        }
+        count = (int32_t)h.count;
+    } else {
+        if (fseek(f, 0, SEEK_SET) != 0) {
+            fclose(f);
+            return 0;
+        }
+        count = (int32_t)fread(out, sizeof(Bookmark), (size_t)cap, f);
+    }
+    fclose(f);
+
+    for (int32_t i = 0; i < count; i++) out[i].preview[sizeof(out[i].preview) - 1] = '\0';
+    return count;
+}
+
+static void save_bookmarks(const char *path)
+{
+    uint8_t buf[sizeof(BmHeader) + MAX_BOOKMARKS * sizeof(Bookmark)];
+    BmHeader h;
+    h.magic = BM_MAGIC;
+    h.version = BM_VERSION;
+    h.count = (uint32_t)s_bm_count;
+    h.checksum = bm_checksum(s_bms, s_bm_count);
+    memcpy(buf, &h, sizeof(h));
+    if (s_bm_count > 0) {
+        memcpy(buf + sizeof(h), s_bms, sizeof(Bookmark) * (size_t)s_bm_count);
+    }
+    persist_write_atomic(path, buf, sizeof(h) + sizeof(Bookmark) * (size_t)s_bm_count);
+}
+
 
 static int32_t rd_ui(int32_t px)
 {
@@ -35,6 +119,7 @@ static char s_cur_name[256];
 static char s_book_name[256];
 static FileItem s_files[MAX_FILES];
 static int32_t s_file_count;
+static int32_t s_file_limit;
 
 static char *s_mmap_data;
 static int64_t s_mmap_len;
@@ -52,8 +137,6 @@ static int32_t s_hist_count;
 static int32_t s_page_no;
 
 static Settings s_settings = {3, 1, 0, 0, 14};
-static Bookmark s_bms[MAX_BOOKMARKS];
-static int32_t s_bm_count;
 
 typedef struct {
     int64_t off;
@@ -125,6 +208,7 @@ static int32_t cmp_file_name(const void *a, const void *b)
 void rd_scan_dir(void)
 {
     s_file_count = 0;
+    s_file_limit = 0;
     char dpath[512];
     snprintf(dpath, sizeof(dpath), "%s/files", s_data_path);
 
@@ -132,7 +216,7 @@ void rd_scan_dir(void)
     if (!d) return;
 
     struct dirent *ent;
-    while ((ent = readdir(d)) != NULL && s_file_count < MAX_FILES) {
+    while ((ent = readdir(d)) != NULL) {
         if (ent->d_name[0] == '.') continue;
         char *ext = strrchr(ent->d_name, '.');
         if (ext && strcasecmp(ext, ".part") == 0) {
@@ -142,6 +226,10 @@ void rd_scan_dir(void)
             continue;
         }
         if (!ext || strcasecmp(ext, ".txt") != 0) continue;
+        if (s_file_count >= MAX_FILES) {
+            s_file_limit = 1;
+            continue;
+        }
 
         FileItem *f = &s_files[s_file_count];
         int path_len = snprintf(f->path, sizeof(f->path), "%s/%s", dpath, ent->d_name);
@@ -152,12 +240,8 @@ void rd_scan_dir(void)
         int bm_len = snprintf(bm_path, sizeof(bm_path), "%s/.bm/%s.bin",
                               s_data_path, ent->d_name);
         if (bm_len > 0 && (size_t)bm_len < sizeof(bm_path)) {
-            struct stat st;
-            if (stat(bm_path, &st) == 0 && st.st_size >= (off_t)sizeof(Bookmark)) {
-                int64_t count = (int64_t)st.st_size / (int64_t)sizeof(Bookmark);
-                if (count > MAX_BOOKMARKS) count = MAX_BOOKMARKS;
-                f->bookmarks = (int32_t)count;
-            }
+            Bookmark tmp[MAX_BOOKMARKS];
+            f->bookmarks = load_bookmarks(bm_path, tmp, MAX_BOOKMARKS);
         }
 
         f->name[0] = '\0';
@@ -185,6 +269,11 @@ FileItem* rd_get_files(int32_t *count)
 {
     *count = s_file_count;
     return s_files;
+}
+
+int32_t rd_file_limit_reached(void)
+{
+    return s_file_limit;
 }
 
 static void load_book_name(const char *path)
@@ -274,16 +363,10 @@ int32_t rd_open_file(const char *path)
 
     s_bm_count = 0;
     snprintf(ppath, sizeof(ppath), "%s/.bm/%s.bin", s_data_path, s_cur_name);
-    f = fopen(ppath, "rb");
-    if (f) {
-        size_t n = fread(s_bms, sizeof(Bookmark), MAX_BOOKMARKS, f);
-        fclose(f);
-        s_bm_count = (int32_t)n;
-        for (int32_t i = 0; i < s_bm_count; i++) {
-            s_bms[i].preview[sizeof(s_bms[i].preview) - 1] = '\0';
-            if (s_bms[i].offset < 0) s_bms[i].offset = 0;
-            if (s_bms[i].offset >= len) s_bms[i].offset = len - 1;
-        }
+    s_bm_count = load_bookmarks(ppath, s_bms, MAX_BOOKMARKS);
+    for (int32_t i = 0; i < s_bm_count; i++) {
+        if (s_bms[i].offset < 0) s_bms[i].offset = 0;
+        if (s_bms[i].offset >= len) s_bms[i].offset = len - 1;
     }
 
     int64_t open_offset = saved_offset;
@@ -800,7 +883,7 @@ void rd_toggle_bookmark(void)
 
     char path[1024];
     snprintf(path, sizeof(path), "%s/.bm/%s.bin", s_data_path, s_cur_name);
-    persist_write_atomic(path, s_bms, sizeof(Bookmark) * (size_t)s_bm_count);
+    save_bookmarks(path);
 }
 
 int32_t rd_page_bookmarked(void)
@@ -821,16 +904,17 @@ int32_t rd_delete_file(const char *path)
         rd_scan_dir();
         return -1;
     }
+    int32_t side_error = 0;
     char side[1024];
     snprintf(side, sizeof(side), "%s.name", path);
-    unlink(side);
+    if (unlink(side) != 0 && errno != ENOENT) side_error = 1;
     snprintf(side, sizeof(side), "%s/.prog/%s.bin", s_data_path, base);
-    unlink(side);
+    if (unlink(side) != 0 && errno != ENOENT) side_error = 1;
     snprintf(side, sizeof(side), "%s/.bm/%s.bin", s_data_path, base);
-    unlink(side);
+    if (unlink(side) != 0 && errno != ENOENT) side_error = 1;
 
     rd_scan_dir();
-    return 0;
+    return side_error ? -2 : 0;
 }
 
 int32_t rd_read_bookmarks(const char *path, Bookmark *out, int32_t cap)
@@ -843,12 +927,7 @@ int32_t rd_read_bookmarks(const char *path, Bookmark *out, int32_t cap)
     int n = snprintf(bm_path, sizeof(bm_path), "%s/.bm/%s.bin", s_data_path, base);
     if (n <= 0 || (size_t)n >= sizeof(bm_path)) return 0;
 
-    FILE *f = fopen(bm_path, "rb");
-    if (!f) return 0;
-    int32_t count = (int32_t)fread(out, sizeof(Bookmark), (size_t)cap, f);
-    fclose(f);
-    for (int32_t i = 0; i < count; i++) out[i].preview[sizeof(out[i].preview) - 1] = '\0';
-    return count;
+    return load_bookmarks(bm_path, out, cap);
 }
 
 void rd_prefetch_step(void)

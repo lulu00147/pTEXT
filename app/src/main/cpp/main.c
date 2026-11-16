@@ -471,7 +471,8 @@ static int32_t handle_input(struct android_app *app, AInputEvent *event)
                         s_state = ST_FILELIST;
                         s_delete_idx = -1;
                     } else {
-                        s_file_error = rd_delete_file(files[s_delete_idx].path) == 0 ? 0 : 2;
+                        int32_t delete_result = rd_delete_file(files[s_delete_idx].path);
+                        s_file_error = delete_result == 0 ? 0 : (delete_result == -2 ? 3 : 2);
                         s_delete_idx = -1;
                         s_state = ST_FILELIST;
                     }

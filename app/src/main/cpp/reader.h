@@ -9,6 +9,7 @@ typedef struct { int32_t font_idx; int32_t indent_idx; int32_t gap_idx; int32_t 
 void rd_init(const char *data_path);
 void rd_scan_dir(void);
 FileItem* rd_get_files(int32_t *count);
+int32_t rd_file_limit_reached(void);
 int32_t rd_open_file(const char *path);
 void rd_close(void);
 

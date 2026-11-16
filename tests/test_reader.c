@@ -103,6 +103,32 @@ int main(void)
     rd_scan_dir();
     assert(access("stale.txt.part", F_OK) != 0);
 
+    FILE *bf = fopen("../.bm/long.txt.bin", "r+b");
+    assert(bf != NULL);
+    assert(fseek(bf, 20, SEEK_SET) == 0);
+    int byte = fgetc(bf);
+    assert(byte != EOF);
+    assert(fseek(bf, 20, SEEK_SET) == 0);
+    fputc(byte ^ 0xFF, bf);
+    fclose(bf);
+    rd_scan_dir();
+    files = rd_get_files(&file_count);
+    marked = 0;
+    for (int32_t i = 0; i < file_count; i++) {
+        if (strcmp(files[i].name, long_path) == 0) marked = files[i].bookmarks;
+    }
+    assert(marked == 0);
+
+    for (int32_t i = 0; i < 101; i++) {
+        char name[32];
+        snprintf(name, sizeof(name), "f%03d.txt", i);
+        write_file(name, "x", 1);
+    }
+    rd_scan_dir();
+    rd_get_files(&file_count);
+    assert(file_count == 100);
+    assert(rd_file_limit_reached() == 1);
+
     rd_close();
     assert(chdir("/") == 0);
     char cleanup[512];

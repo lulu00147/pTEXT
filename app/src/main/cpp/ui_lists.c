@@ -25,6 +25,9 @@ static const uint32_t UI_BM_EMPTY[] = {0x6682,0x65E0,0x4E66,0x7B7E,0};
 static const uint32_t UI_BM_MARK[] = {0x5B,0x20,0x2A,0x20,0x5D,0};
 static const uint32_t UI_OPEN_FAIL[] = {0x65E0,0x6CD5,0x6253,0x5F00,0x6587,0x4EF6,0};
 static const uint32_t UI_DELETE_FAIL[] = {0x5220,0x9664,0x5931,0x8D25,0};
+static const uint32_t UI_SIDE_FAIL[] = {0x4FA7,0x8F66,0x6E05,0x7406,0x5931,0x8D25,0};
+static const uint32_t UI_LIMIT[] = {0x4EC5,0x663E,0x793A,0x524D,0x31,0x30,0x30,
+                                   0x672C,0};
 
 int32_t ui_file_max_scroll(int32_t count)
 {
@@ -110,6 +113,12 @@ void ui_draw_file_list(int32_t *scroll_ptr, int32_t error)
     } else if (error == 2) {
         r_draw_text(LX_MARGIN, r_h() - BOTTOM_BTN_ZONE,
                     UI_DELETE_FAIL, UI_LEN(UI_DELETE_FAIL));
+    } else if (error == 3) {
+        r_draw_text(LX_MARGIN, r_h() - BOTTOM_BTN_ZONE,
+                    UI_SIDE_FAIL, UI_LEN(UI_SIDE_FAIL));
+    } else if (rd_file_limit_reached()) {
+        r_draw_text(LX_MARGIN, r_h() - BOTTOM_BTN_ZONE,
+                    UI_LIMIT, UI_LEN(UI_LIMIT));
     }
 }
 
