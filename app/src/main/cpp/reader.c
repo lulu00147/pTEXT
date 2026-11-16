@@ -46,7 +46,7 @@ static int64_t s_page_hist[MAX_PAGE_HIST];
 static int32_t s_hist_count;
 static int32_t s_page_no;
 
-static Settings s_settings = {1, 1, 0, 0, 13};
+static Settings s_settings = {3, 1, 0, 0, 14};
 static Bookmark s_bms[MAX_BOOKMARKS];
 static int32_t s_bm_count;
 
@@ -429,7 +429,7 @@ static void layout_line(Line *line, LineCursor *cur)
         }
         if (cp == '\n') break;
 
-        int32_t cw = r_char_advance(cp) + 9;
+        int32_t cw = r_char_advance(cp);
         if (cur->x + cw > cur->max_x && line->len > 0) {
             cur->off = prev;
             line->justify = 1;
@@ -459,10 +459,12 @@ static void paginate_full(int64_t offset, Page *target)
         offset, 0, page_max_x(), rd_get_indent_w(), is_para_start(offset)
     };
     int32_t max_lines = page_max_lines();
-
-    for (int32_t i = 0; i < max_lines && cur.off < s_mmap_len; i++) {
+    int32_t i = 0;
+    while (i < max_lines && cur.off < s_mmap_len) {
         layout_line(&target->lines[i], &cur);
+        if (target->lines[i].len == 0) continue;
         target->count++;
+        i++;
     }
 
     target->start_offset = offset;
@@ -491,6 +493,7 @@ static void paginate_step(void)
     for (int32_t step = 0; step < 8 &&
          s_ctx.i < s_ctx.max_lines && s_ctx.cur.off < s_mmap_len; step++) {
         layout_line(&s_page_next->lines[s_ctx.i], &s_ctx.cur);
+        if (s_page_next->lines[s_ctx.i].len == 0) continue;
         s_page_next->count++;
         s_ctx.i++;
     }
@@ -661,7 +664,7 @@ static void load_settings(void)
                     s_settings.indent_idx = clamp_int(tmp.indent_idx, 0, 2);
                     s_settings.gap_idx = clamp_int(tmp.gap_idx, 0, 2);
                     if (rn >= 16) s_settings.theme = clamp_int(tmp.theme, 0, 1);
-                    if (rn >= sizeof(Settings) && tmp.version >= 13) {
+                    if (rn >= sizeof(Settings) && tmp.version >= 14) {
                         s_settings.version = tmp.version;
                         migrate = 0;
                     }
@@ -672,10 +675,10 @@ static void load_settings(void)
     }
 
     if (migrate) {
-        s_settings.font_idx = 1;
+        s_settings.font_idx = 3;
         s_settings.indent_idx = 1;
         s_settings.gap_idx = 0;
-        s_settings.version = 13;
+        s_settings.version = 14;
         save_settings();
     }
 
@@ -707,8 +710,7 @@ int32_t rd_get_line_h(void)
     int32_t fh = r_font_h();
     if (fh < 1) fh = 1;
     int32_t gap = clamp_int(s_settings.gap_idx, 0, 2);
-    int32_t lh = fh + (fh * gap) / 8;
-    if (lh > rd_ui(20)) lh -= rd_ui(1);
+    int32_t lh = rd_ui(23) + gap * rd_ui(2);
     return lh;
 }
 
