@@ -33,7 +33,7 @@ render.c               系统字体、stb_truetype 光栅、RGB565、字形缓�
 build.bat
 ```
 
-产物 `pTEXT.apk`：arm64-v8a，仅 Android 17 / API 37，targetSdk 37，compileSdk 37.2，versionCode 1，versionName 2.6.0。
+产物 `pTEXT.apk`：arm64-v8a，仅 Android 17 / API 37，targetSdk 37，compileSdk 37.2，versionCode 1，versionName 0.1。
 
 发布签名：
 
