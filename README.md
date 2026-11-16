@@ -55,13 +55,6 @@ sh tests/run_reader_tests.sh
 - 编码测试：1,065,822 cases PASS。
 - reader/persist：PASS。
 
-## 限制
-
-- 仅 Android 17 / arm64-v8a。
-- 无总页数；任意跳转页码可能显示 `--`。
-- 文件列表上限 100 本。
-- 不提供搜索、目录、章节识别。
-
 ## 许可
 
 MIT，见 [LICENSE](LICENSE)。
