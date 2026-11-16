@@ -912,7 +912,9 @@ static int32_t bookmark_preview(int64_t offset, char *out, int32_t cap)
         while (off < s_mmap_len) {
             uint32_t cp = s_decode((const uint8_t *)s_mmap_data, s_mmap_len, &off);
             if (cp == 0 || cp == '\n' || cp == '\r') break;
-            if (cp != ' ' && cp != '\t' && cp != 0x3000) has_text = 1;
+            int32_t is_space = cp == ' ' || cp == '\t' || cp == 0x3000;
+            if (is_space && !has_text) continue;
+            if (!is_space) has_text = 1;
 
             char enc[4];
             int32_t len = enc_utf8_encode(cp, enc);
