@@ -446,7 +446,7 @@ void r_draw_text_justified(int32_t x, int32_t y, const uint32_t *s, int32_t n, i
         if (diff < 0) {
             int comp = justify_punct(s[i]) || justify_punct(s[i + 1]) ||
                        justify_space(s[i]) || justify_space(s[i + 1]);
-            w = comp ? 3 : 0;
+            w = comp ? 3 : 1;
         }
         gaps[i] = w;
         total_w += w;
