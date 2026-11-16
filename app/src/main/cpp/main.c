@@ -603,7 +603,14 @@ void android_main(struct android_app *app)
         struct android_poll_source *source;
         int32_t timeout = (app->window && s_need_redraw) ? 0 : -1;
         if (timeout < 0 && s_state == ST_READING) timeout = 1000;
-        if (s_center_down_ns > 0 && !s_center_long_fired) timeout = 20;
+        if (s_center_down_ns > 0 && !s_center_long_fired) {
+            struct timespec ts;
+            clock_gettime(CLOCK_MONOTONIC, &ts);
+            int64_t now_ns = (int64_t)ts.tv_sec * 1000000000LL + ts.tv_nsec;
+            int64_t elapsed_ms = (now_ns - s_center_down_ns) / 1000000LL;
+            int32_t wait_ms = (int32_t)(3000 - elapsed_ms);
+            timeout = wait_ms > 0 ? wait_ms : 1;
+        }
 
         if (ALooper_pollOnce(timeout, NULL, &events, (void**)&source) >= 0) {
             if (source) source->process(app, source);
