@@ -129,6 +129,7 @@ static void draw_file_list(void)
 static void draw_reading(void)
 {
     if (!rd_get_file_len()) return;
+    r_clear();
     Page *p = rd_get_page();
     int32_t lh = rd_get_line_h();
     r_draw_text(LX_MARGIN, READ_TITLE_Y, UI_TITLE, UI_LEN(UI_TITLE));
