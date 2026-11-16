@@ -897,22 +897,87 @@ void rd_set_theme(int32_t t)
 
 static int32_t bookmark_preview(int64_t offset, char *out, int32_t cap)
 {
-    int32_t n = 0;
+    if (!out || cap <= 0) return 0;
+    out[0] = '\0';
+    if (!s_mmap_data || s_mmap_len <= 0) return 0;
+
     int64_t off = offset;
+    if (off < 0) off = 0;
+    if (off >= s_mmap_len) return 0;
 
-    while (off < s_mmap_len && n < cap - 1) {
-        uint32_t cp = s_decode((const uint8_t *)s_mmap_data, s_mmap_len, &off);
-        if (cp == 0 || cp == '\n' || cp == '\r') break;
+    while (off < s_mmap_len) {
+        int32_t n = 0;
+        int32_t has_text = 0;
 
-        char enc[4];
-        int32_t len = enc_utf8_encode(cp, enc);
-        if (len <= 0 || n + len > cap - 1) break;
-        memcpy(out + n, enc, (size_t)len);
-        n += len;
+        while (off < s_mmap_len) {
+            uint32_t cp = s_decode((const uint8_t *)s_mmap_data, s_mmap_len, &off);
+            if (cp == 0 || cp == '\n' || cp == '\r') break;
+            if (cp != ' ' && cp != '\t' && cp != 0x3000) has_text = 1;
+
+            char enc[4];
+            int32_t len = enc_utf8_encode(cp, enc);
+            if (len <= 0) break;
+            if (n + len > cap - 1) break;
+            memcpy(out + n, enc, (size_t)len);
+            n += len;
+        }
+
+        if (has_text && n > 0) {
+            out[n] = '\0';
+            return n;
+        }
     }
 
-    out[n] = '\0';
-    return n;
+    out[0] = '\0';
+    return 0;
+}
+
+static void refresh_bookmark_previews(const char *path, Bookmark *bms, int32_t count)
+{
+    if (!path || !bms || count <= 0) return;
+
+    int fd = open(path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return;
+
+    int64_t len = (int64_t)lseek(fd, 0, SEEK_END);
+    if (len <= 0) {
+        close(fd);
+        return;
+    }
+
+    void *map = mmap(NULL, (size_t)len, PROT_READ, MAP_PRIVATE, fd, 0);
+    close(fd);
+    if (map == MAP_FAILED) return;
+
+    int64_t start = 0;
+    TextDecodeFn decode;
+    const uint8_t *data = (const uint8_t *)map;
+    if (len >= 3 && data[0] == 0xEF && data[1] == 0xBB && data[2] == 0xBF) {
+        start = 3;
+        decode = enc_decode_utf8;
+    } else {
+        decode = enc_utf8_prefix_ok(data, len) ? enc_decode_utf8 : enc_decode_gbk;
+    }
+
+    char *old_map = s_mmap_data;
+    int64_t old_len = s_mmap_len;
+    TextDecodeFn old_decode = s_decode;
+
+    s_mmap_data = (char *)map;
+    s_mmap_len = len;
+    s_decode = decode;
+
+    for (int32_t i = 0; i < count; i++) {
+        int64_t off = bms[i].offset;
+        if (off < start) off = start;
+        if (off >= len) off = len - 1;
+        bookmark_preview(off, bms[i].preview, (int32_t)sizeof(bms[i].preview));
+    }
+
+    s_mmap_data = old_map;
+    s_mmap_len = old_len;
+    s_decode = old_decode;
+    munmap(map, (size_t)len);
 }
 
 void rd_toggle_bookmark(void)
@@ -981,7 +1046,9 @@ int32_t rd_read_bookmarks(const char *path, Bookmark *out, int32_t cap)
     int n = snprintf(bm_path, sizeof(bm_path), "%s/.bm/%s.bin", s_data_path, base);
     if (n <= 0 || (size_t)n >= sizeof(bm_path)) return 0;
 
-    return load_bookmarks(bm_path, out, cap);
+    int32_t count = load_bookmarks(bm_path, out, cap);
+    if (count > 0) refresh_bookmark_previews(path, out, count);
+    return count;
 }
 
 void rd_prefetch_step(void)

@@ -99,6 +99,18 @@ int main(void)
     assert(rd_get_page_no() == 2);
     assert(rd_get_page()->start_offset == bookmark_offset);
 
+    const char *blank_path = "blank.txt";
+    const char *blank_text = "\n\n1. 2. 第一行\n第二行\n";
+    write_file(blank_path, blank_text, strlen(blank_text));
+    assert(rd_open_file(blank_path) == 0);
+    rd_toggle_bookmark();
+    Bookmark blank_bm[1];
+    assert(rd_read_bookmarks(blank_path, blank_bm, 1) == 1);
+    assert(strstr(blank_bm[0].preview, "第一行") != NULL);
+    rd_close();
+
+    assert(rd_open_file(long_path) == 0);
+    rd_jump_to_offset(bookmark_offset);
     rd_next_page();
     rd_next_page();
     rd_jump_to_offset(bookmark_offset);

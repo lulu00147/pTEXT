@@ -269,7 +269,11 @@ case APP_CMD_INIT_WINDOW:
             }
             r_deinit(); break;
         case APP_CMD_GAINED_FOCUS:
-            s_need_redraw = 1; break;
+        case APP_CMD_WINDOW_REDRAW_NEEDED:
+        case APP_CMD_START:
+        case APP_CMD_RESUME:
+            s_need_redraw = 1;
+            break;
         case APP_CMD_WINDOW_RESIZED:
             if (app->window) {
                 /* 仅更新尺寸，不重新加载字体和 mmap */
