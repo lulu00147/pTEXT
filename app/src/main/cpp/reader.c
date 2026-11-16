@@ -751,15 +751,13 @@ void rd_prev_page(void)
         paginate_full(target, s_page_curr);
     } else {
         int64_t target = 0;
-        int64_t guessed = s_page_curr->start_offset - (s_mmap_len / 50);
-        if (guessed < 0) guessed = 0;
-
-        int64_t probe = guessed;
-        int32_t safety = 0;
+        int64_t probe = 0;
         int32_t found = 0;
         Page probe_page;
 
-        while (probe < s_page_curr->start_offset && safety < 200) {
+        (void)page_checkpoint_find(s_page_curr->start_offset - 1, &probe);
+        int32_t safety = 0;
+        while (probe < s_page_curr->start_offset && safety <= PAGE_CKPT_STEP + 2) {
             paginate_full(probe, &probe_page);
             if (probe_page.next_offset >= s_page_curr->start_offset ||
                 probe_page.next_offset >= s_mmap_len) {

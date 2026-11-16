@@ -104,6 +104,18 @@ int main(void)
     rd_jump_to_offset(bookmark_offset);
     assert(rd_get_page_no() == 2);
 
+    rd_close();
+    FILE *pf = fopen("../.prog/long.txt.bin", "wb");
+    assert(pf != NULL);
+    int64_t progress[3] = {bookmark_offset, -1, 2};
+    assert(fwrite(progress, sizeof(progress[0]), 3, pf) == 3);
+    fclose(pf);
+    assert(rd_open_file(long_path) == 0);
+    assert(rd_get_page_no() == 2);
+    rd_prev_page();
+    assert(rd_get_page_no() == 1);
+    assert(rd_get_page()->start_offset == 0);
+
     write_file("stale.txt.part", "x", 1);
     rd_scan_dir();
     assert(access("stale.txt.part", F_OK) != 0);
