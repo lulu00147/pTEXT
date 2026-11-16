@@ -99,6 +99,11 @@ int main(void)
     assert(rd_get_page_no() == 2);
     assert(rd_get_page()->start_offset == bookmark_offset);
 
+    rd_next_page();
+    rd_next_page();
+    rd_jump_to_offset(bookmark_offset);
+    assert(rd_get_page_no() == 2);
+
     write_file("stale.txt.part", "x", 1);
     rd_scan_dir();
     assert(access("stale.txt.part", F_OK) != 0);

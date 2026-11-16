@@ -121,6 +121,9 @@ static FileItem s_files[MAX_FILES];
 static int32_t s_file_count;
 static int32_t s_file_limit;
 
+static void page_checkpoint_add(int64_t off, int32_t page_no);
+static int32_t page_checkpoint_find(int64_t target, int64_t *off);
+
 static char *s_mmap_data;
 static int64_t s_mmap_len;
 static TextDecodeFn s_decode;
@@ -135,6 +138,12 @@ static int64_t s_prefetch_target = -1;
 static int64_t s_page_hist[MAX_PAGE_HIST];
 static int32_t s_hist_count;
 static int32_t s_page_no;
+
+#define PAGE_CKPT_MAX 1024
+#define PAGE_CKPT_STEP 64
+static int64_t s_page_ckpt_off[PAGE_CKPT_MAX];
+static int32_t s_page_ckpt_no[PAGE_CKPT_MAX];
+static int32_t s_page_ckpt_count;
 
 static Settings s_settings = {3, 1, 0, 0, 14};
 
@@ -371,8 +380,10 @@ int32_t rd_open_file(const char *path)
 
     int64_t open_offset = saved_offset;
     int32_t open_page_no = 1;
+    s_page_ckpt_count = 0;
     if (saved_offset == start_offset) {
         open_page_no = 1;
+        page_checkpoint_add(start_offset, 1);
     } else {
         int64_t page_start = 0;
         open_page_no = page_for_offset(saved_offset, &page_start);
@@ -440,6 +451,31 @@ static int32_t page_max_x(void)
     return n > 1 ? n : 1;
 }
 
+static void page_checkpoint_add(int64_t off, int32_t page_no)
+{
+    if (page_no <= 0) return;
+    if (s_page_ckpt_count > 0) {
+        int32_t last = s_page_ckpt_count - 1;
+        if (s_page_ckpt_off[last] == off || page_no < s_page_ckpt_no[last] + PAGE_CKPT_STEP) return;
+    }
+    if (s_page_ckpt_count >= PAGE_CKPT_MAX) return;
+    s_page_ckpt_off[s_page_ckpt_count] = off;
+    s_page_ckpt_no[s_page_ckpt_count] = page_no;
+    s_page_ckpt_count++;
+}
+
+static int32_t page_checkpoint_find(int64_t target, int64_t *off)
+{
+    int32_t best = -1;
+    for (int32_t i = 0; i < s_page_ckpt_count; i++) {
+        if (s_page_ckpt_off[i] > target) break;
+        best = i;
+    }
+    if (best < 0) return 0;
+    *off = s_page_ckpt_off[best];
+    return s_page_ckpt_no[best];
+}
+
 PageLayout rd_get_layout(void)
 {
     PageLayout pl;
@@ -459,14 +495,17 @@ static int32_t page_for_offset(int64_t target, int64_t *page_start)
     Page probe;
     int64_t off = 0;
     int32_t number = 1;
+    page_checkpoint_add(off, number);
 
     while (off < target) {
         paginate_full(off, &probe);
         if (probe.next_offset <= off || probe.next_offset > target) break;
         off = probe.next_offset;
         number++;
+        if (number % PAGE_CKPT_STEP == 0) page_checkpoint_add(off, number);
     }
 
+    page_checkpoint_add(off, number);
     *page_start = off;
     return number;
 }
@@ -651,19 +690,25 @@ void rd_jump_to_offset(int64_t offset)
     int32_t page_no = 1;
 
     if (s_page_no > 0 && s_page_curr->start_offset <= offset) {
-        int64_t off = s_page_curr->start_offset;
+        page_start = s_page_curr->start_offset;
         page_no = s_page_no;
-        while (off < offset) {
-            Page probe;
-            paginate_full(off, &probe);
-            if (probe.next_offset <= off || probe.next_offset > offset) break;
-            off = probe.next_offset;
-            page_no++;
-        }
-        page_start = off;
     } else {
-        page_no = page_for_offset(offset, &page_start);
+        page_no = page_checkpoint_find(offset, &page_start);
+        if (page_no <= 0) {
+            page_no = page_for_offset(offset, &page_start);
+        }
     }
+
+    int64_t off = page_start;
+    while (off < offset) {
+        Page probe;
+        paginate_full(off, &probe);
+        if (probe.next_offset <= off || probe.next_offset > offset) break;
+        off = probe.next_offset;
+        page_no++;
+        if (page_no % PAGE_CKPT_STEP == 0) page_checkpoint_add(off, page_no);
+    }
+    page_start = off;
 
     rd_goto_offset(page_start);
     s_page_no = page_no > 0 ? page_no : 1;
@@ -686,6 +731,9 @@ void rd_next_page(void)
 
     hist_push(s_page_curr->start_offset);
     if (s_page_no > 0) s_page_no++;
+    if (s_page_no > 0 && s_page_no % PAGE_CKPT_STEP == 0) {
+        page_checkpoint_add(s_page_curr->start_offset, s_page_no);
+    }
 
     if (s_page_curr->next_offset < s_mmap_len) {
         paginate_init(s_page_curr->next_offset);
