@@ -1,6 +1,7 @@
 #include "reader.h"
 #include "render.h"
 #include "utf8.h"
+#include "gb2312_table.h"
 
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -87,12 +88,10 @@ static int32_t is_para_start(int64_t off)
 
 static uint32_t gbk_decode_fast(unsigned char b1, unsigned char b2)
 {
-    if (b1 >= 0xB0 && b1 <= 0xD7 && b2 >= 0xA1 && b2 <= 0xFE)
-        return 0x4E00 + (b1 - 0xB0) * 94 + (b2 - 0xA1);
-    if (b1 == 0xA1 && b2 >= 0xA1 && b2 <= 0xFE)
-        return 0x3000 + (b2 - 0xA1);
-    if (b1 == 0xA3 && b2 >= 0xA1 && b2 <= 0xFE)
-        return 0xFF00 + (b2 - 0xA1);
+    if (b1 >= 0xA1 && b1 <= 0xF7 && b2 >= 0xA1 && b2 <= 0xFE) {
+        uint16_t cp = g_gb2312_table[(b1 - 0xA1) * 94 + (b2 - 0xA1)];
+        if (cp) return cp;
+    }
     return '?';
 }
 
