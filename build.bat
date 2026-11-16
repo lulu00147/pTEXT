@@ -10,6 +10,12 @@ set "CMAKE_PATH=%TOOLS%\cmake-4.5.0\bin\cmake.exe"
 set "NINJA_PATH=%TOOLS%\ninja-1.13.2\ninja.exe"
 set "JAVA_HOME=%TOOLS%\jdk-25.0.5.0.2+1"
 set "PLATFORM=%TOOLS%\platform-37.2_r01\android.jar"
+set "RELEASE_PROPS=release.properties"
+set "STORE_FILE=release.keystore"
+set "STORE_PASSWORD="
+set "KEY_ALIAS=ptext"
+set "KEY_PASSWORD="
+if exist "%RELEASE_PROPS%" for /f "usebackq tokens=1,* delims==" %%A in ("%RELEASE_PROPS%") do set "%%A=%%B"
 
 :: Derived paths
 set "NDK_TOOLCHAIN=%NDK_PATH%\build\cmake\android.toolchain.cmake"
@@ -51,11 +57,18 @@ echo [5/6] Packing APK...
 
 echo [6/6] Aligning and signing...
 call %BUILD_TOOLS%\zipalign.exe -f 4 build\base.apk build\aligned.apk
-if not exist "debug.keystore" (
-    echo First run, generating debug keystore...
-    %JAVA_HOME%\bin\keytool.exe -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+if exist "!STORE_FILE!" if defined STORE_PASSWORD if defined KEY_PASSWORD (
+    echo Signing with release keystore: !STORE_FILE!
+    call %BUILD_TOOLS%\apksigner.bat sign --ks "!STORE_FILE!" --ks-pass "pass:!STORE_PASSWORD!" --ks-key-alias "!KEY_ALIAS!" --key-pass "pass:!KEY_PASSWORD!" --out pTEXT.apk build\aligned.apk
+) else (
+    echo No release.properties; signing with debug keystore.
+    if not exist "debug.keystore" (
+        echo First run, generating debug keystore...
+        %JAVA_HOME%\bin\keytool.exe -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+    )
+    call %BUILD_TOOLS%\apksigner.bat sign --ks debug.keystore --ks-pass pass:android --key-pass pass:android --out pTEXT.apk build\aligned.apk
 )
-call %BUILD_TOOLS%\apksigner.bat sign --ks debug.keystore --ks-pass pass:android --key-pass pass:android --out pTEXT.apk build\aligned.apk
+if %errorlevel% neq 0 ( echo [ERROR] APK signing failed & pause & exit )
 
 echo Cleaning...
 rmdir /s /q build
