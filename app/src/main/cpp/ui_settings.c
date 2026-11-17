@@ -2,19 +2,13 @@
 #include "reader.h"
 #include "render.h"
 #include "ui_util.h"
+#include "clamp.h"
 
 #include <stdio.h>
 
 #define SETTINGS_W      ui_px(360)
 #define SETTINGS_H      ui_px(240)
 #define SETTINGS_ROW_H  ui_px(50)
-
-static int32_t clamp_i(int32_t v, int32_t lo, int32_t hi)
-{
-    if (v < lo) return lo;
-    if (v > hi) return hi;
-    return v;
-}
 
 void ui_get_settings_rect(int32_t *l, int32_t *t, int32_t *r, int32_t *b)
 {
@@ -64,10 +58,10 @@ void ui_draw_settings(void)
     uint32_t utxt[128];
     int32_t n;
     Settings *s = rd_get_settings();
-    int32_t font_idx = clamp_i(s->font_idx, 0, 6);
-    int32_t indent_idx = clamp_i(s->indent_idx, 0, 2);
-    int32_t gap_idx = clamp_i(s->gap_idx, 0, 2);
-    int32_t theme = clamp_i(s->theme, 0, 1);
+    int32_t font_idx = clamp_i32(s->font_idx, 0, 6);
+    int32_t indent_idx = clamp_i32(s->indent_idx, 0, 2);
+    int32_t gap_idx = clamp_i32(s->gap_idx, 0, 2);
+    int32_t theme = clamp_i32(s->theme, 0, 1);
     int32_t y = t + ui_px(50);
     char buf[64];
 

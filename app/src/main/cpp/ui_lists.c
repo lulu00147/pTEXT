@@ -94,9 +94,7 @@ void ui_draw_file_list(int32_t *scroll_ptr, int32_t error)
 
             uint32_t txt[256];
             int32_t n = ui_utf8_to_utf32(txt, 255, files[i].name);
-            int32_t full_n = n;
-            while (n > 1 && r_text_width(txt, n) > row_max_w) n--;
-            if (full_n > n && n > 0) txt[n - 1] = 0x2026;
+            n = ui_fit_text(txt, n, row_max_w);
             r_draw_text(LX_MARGIN, y, txt, n);
 
             if (files[i].bookmarks > 0) {
@@ -173,9 +171,7 @@ void ui_draw_bookmarks(const Bookmark *bms, int32_t count, int32_t *scroll_ptr)
         snprintf(buf, sizeof(buf), "%d. %s", i + 1, bms[i].preview);
         uint32_t txt[64];
         int32_t n = ui_utf8_to_utf32(txt, 63, buf);
-        int32_t full_n = n;
-        while (n > 1 && r_text_width(txt, n) > max_text_w) n--;
-        if (full_n > n && n > 0) txt[n - 1] = 0x2026;
+        n = ui_fit_text(txt, n, max_text_w);
         r_draw_text(LX_MARGIN, y, txt, n);
     }
 }
@@ -202,10 +198,8 @@ void ui_draw_delete_dialog(const char *name)
 
     uint32_t txt[256];
     int32_t n = ui_utf8_to_utf32(txt, 255, name ? name : "");
-    int32_t full_n = n;
     int32_t maxw = (r - l) - ui_px(48);
-    while (n > 1 && r_text_width(txt, n) > maxw) n--;
-    if (full_n > n && n > 0) txt[n - 1] = 0x2026;
+    n = ui_fit_text(txt, n, maxw);
     r_draw_text(l + ui_px(24), t + ui_px(90), txt, n);
 
     r_draw_text(l + ui_px(40), b - ui_px(56), cancel, 2);

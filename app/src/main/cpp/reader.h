@@ -15,6 +15,7 @@ void rd_close(void);
 
 #define MAX_LINES 80
 #define MAX_CHARS 200
+#define MAX_BOOKMARKS 50
 typedef struct { uint32_t text[MAX_CHARS]; int32_t len; int32_t indent; uint8_t justify; } Line;
 typedef struct {
     Line lines[MAX_LINES];
@@ -22,6 +23,8 @@ typedef struct {
     int64_t start_offset;
     int64_t next_offset;
 } Page;
+
+int32_t rd_line_blank(const Line *line);
 
 void rd_goto_offset(int64_t offset);
 void rd_jump_to_offset(int64_t offset);
@@ -53,7 +56,6 @@ typedef struct {
     int32_t line_height;
     int32_t text_width;
     int32_t page_height;
-    int32_t max_lines;
 } PageLayout;
 
 PageLayout rd_get_layout(void);

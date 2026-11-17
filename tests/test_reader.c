@@ -41,7 +41,6 @@ int main(void)
     PageLayout layout = rd_get_layout();
     assert(layout.margin_x > 0);
     assert(layout.text_width == 600 - layout.margin_x * 2);
-    assert(layout.max_lines > 0 && layout.max_lines <= MAX_LINES);
     assert(p->count > 0);
     assert(p->count <= MAX_LINES);
     assert(p->lines[0].len <= MAX_CHARS);

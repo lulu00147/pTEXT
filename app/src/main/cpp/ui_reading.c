@@ -10,16 +10,6 @@
 #define HEADER_MARGIN_X ui_px(14)
 #define FOOTER_MARGIN_X ui_px(13)
 
-static int32_t draw_line_blank(const Line *line)
-{
-    if (line->len == 0) return 1;
-    for (int32_t i = 0; i < line->len; i++) {
-        uint32_t cp = line->text[i];
-        if (cp != ' ' && cp != '\t' && cp != 0x3000) return 0;
-    }
-    return 1;
-}
-
 void ui_draw_reading(void)
 {
     if (!rd_get_file_len()) return;
@@ -76,7 +66,7 @@ void ui_draw_reading(void)
     int32_t draw_i = 0;
     for (int32_t i = 0; i < p->count; i++) {
         Line *line = &p->lines[i];
-        if (draw_line_blank(line)) continue;
+        if (rd_line_blank(line)) continue;
         int32_t x = pl.margin_x + line->indent;
         int32_t target = pl.text_width - line->indent;
         int32_t y = pl.margin_top + draw_i * vstep_x10 / 10;

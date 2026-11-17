@@ -8,6 +8,7 @@
 #include <time.h>
 #include "render.h"
 #include "reader.h"
+#include "clamp.h"
 #include "ui_lists.h"
 #include "ui_reading.h"
 #include "ui_settings.h"
@@ -35,7 +36,7 @@ static int32_t s_file_hold_idx = -1;
 static int32_t s_file_hold_fired = 0;
 static int32_t s_delete_idx = -1;
 static int32_t s_file_error = 0;
-static Bookmark s_bm_view[50];
+static Bookmark s_bm_view[MAX_BOOKMARKS];
 static int32_t s_bm_view_count = 0;
 static int32_t s_bm_scroll = 0;
 static int32_t s_bm_touch_active = 0;
@@ -72,13 +73,6 @@ static void trigger_vsync_prefetch(void)
     }
 }
 
-static int32_t clamp_i(int32_t v, int32_t lo, int32_t hi)
-{
-    if (v < lo) return lo;
-    if (v > hi) return hi;
-    return v;
-}
-
 static int32_t reading_cell(int32_t x, int32_t y)
 {
     int32_t w = r_w();
@@ -113,9 +107,9 @@ static void handle_touch_reading(int32_t x, int32_t y)
             return;
         }
         Settings *s = rd_get_settings();
-        int32_t font_idx = clamp_i(s->font_idx, 0, 6);
-        int32_t indent_idx = clamp_i(s->indent_idx, 0, 2);
-        int32_t gap_idx = clamp_i(s->gap_idx, 0, 2);
+        int32_t font_idx = clamp_i32(s->font_idx, 0, 6);
+        int32_t indent_idx = clamp_i32(s->indent_idx, 0, 2);
+        int32_t gap_idx = clamp_i32(s->gap_idx, 0, 2);
         int32_t row = ui_settings_row_at(y);
         int32_t left = ui_settings_button_at(x) == 0;
         int32_t need_rebuild = 0;
@@ -296,7 +290,7 @@ case APP_CMD_INIT_WINDOW:
             if (app->window) {
                 update_ui_scale(app);
                 Settings *cfg = rd_get_settings();
-                r_set_font_size((18.0f + clamp_i(cfg->font_idx, 0, 6) * 2.0f) *
+                r_set_font_size((18.0f + clamp_i32(cfg->font_idx, 0, 6) * 2.0f) *
                                 r_ui_scale());
                 rd_reset_page_cache();
                 if (rd_get_file_len() > 0)
@@ -512,7 +506,7 @@ static int32_t handle_input(struct android_app *app, AInputEvent *event)
                         int32_t mark_left = ui_file_mark_left();
                         if (files[fidx].bookmarks > 0 && x >= mark_left - ui_px(10)) {
                             int32_t n = rd_read_bookmarks(files[fidx].path,
-                                                          s_bm_view, 50);
+                                                          s_bm_view, MAX_BOOKMARKS);
                             if (n > 0) {
                                 snprintf(s_bm_path, sizeof(s_bm_path), "%s",
                                          files[fidx].path);
