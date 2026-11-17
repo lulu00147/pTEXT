@@ -46,6 +46,29 @@ static uint32_t bm_checksum(const Bookmark *b, int32_t count)
     return h;
 }
 
+/* 1 = valid BmHeader, -1 = legacy raw bookmarks, 0 = invalid. */
+static int32_t bm_read_header(FILE *f, BmHeader *h)
+{
+    if (fread(h, sizeof(*h), 1, f) != 1) return 0;
+    if (h->magic != BM_MAGIC) return -1;
+    if (h->version != BM_VERSION || h->count > MAX_BOOKMARKS ||
+        fseek(f, 0, SEEK_END) != 0) return 0;
+
+    long size = ftell(f);
+    long expect = (long)sizeof(BmHeader) + (long)h->count * (long)sizeof(Bookmark);
+    return size == expect ? 1 : 0;
+}
+
+static int32_t bm_legacy_count(FILE *f)
+{
+    if (fseek(f, 0, SEEK_END) != 0) return 0;
+    long size = ftell(f);
+    if (size < 0) return 0;
+
+    int32_t count = (int32_t)(size / (long)sizeof(Bookmark));
+    return count > MAX_BOOKMARKS ? MAX_BOOKMARKS : count;
+}
+
 static int32_t load_bookmarks(const char *path, Bookmark *out, int32_t cap)
 {
     if (!path || !out || cap <= 0) return 0;
@@ -54,21 +77,15 @@ static int32_t load_bookmarks(const char *path, Bookmark *out, int32_t cap)
     if (!f) return 0;
 
     BmHeader h;
-    if (fread(&h, sizeof(h), 1, f) != 1) {
+    int32_t kind = bm_read_header(f, &h);
+    if (kind == 0) {
         fclose(f);
         return 0;
     }
 
     int32_t count;
-    if (h.magic == BM_MAGIC) {
-        if (h.version != BM_VERSION || h.count > MAX_BOOKMARKS ||
-            h.count > (uint32_t)cap || fseek(f, 0, SEEK_END) != 0) {
-            fclose(f);
-            return 0;
-        }
-        long size = ftell(f);
-        long expect = (long)sizeof(BmHeader) + (long)h.count * (long)sizeof(Bookmark);
-        if (size != expect ||
+    if (kind > 0) {
+        if (h.count > (uint32_t)cap ||
             fseek(f, (long)sizeof(BmHeader), SEEK_SET) != 0 ||
             fread(out, sizeof(Bookmark), h.count, f) != h.count ||
             bm_checksum(out, (int32_t)h.count) != h.checksum) {
@@ -97,38 +114,9 @@ static int32_t bookmark_count(const char *path)
     if (!f) return 0;
 
     BmHeader h;
-    if (fread(&h, sizeof(h), 1, f) != 1) {
-        fclose(f);
-        return 0;
-    }
-
-    int32_t count;
-    if (h.magic == BM_MAGIC) {
-        if (h.version != BM_VERSION || h.count > MAX_BOOKMARKS ||
-            fseek(f, 0, SEEK_END) != 0) {
-            fclose(f);
-            return 0;
-        }
-        long size = ftell(f);
-        long expect = (long)sizeof(BmHeader) + (long)h.count * (long)sizeof(Bookmark);
-        if (size != expect) {
-            fclose(f);
-            return 0;
-        }
-        count = (int32_t)h.count;
-    } else {
-        if (fseek(f, 0, SEEK_END) != 0) {
-            fclose(f);
-            return 0;
-        }
-        long size = ftell(f);
-        if (size < 0) {
-            fclose(f);
-            return 0;
-        }
-        count = (int32_t)(size / (long)sizeof(Bookmark));
-        if (count > MAX_BOOKMARKS) count = MAX_BOOKMARKS;
-    }
+    int32_t kind = bm_read_header(f, &h);
+    int32_t count = kind > 0 ? (int32_t)h.count :
+                    kind < 0 ? bm_legacy_count(f) : 0;
     fclose(f);
     return count;
 }
