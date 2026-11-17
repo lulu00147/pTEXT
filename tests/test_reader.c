@@ -151,7 +151,9 @@ int main(void)
     for (int32_t i = 0; i < file_count; i++) {
         if (strcmp(files[i].name, long_path) == 0) marked = files[i].bookmarks;
     }
-    assert(marked == 0);
+    assert(marked == 1);
+    Bookmark corrupt[50];
+    assert(rd_read_bookmarks(long_path, corrupt, 50) == 0);
 
     for (int32_t i = 0; i < 101; i++) {
         char name[32];

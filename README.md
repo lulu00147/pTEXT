@@ -186,7 +186,7 @@ sh tests/run_reader_tests.sh
 ```
 
 - 编码测试：1,065,822 cases PASS。
-- reader/persist 测试使用 POSIX 接口，需 Linux/WSL；MSVC 不能直接编译。
+- reader/persist 测试使用 POSIX 接口，需 Linux/WSL；WSL 下 PASS，MSVC 不能直接编译。
 - 设备已验：冷启动、UTF-8/GBK、11MB 文件、空文件、书签列表/跳转、设置持久化、强杀恢复、旋转、最新图标、无日志构建、8 次快速及 20 秒前后台重绘、stb_truetype 1.28 中文。
 - 待验证：5 分钟实际释放、导入进度 Toast 逐帧显示、最新列表重构的 UI 回归。
 
