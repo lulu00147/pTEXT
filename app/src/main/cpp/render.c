@@ -275,7 +275,13 @@ void r_init(ANativeWindow *w)
 
 void r_deinit(void)
 {
+    if (s_locked) {
+        ANativeWindow_unlockAndPost(s_win);
+        s_locked = 0;
+    }
     unmap_font();
+    s_win = NULL;
+    s_px = NULL;
 }
 
 __attribute__((weak)) extern void ANativeWindow_setDirtyRect(ANativeWindow *window, const ARect *rect);
@@ -286,19 +292,16 @@ void r_set_dirty(const ARect *rect) {
     }
 }
 
-void r_begin(void)
+int32_t r_begin(void)
 {
-    if (!s_win) return;
-    if (ANativeWindow_lock(s_win, &s_buf, NULL) != 0) return;
+    if (!s_win) return 0;
+    if (ANativeWindow_lock(s_win, &s_buf, NULL) != 0) return 0;
 
-    if (!s_buf.bits) {
-        ANativeWindow_unlockAndPost(s_win);
-        return;
-    }
-    if (s_buf.width <= 0 || s_buf.height <= 0 ||
+    if (!s_buf.bits ||
+        s_buf.width <= 0 || s_buf.height <= 0 ||
         s_buf.stride < s_buf.width) {
         ANativeWindow_unlockAndPost(s_win);
-        return;
+        return 0;
     }
 
     s_px = (uint16_t *)s_buf.bits;
@@ -306,6 +309,7 @@ void r_begin(void)
     s_w = s_buf.width;
     s_h = s_buf.height;
     s_locked = 1;
+    return 1;
 }
 
 void r_end(void)
@@ -313,6 +317,7 @@ void r_end(void)
     if (s_locked && s_win) {
         ANativeWindow_unlockAndPost(s_win);
         s_locked = 0;
+        s_px = NULL;
     }
 }
 

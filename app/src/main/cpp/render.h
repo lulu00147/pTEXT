@@ -8,7 +8,7 @@ void r_init(ANativeWindow *w);
 void r_deinit(void);
 void r_set_ui_scale(float scale);
 float r_ui_scale(void);
-void r_begin(void);
+int32_t r_begin(void);
 void r_end(void);
 void r_clear(void);
 void r_clear_rect(int32_t l, int32_t t, int32_t r, int32_t b);

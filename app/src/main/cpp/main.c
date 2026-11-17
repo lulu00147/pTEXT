@@ -624,13 +624,20 @@ void android_main(struct android_app *app)
 
         if (s_need_redraw && app->window) {
             if (r_w() <= 0 || r_h() <= 0) {
-                s_need_redraw = 0;
+                s_need_redraw = 1;
+                struct timespec wait = {0, 16000000L};
+                nanosleep(&wait, NULL);
                 continue;
             }
             ARect dirty = {0, 0, r_w(), r_h()};
             r_set_dirty(&dirty);
 
-            r_begin();
+            if (!r_begin()) {
+                s_need_redraw = 1;
+                struct timespec wait = {0, 16000000L};
+                nanosleep(&wait, NULL);
+                continue;
+            }
             if (s_state == ST_FILELIST) ui_draw_file_list(&s_file_scroll, s_file_error);
             else if (s_state == ST_READING) ui_draw_reading();
             else if (s_state == ST_SETTINGS) { ui_draw_reading(); ui_draw_settings(); }
