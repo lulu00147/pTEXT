@@ -31,6 +31,8 @@ public class MainActivity extends NativeActivity {
 
     private final Handler screenHandler = new Handler(Looper.getMainLooper());
     private boolean screenActive;
+    private volatile boolean importing;
+    private Toast progressToast;
     private final Runnable releaseScreenOn = () -> {
         Window w = getWindow();
         if (w != null) w.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -93,6 +95,7 @@ public class MainActivity extends NativeActivity {
     @Override
     protected void onDestroy() {
         screenHandler.removeCallbacks(releaseScreenOn);
+        if (progressToast != null) progressToast.cancel();
         sInst = null;
         super.onDestroy();
     }
@@ -122,28 +125,35 @@ public class MainActivity extends NativeActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode != REQ || resultCode != RESULT_OK ||
-            data == null || data.getData() == null) {
+            data == null || data.getData() == null || importing) {
             return;
         }
 
+        final Uri uri = data.getData();
+        String displayName = null;
+        long totalSize = -1;
+        try (Cursor c = getContentResolver().query(uri,
+                new String[]{OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE},
+                null, null, null)) {
+            if (c != null && c.moveToFirst()) {
+                displayName = c.getString(0);
+                if (!c.isNull(1)) totalSize = c.getLong(1);
+            }
+        } catch (Exception ignored) {}
+
+        final String name = displayName;
+        final long size = totalSize;
+        importing = true;
+        new Thread(() -> importDocument(uri, name, size), "pTEXT-import").start();
+    }
+
+    private void importDocument(Uri uri, String displayName, long totalSize) {
         File tmp = null;
         try {
             File dir = new File(getFilesDir(), "files");
             if (!dir.isDirectory() && !dir.mkdirs()) {
                 throw new IOException("mkdirs failed");
             }
-
-            Uri uri = data.getData();
-            String displayName = null;
-            long totalSize = -1;
-            try (Cursor c = getContentResolver().query(uri,
-                    new String[]{OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE},
-                    null, null, null)) {
-                if (c != null && c.moveToFirst()) {
-                    displayName = c.getString(0);
-                    if (!c.isNull(1)) totalSize = c.getLong(1);
-                }
-            } catch (Exception ignored) {}
 
             String base = displayName == null ? "" : displayName.trim();
             base = base.replaceAll("[\\\\/:*?\"<>|]", "_");
@@ -174,13 +184,10 @@ public class MainActivity extends NativeActivity {
                     os.write(buf, 0, len);
                     copied += len;
                     if (totalSize > 0) {
-                        int pct = (int)(copied * 100 / totalSize);
-                        if (pct >= 100) pct = 99;
+                        int pct = (int)Math.min(99, copied * 100 / totalSize);
                         if (pct / 10 != lastPct / 10) {
                             lastPct = pct;
-                            final int shown = pct;
-                            runOnUiThread(() -> Toast.makeText(this,
-                                    "导入中: " + shown + "%", Toast.LENGTH_SHORT).show());
+                            showProgress(pct);
                         }
                     }
                 }
@@ -200,12 +207,40 @@ public class MainActivity extends NativeActivity {
             }
 
             sRescan = 1;
+            runOnUiThread(() -> {
+                if (progressToast != null) {
+                    progressToast.cancel();
+                    progressToast = null;
+                }
+                if (!isFinishing()) {
+                    Toast.makeText(this, "导入完成", Toast.LENGTH_SHORT).show();
+                }
+            });
         } catch (Exception e) {
             if (tmp != null) tmp.delete();
             final String message = e.getMessage();
-            runOnUiThread(() -> Toast.makeText(this,
-                    "导入失败: " + (message == null ? "unknown" : message),
-                    Toast.LENGTH_SHORT).show());
+            runOnUiThread(() -> {
+                if (progressToast != null) {
+                    progressToast.cancel();
+                    progressToast = null;
+                }
+                if (!isFinishing()) {
+                    Toast.makeText(this,
+                            "导入失败: " + (message == null ? "unknown" : message),
+                            Toast.LENGTH_SHORT).show();
+                }
+            });
+        } finally {
+            importing = false;
         }
+    }
+
+    private void showProgress(int pct) {
+        runOnUiThread(() -> {
+            if (isFinishing()) return;
+            if (progressToast != null) progressToast.cancel();
+            progressToast = Toast.makeText(this, "导入中: " + pct + "%", Toast.LENGTH_SHORT);
+            progressToast.show();
+        });
     }
 }
