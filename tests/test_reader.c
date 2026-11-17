@@ -77,8 +77,8 @@ int main(void)
     assert(rd_get_page_no() == 2);
     rd_toggle_bookmark();
     assert(rd_page_bookmarked());
-    Bookmark bms[50];
-    int32_t bm_count = rd_read_bookmarks(long_path, bms, 50);
+    Bookmark bms[MAX_BOOKMARKS];
+    int32_t bm_count = rd_read_bookmarks(long_path, bms, MAX_BOOKMARKS);
     assert(bm_count == 1);
     assert(bms[0].offset >= 0);
     int64_t bookmark_offset = bms[0].offset;
@@ -152,8 +152,8 @@ int main(void)
         if (strcmp(files[i].name, long_path) == 0) marked = files[i].bookmarks;
     }
     assert(marked == 1);
-    Bookmark corrupt[50];
-    assert(rd_read_bookmarks(long_path, corrupt, 50) == 0);
+    Bookmark corrupt[MAX_BOOKMARKS];
+    assert(rd_read_bookmarks(long_path, corrupt, MAX_BOOKMARKS) == 0);
 
     for (int32_t i = 0; i < 101; i++) {
         char name[32];

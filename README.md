@@ -85,22 +85,7 @@ flowchart TD
 
 阅读：`rd_open_file` mmap → 编码探测 → `layout_line` → `paginate_full` / `paginate_step`。
 
-```mermaid
-flowchart LR
-  MAIN["android_main"] --> INPUT["handle_input"]
-  MAIN --> DRAW["ui_draw_reading"]
-  INPUT --> NEXT["rd_next_page / rd_prev_page"]
-  NEXT --> PAGE["paginate_init / paginate_full"]
-  PAGE --> LINE["layout_line"]
-  LINE --> DEC["enc_decode_utf8 / enc_decode_gbk"]
-  LINE --> ADV["r_char_advance"]
-  DRAW --> TEXT["r_draw_text / r_draw_text_justified"]
-  TEXT --> GC["gc_get"]
-  GC --> STB["stbtt_MakeCodepointBitmap"]
-  INPUT --> JUMP["rd_jump_to_offset"]
-  JUMP --> CKPT["page_checkpoint_find"]
-  JUMP --> GOTO["rd_goto_offset"]
-```
+热路径：输入 → `rd_next_page` / `rd_prev_page` → `layout_line` → 解码 / 字形宽度；绘制 → `r_draw_text*` → 字形缓存。
 
 ## 数据
 
@@ -139,8 +124,8 @@ sh tests/run_reader_tests.sh
 
 - 编码：1,065,822 cases PASS。
 - reader/persist：WSL PASS；ASan/UBSan PASS。
-- 设备已验：启动、UTF-8/GBK、11MB、空文件、书签、设置持久化、强杀恢复、旋转、图标、无日志构建、20 秒前后台重绘、stb_truetype 1.28 中文。
-- 未验：5 分钟实际释放、导入进度逐帧、最新列表 UI。
+- 设备回归：启动、前后台、中文、书签、导入、图标通过。
+- 未验证：5 分钟实际释放、导入进度逐帧、最新列表 UI。
 
 ## 范围
 
