@@ -177,6 +177,8 @@ files/<name>.txt.name   原始显示名
 
 ## 7. 验证
 
+在 Visual Studio x64 开发者提示符中运行：
+
 ```bat
 tests\run_tests.bat
 ```
