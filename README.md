@@ -10,7 +10,8 @@ Android 17 纯文本阅读器。C11 + Java 11，NativeActivity，arm64-v8a。
 | `ui_lists.c` | 文件列表、书签列表、删除确认 |
 | `ui_reading.c` | 阅读页页眉、页脚、正文绘制 |
 | `ui_settings.c` | 字号、缩进、行距、主题设置面板 |
-| `ui_util.c` | dp 缩放、UTF-8 转 UTF-32 |
+| `ui_util.c` | dp 缩放、UTF-8 转 UTF-32、单次前缀宽度截断 |
+| `clamp.h` | 共享整数夹紧 |
 | `reader.c` | mmap、分页、历史、书签、设置、页码检查点 |
 | `encoding.c` | UTF-8、GBK、GB18030 解码与编码探测 |
 | `persist.c` | 临时文件 + fsync + rename |
@@ -26,7 +27,7 @@ Android 17 纯文本阅读器。C11 + Java 11，NativeActivity，arm64-v8a。
 ## 2. 数据流
 
 1. SAF 导入：文件复制到 `files/*.txt`，原始显示名写入同名 `.name`。
-2. `rd_scan_dir` 扫描 `.txt` 与 `.bm` 书签计数。
+2. `rd_scan_dir` 扫描 `.txt`，书签数量只读文件头和大小；完整 checksum 在打开书签列表时校验。
 3. `rd_open_file` mmap 文件，探测编码，读取进度与书签。
 4. `layout_line`、`paginate_full`、`paginate_step` 生成页。
 5. 进度、书签、设置原子写入 `.prog` / `.bm`。
@@ -104,7 +105,8 @@ flowchart LR
   PREVIEW --> SAVE["save_bookmarks"]
   SAVE --> WRITE["persist_write_atomic"]
 
-  JAVA["MainActivity.onActivityResult"] --> COPY["SAF copy + fsync + rename"]
+  JAVA["MainActivity.onActivityResult"] --> ASYNC["pTEXT-import thread"]
+  ASYNC --> COPY["SAF copy + fsync + rename"]
   COPY --> FLAG["sRescan = 1"]
   FLAG --> SCAN["rd_scan_dir"]
 ```
@@ -184,9 +186,9 @@ sh tests/run_reader_tests.sh
 ```
 
 - 编码测试：1,065,822 cases PASS。
-- reader/persist：PASS。
-- 设备曾验证：冷启动、UTF-8/GBK、11MB 文件、空文件、书签列表/跳转、设置持久化、强杀恢复、旋转。
-- 待设备验证：最新图标、无日志构建、5 分钟常亮、前后台重绘。
+- reader/persist 测试使用 POSIX 接口，需 Linux/WSL；MSVC 不能直接编译。
+- 设备已验：冷启动、UTF-8/GBK、11MB 文件、空文件、书签列表/跳转、设置持久化、强杀恢复、旋转、最新图标、无日志构建、8 次快速及 20 秒前后台重绘、stb_truetype 1.28 中文。
+- 待验证：5 分钟实际释放、导入进度 Toast 逐帧显示、最新列表重构的 UI 回归。
 
 ## 8. 范围
 
