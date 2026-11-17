@@ -149,7 +149,7 @@ static int32_t read_name_sidecar(const char *path, char *out, size_t cap)
     while (n > 0 && (out[n - 1] == '\n' || out[n - 1] == '\r')) {
         out[--n] = '\0';
     }
-    return n > 0;
+    return out[0] != '\0';
 }
 
 static void page_checkpoint_add(int64_t off, int32_t page_no);
