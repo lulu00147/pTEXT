@@ -15,6 +15,46 @@
 #define DELETE_H        ui_px(200)
 #define UI_LEN(arr)     (sizeof(arr)/sizeof(uint32_t) - 1)
 
+typedef struct {
+    int32_t top;
+    int32_t bottom;
+} ListRange;
+
+static ListRange list_range(int32_t item_h)
+{
+    ListRange r;
+    r.top = LY_ITEM0 - item_h / 2;
+    r.bottom = r_h() - BOTTOM_BTN_ZONE;
+    return r;
+}
+
+static int32_t list_max_scroll(int32_t count, int32_t item_h)
+{
+    ListRange range = list_range(item_h);
+    int32_t visible = range.bottom - range.top;
+    if (visible < item_h) visible = item_h;
+    int32_t max_scroll = count * item_h - visible;
+    return max_scroll > 0 ? max_scroll : 0;
+}
+
+static int32_t list_scroll(int32_t *scroll_ptr, int32_t count, int32_t item_h)
+{
+    int32_t scroll = scroll_ptr ? *scroll_ptr : 0;
+    int32_t max_scroll = list_max_scroll(count, item_h);
+    if (scroll > max_scroll) scroll = max_scroll;
+    if (scroll < 0) scroll = 0;
+    if (scroll_ptr) *scroll_ptr = scroll;
+    return scroll;
+}
+
+static int32_t list_index_at(int32_t y, int32_t scroll, int32_t item_h)
+{
+    ListRange range = list_range(item_h);
+    int32_t iy = y + scroll;
+    if (y < range.top || y >= range.bottom || iy < range.top) return -1;
+    return (iy - range.top) / item_h;
+}
+
 static const uint32_t UI_TITLE[] = {0x70,0x54,0x45,0x58,0x54,0};
 static const uint32_t UI_EMPTY[] = {0x6682,0x65E0,0x56FE,0x4E66,0xFF0C,0x70B9,
                                     0x51FB,0x4E0B,0x65B9,0x5BFC,0x5165,0};
@@ -31,24 +71,15 @@ static const uint32_t UI_LIMIT[] = {0x4EC5,0x663E,0x793A,0x524D,0x31,0x30,0x30,
 
 int32_t ui_file_max_scroll(int32_t count)
 {
-    int32_t top = LY_ITEM0 - ITEM_H / 2;
-    int32_t bottom = r_h() - BOTTOM_BTN_ZONE;
-    int32_t visible = bottom - top;
-    if (visible < ITEM_H) visible = ITEM_H;
-    int32_t max_scroll = count * ITEM_H - visible;
-    return max_scroll > 0 ? max_scroll : 0;
+    return list_max_scroll(count, ITEM_H);
 }
 
 int32_t ui_file_index_at(int32_t y, int32_t scroll)
 {
     int32_t count;
     rd_get_files(&count);
-    int32_t list_top = LY_ITEM0 - ITEM_H / 2;
-    int32_t list_bottom = r_h() - BOTTOM_BTN_ZONE;
-    int32_t iy = y + scroll;
-    if (count <= 0 || y < list_top || y >= list_bottom) return -1;
-    if (iy < list_top || iy >= list_top + count * ITEM_H) return -1;
-    int32_t idx = (iy - list_top) / ITEM_H;
+    if (count <= 0) return -1;
+    int32_t idx = list_index_at(y, scroll, ITEM_H);
     return idx >= 0 && idx < count ? idx : -1;
 }
 
@@ -66,19 +97,16 @@ int32_t ui_file_import_hit(int32_t y)
 void ui_draw_file_list(int32_t *scroll_ptr, int32_t error)
 {
     r_clear();
-    int32_t scroll = scroll_ptr ? *scroll_ptr : 0;
     int32_t count;
     FileItem *files = rd_get_files(&count);
-    int32_t max_scroll = ui_file_max_scroll(count);
-    if (scroll > max_scroll) scroll = max_scroll;
-    if (scroll < 0) scroll = 0;
-    if (scroll_ptr) *scroll_ptr = scroll;
-
-    r_draw_text(LX_MARGIN, LY_TITLE, UI_TITLE, UI_LEN(UI_TITLE));
-    int32_t list_top = LY_ITEM0 - ITEM_H / 2;
-    int32_t list_bottom = r_h() - BOTTOM_BTN_ZONE;
+    int32_t scroll = list_scroll(scroll_ptr, count, ITEM_H);
+    ListRange range = list_range(ITEM_H);
+    int32_t list_top = range.top;
+    int32_t list_bottom = range.bottom;
     int32_t max_text_w = r_w() - LX_MARGIN * 2;
     int32_t bm_w = r_text_width(UI_BM_MARK, UI_LEN(UI_BM_MARK));
+
+    r_draw_text(LX_MARGIN, LY_TITLE, UI_TITLE, UI_LEN(UI_TITLE));
 
     if (count == 0) {
         r_draw_text(LX_MARGIN, LY_ITEM0 + ITEM_H / 2, UI_EMPTY, UI_LEN(UI_EMPTY));
@@ -124,35 +152,22 @@ void ui_draw_file_list(int32_t *scroll_ptr, int32_t error)
 
 int32_t ui_bm_max_scroll(int32_t count)
 {
-    int32_t top = LY_ITEM0 - BM_ITEM_H / 2;
-    int32_t bottom = r_h() - BOTTOM_BTN_ZONE;
-    int32_t visible = bottom - top;
-    if (visible < BM_ITEM_H) visible = BM_ITEM_H;
-    int32_t max_scroll = count * BM_ITEM_H - visible;
-    return max_scroll > 0 ? max_scroll : 0;
+    return list_max_scroll(count, BM_ITEM_H);
 }
 
 int32_t ui_bm_index_at(int32_t y, int32_t scroll)
 {
-    int32_t list_top = LY_ITEM0 - BM_ITEM_H / 2;
-    int32_t list_bottom = r_h() - BOTTOM_BTN_ZONE;
-    int32_t iy = y + scroll;
-    if (y < list_top || y >= list_bottom || iy < list_top) return -1;
-    return (iy - list_top) / BM_ITEM_H;
+    return list_index_at(y, scroll, BM_ITEM_H);
 }
 
 void ui_draw_bookmarks(const Bookmark *bms, int32_t count, int32_t *scroll_ptr)
 {
     r_clear();
     r_draw_text(LX_MARGIN, LY_TITLE, UI_BM_TITLE, UI_LEN(UI_BM_TITLE));
-    int32_t scroll = scroll_ptr ? *scroll_ptr : 0;
-    int32_t max_scroll = ui_bm_max_scroll(count);
-    if (scroll > max_scroll) scroll = max_scroll;
-    if (scroll < 0) scroll = 0;
-    if (scroll_ptr) *scroll_ptr = scroll;
-
-    int32_t list_top = LY_ITEM0 - BM_ITEM_H / 2;
-    int32_t list_bottom = r_h() - BOTTOM_BTN_ZONE;
+    int32_t scroll = list_scroll(scroll_ptr, count, BM_ITEM_H);
+    ListRange range = list_range(BM_ITEM_H);
+    int32_t list_top = range.top;
+    int32_t list_bottom = range.bottom;
     int32_t max_text_w = r_w() - LX_MARGIN * 2;
 
     if (count == 0) {

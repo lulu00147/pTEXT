@@ -89,6 +89,50 @@ static int32_t load_bookmarks(const char *path, Bookmark *out, int32_t cap)
     return count;
 }
 
+static int32_t bookmark_count(const char *path)
+{
+    if (!path) return 0;
+
+    FILE *f = fopen(path, "rb");
+    if (!f) return 0;
+
+    BmHeader h;
+    if (fread(&h, sizeof(h), 1, f) != 1) {
+        fclose(f);
+        return 0;
+    }
+
+    int32_t count;
+    if (h.magic == BM_MAGIC) {
+        if (h.version != BM_VERSION || h.count > MAX_BOOKMARKS ||
+            fseek(f, 0, SEEK_END) != 0) {
+            fclose(f);
+            return 0;
+        }
+        long size = ftell(f);
+        long expect = (long)sizeof(BmHeader) + (long)h.count * (long)sizeof(Bookmark);
+        if (size != expect) {
+            fclose(f);
+            return 0;
+        }
+        count = (int32_t)h.count;
+    } else {
+        if (fseek(f, 0, SEEK_END) != 0) {
+            fclose(f);
+            return 0;
+        }
+        long size = ftell(f);
+        if (size < 0) {
+            fclose(f);
+            return 0;
+        }
+        count = (int32_t)(size / (long)sizeof(Bookmark));
+        if (count > MAX_BOOKMARKS) count = MAX_BOOKMARKS;
+    }
+    fclose(f);
+    return count;
+}
+
 static void save_bookmarks(const char *path)
 {
     uint8_t buf[sizeof(BmHeader) + MAX_BOOKMARKS * sizeof(Bookmark)];
@@ -276,8 +320,7 @@ void rd_scan_dir(void)
 
         char bm_path[1024];
         if (sidecar_path(bm_path, sizeof(bm_path), ".bm", ent->d_name)) {
-            Bookmark tmp[MAX_BOOKMARKS];
-            f->bookmarks = load_bookmarks(bm_path, tmp, MAX_BOOKMARKS);
+            f->bookmarks = bookmark_count(bm_path);
         }
 
         f->name[0] = '\0';
