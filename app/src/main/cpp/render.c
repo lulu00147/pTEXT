@@ -10,7 +10,7 @@
 #include <android/font_matcher.h>
 
 /* 零堆保障：强制 16 字节对齐的静态分配器，扩大至 16 MB 以支持中文字体 */
-static uint8_t s_stb_pool[16 * 1024 * 1024] __attribute__((aligned(16)));
+static uint8_t s_stb_pool[256 * 1024] __attribute__((aligned(16)));
 static uint32_t s_stb_pool_ptr = 0;
 
 static void* pool_alloc(size_t size) {
