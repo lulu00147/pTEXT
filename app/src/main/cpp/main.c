@@ -24,6 +24,14 @@ static struct android_app *s_app;
 static int32_t s_state = ST_FILELIST;
 static int32_t s_need_redraw = 1;
 static int32_t s_last_min = -1;
+static int64_t s_last_draw_ns;
+
+static int64_t monotonic_ns(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (int64_t)ts.tv_sec * 1000000000LL + ts.tv_nsec;
+}
 static int64_t s_center_down_ns = 0;
 static int32_t s_center_long_fired = 0;
 static int32_t s_file_scroll = 0;
@@ -267,9 +275,16 @@ case APP_CMD_INIT_WINDOW:
             }
             r_deinit(); break;
         case APP_CMD_GAINED_FOCUS:
-        case APP_CMD_WINDOW_REDRAW_NEEDED:
         case APP_CMD_START:
         case APP_CMD_RESUME:
+            s_need_redraw = 1;
+            break;
+        case APP_CMD_WINDOW_REDRAW_NEEDED:
+            if (s_need_redraw ||
+                (s_last_draw_ns > 0 &&
+                 monotonic_ns() - s_last_draw_ns < 5000000LL)) {
+                break;
+            }
             s_need_redraw = 1;
             break;
         case APP_CMD_WINDOW_RESIZED:
@@ -646,6 +661,7 @@ void android_main(struct android_app *app)
             }
             r_end();
             s_need_redraw = 0;
+            s_last_draw_ns = monotonic_ns();
 
             if (rd_is_prefetching()) {
                 trigger_vsync_prefetch();
