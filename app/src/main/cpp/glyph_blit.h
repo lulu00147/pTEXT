@@ -115,6 +115,14 @@ GLYPH_INLINE void glyph_blit(uint16_t *dst, int32_t dst_stride,
             col++;
         }
 #if defined(__aarch64__)
+        for (; col + 7 < x1; col += 8) {
+            int32_t sc = col - sx;
+            if (sc + 7 >= g->w) break;
+            if (!(src[sc >> 1] | src[(sc + 2) >> 1] |
+                  src[(sc + 4) >> 1] | src[(sc + 6) >> 1])) continue;
+            glyph_neon4(&drow[col], src, sc, &table, fg, bg, lut);
+            glyph_neon4(&drow[col + 4], src, sc + 4, &table, fg, bg, lut);
+        }
         for (; col + 3 < x1; col += 4) {
             int32_t sc = col - sx;
             if (sc + 3 >= g->w) break;
