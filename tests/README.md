@@ -41,3 +41,13 @@ run_asan_vs.bat
 ```
 
 使用 MSVC `/fsanitize=address` 运行 glyph blit 和 encoding。Windows ASan 不支持 LSan，且不覆盖 POSIX reader/persist 路径。
+
+## libFuzzer
+
+Linux 或 WSL，需 clang：
+
+```sh
+sh run_libfuzzer.sh
+```
+
+coverage-guided fuzz：encoding 50,000 次，reader/书签 5,000 次，启用 ASan/UBSan/LSan。
