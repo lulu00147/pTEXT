@@ -3,7 +3,7 @@ project(ptext C)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Os -flto -fvisibility=hidden -ffunction-sections -fdata-sections -fmerge-all-constants")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O2 -flto -fvisibility=hidden -ffunction-sections -fdata-sections -fmerge-all-constants")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-asynchronous-unwind-tables -fno-unwind-tables -fno-ident")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-math-errno -fno-trapping-math -fno-signed-zeros")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ffast-math -funsafe-math-optimizations -fno-plt -fstack-protector-strong -fomit-frame-pointer")
