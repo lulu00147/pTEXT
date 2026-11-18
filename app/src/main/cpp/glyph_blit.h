@@ -4,6 +4,12 @@
 #include <stdint.h>
 #include <string.h>
 
+#if defined(_MSC_VER)
+#define GLYPH_INLINE static __forceinline
+#else
+#define GLYPH_INLINE static inline __attribute__((always_inline))
+#endif
+
 typedef struct {
     const uint8_t *bmp;
     int32_t w;
@@ -12,7 +18,7 @@ typedef struct {
     int32_t yo;
 } GlyphBlit;
 
-static inline __attribute__((always_inline)) uint16_t glyph_blend565(uint16_t bg, uint16_t fg, int32_t a)
+GLYPH_INLINE uint16_t glyph_blend565(uint16_t bg, uint16_t fg, int32_t a)
 {
     if (a <= 0) return bg;
     if (a >= 15) return fg;
@@ -31,7 +37,7 @@ static inline __attribute__((always_inline)) uint16_t glyph_blend565(uint16_t bg
     return (uint16_t)((r << 11) | (g << 5) | b);
 }
 
-static inline __attribute__((always_inline)) void glyph_blit(uint16_t *dst, int32_t dst_stride,
+GLYPH_INLINE void glyph_blit(uint16_t *dst, int32_t dst_stride,
                               int32_t dst_w, int32_t dst_h,
                               int32_t x, int32_t y, const GlyphBlit *g,
                               uint16_t fg, uint16_t bg, const uint16_t *lut)

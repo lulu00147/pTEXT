@@ -31,3 +31,13 @@ sh run_sanitizers.sh
 ```
 
 启用 ASan、UBSan、LSan，运行 reader、glyph blit、persist、encoding，以及 5,000 轮随机 reader/书签输入。不覆盖 Android 生命周期、JNI、ANativeWindow 或 SurfaceFlinger。
+
+## Windows ASan
+
+Visual Studio x64 Native Tools 命令提示符：
+
+```bat
+run_asan_vs.bat
+```
+
+使用 MSVC `/fsanitize=address` 运行 glyph blit 和 encoding。Windows ASan 不支持 LSan，且不覆盖 POSIX reader/persist 路径。
