@@ -131,7 +131,7 @@ sh tests/run_reader_tests.sh
 
 口径：PKR110，Android 17，arm64-v8a；release APK；`clock_gettime(CLOCK_MONOTONIC)`；`p50` / `p95` 使用 nearest-rank；输入处理与帧绘制分开；帧 = `r_begin` → `r_end`；不含 SurfaceFlinger 提交等待。性能包临时启用 `PTEXT_BENCH` 与 liblog，正式包无日志代码。
 
-采样：冷启动 10 次、打开文件 10 次、翻页 30 次、书签跳转 10 次。
+采样：冷启动 10 次、打开文件 10 次、翻页 30 次、书签跳转 10 次。后续性能测试统一 `n=100`；当前基线待补足到该样本量。
 
 | 指标 | 读数 | 口径 |
 |---|---|---|
