@@ -115,10 +115,13 @@ void ui_draw_reading(void)
     }
     int32_t preload_ok = 1;
     for (int32_t i = 0; i < item_count; i++) {
-        preload_ok &= r_preload_text(items[i].line->text, items[i].line->len);
+        (void)r_preload_text(items[i].line->text, items[i].line->len);
+    }
+    for (int32_t i = 0; i < item_count; i++) {
+        preload_ok &= r_text_cached(items[i].line->text, items[i].line->len);
     }
     r_prepare_parallel();
-    if (preload_ok) {
+    if (preload_ok && item_count >= 8) {
         int32_t split = item_count / 2;
         BodyJob job0 = {items, 0, split, &pl};
         BodyJob job1 = {items, split, item_count, &pl};
