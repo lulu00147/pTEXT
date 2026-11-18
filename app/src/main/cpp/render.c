@@ -48,7 +48,7 @@ static inline int32_t safe_iceil(float x) {
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
 
-#define GC_SIZE  512
+#define GC_SIZE  2048
 #define GC_ASSOC 4
 #define GC_MASK  (GC_SIZE - 1)
 #define GLYPH_MAX 128
