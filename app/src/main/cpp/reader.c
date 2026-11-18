@@ -235,6 +235,18 @@ static PageContext s_ctx;
 static void load_settings(void);
 static void paginate_full(int64_t offset, Page *target);
 static int32_t page_for_offset(int64_t target, int64_t *page_start);
+static int32_t bookmark_preview(int64_t offset, char *out, int32_t cap);
+static void refresh_bookmark_previews(const char *path, Bookmark *bms,
+                                      int32_t count);
+static void hist_reset(int64_t start);
+static void hist_push(int64_t start);
+static void paginate_init(int64_t offset);
+static void paginate_step(void);
+#ifdef PTEXT_HOST_TEST
+static int32_t s_test_bad_paginate;
+static int64_t s_test_prev_probe = -1;
+static int32_t s_test_prev_safety = -1;
+#endif
 
 static int32_t is_para_start(int64_t off)
 {
@@ -381,7 +393,6 @@ int32_t rd_open_file(const char *path)
     load_book_name(path);
 
     int64_t saved_offset = start_offset;
-    int64_t prev_offset = -1;
     char ppath[1024];
     if (sidecar_path(ppath, sizeof(ppath), ".prog", s_cur_name)) {
         FILE *f = fopen(ppath, "rb");
@@ -389,22 +400,13 @@ int32_t rd_open_file(const char *path)
             int64_t values[3];
             size_t n = fread(values, sizeof(values[0]), 3, f);
             if (n >= 1) saved_offset = values[0];
-            if (n >= 2) prev_offset = values[1];
             fclose(f);
         }
     }
     if (saved_offset < start_offset) saved_offset = start_offset;
     if (saved_offset >= len) saved_offset = len - 1;
 
-    int32_t has_prev = 0;
-    if (prev_offset >= 0 && prev_offset < saved_offset) {
-        Page probe;
-        paginate_full(prev_offset, &probe);
-        if (probe.next_offset == saved_offset) has_prev = 1;
-    }
-
-    s_bm_count = 0;
-    if (sidecar_path(ppath, sizeof(ppath), ".bm", s_cur_name))
+    s_bm_count = 0;    if (sidecar_path(ppath, sizeof(ppath), ".bm", s_cur_name))
         s_bm_count = load_bookmarks(ppath, s_bms, MAX_BOOKMARKS);
     for (int32_t i = 0; i < s_bm_count; i++) {
         if (s_bms[i].offset < 0) s_bms[i].offset = 0;
@@ -421,16 +423,10 @@ int32_t rd_open_file(const char *path)
         int64_t page_start = 0;
         open_page_no = page_for_offset(saved_offset, &page_start);
         open_offset = page_start;
-        has_prev = 0;
     }
 
     rd_goto_offset(open_offset);
     s_page_no = open_page_no > 0 ? open_page_no : 1;
-    if (has_prev && open_offset == saved_offset) {
-        s_page_hist[0] = prev_offset;
-        s_page_hist[1] = s_page_curr->start_offset;
-        s_hist_count = 2;
-    }
     return 0;
 }
 
@@ -635,7 +631,151 @@ static void paginate_full(int64_t offset, Page *target)
 
     target->start_offset = offset;
     target->next_offset = cur.off;
+#ifdef PTEXT_HOST_TEST
+    if (s_test_bad_paginate == 1) target->next_offset = target->start_offset;
+    if (s_test_bad_paginate == 2)
+        target->next_offset = target->start_offset + 1000000;
+#endif
 }
+
+#ifdef PTEXT_HOST_TEST
+void rd_test_paginate_full(int64_t offset)
+{
+    paginate_full(offset, s_page_curr);
+}
+
+int32_t rd_test_line_punct_only(const Line *line)
+{
+    return line_punct_only(line);
+}
+
+int32_t rd_test_is_para_start(int64_t off)
+{
+    return is_para_start(off);
+}
+
+int32_t rd_test_load_bookmarks(const char *path, Bookmark *out, int32_t cap)
+{
+    return load_bookmarks(path, out, cap);
+}
+
+int32_t rd_test_read_name_sidecar(const char *path, char *out, size_t cap)
+{
+    return read_name_sidecar(path, out, cap);
+}
+
+int32_t rd_test_sidecar_path(char *out, size_t cap, const char *dir,
+                             const char *name)
+{
+    return sidecar_path(out, cap, dir, name);
+}
+
+int32_t rd_test_name_sidecar_path(char *out, size_t cap, const char *path)
+{
+    return name_sidecar_path(out, cap, path);
+}
+
+int32_t rd_test_bookmark_preview(int64_t offset, char *out, int32_t cap)
+{
+    return bookmark_preview(offset, out, cap);
+}
+
+int32_t rd_test_page_max_lines(void)
+{
+    return page_max_lines();
+}
+
+int32_t rd_test_page_max_x(void)
+{
+    return page_max_x();
+}
+
+int32_t rd_test_refresh_bookmark_previews(const char *path, Bookmark *bms,
+                                          int32_t count)
+{
+    refresh_bookmark_previews(path, bms, count);
+    return 0;
+}
+
+void rd_test_page_checkpoint_add(int64_t offset, int32_t page_no)
+{
+    page_checkpoint_add(offset, page_no);
+}
+
+int32_t rd_test_page_checkpoint_find(int64_t target, int64_t *offset)
+{
+    return page_checkpoint_find(target, offset);
+}
+
+void rd_test_hist_reset(int64_t start)
+{
+    hist_reset(start);
+}
+
+void rd_test_hist_push(int64_t start)
+{
+    hist_push(start);
+}
+
+void rd_test_paginate_init(int64_t offset)
+{
+    paginate_init(offset);
+}
+
+void rd_test_paginate_step(void)
+{
+    paginate_step();
+}
+
+int32_t rd_test_prefetch_state(void)
+{
+    return s_ctx.state;
+}
+
+void rd_test_set_state(const char *name, int64_t len, int64_t start)
+{
+    static char fake_map[1];
+    s_mmap_data = fake_map;
+    s_mmap_len = len;
+    snprintf(s_cur_name, sizeof(s_cur_name), "%s", name ? name : "");
+    s_page_curr->start_offset = start;
+}
+
+void rd_test_clear_state(void)
+{
+    s_mmap_data = NULL;
+    s_mmap_len = 0;
+    s_cur_name[0] = '\0';
+    s_page_curr->start_offset = 0;
+}
+
+void rd_test_set_prefetch(int32_t ready, int64_t target)
+{
+    s_next_ready = ready;
+    s_prefetch_target = target;
+}
+
+void rd_test_set_page_no(int32_t page_no)
+{
+    s_page_no = page_no;
+}
+
+void rd_test_set_bad_paginate(int32_t mode)
+{
+    s_test_bad_paginate = mode;
+}
+
+int32_t rd_test_page_for_offset(int64_t target, int64_t *start)
+{
+    return page_for_offset(target, start);
+}
+
+void rd_test_set_prev_injection(int64_t probe, int32_t safety)
+{
+    s_test_prev_probe = probe;
+    s_test_prev_safety = safety;
+}
+#endif
 
 static void paginate_init(int64_t offset)
 {
@@ -790,12 +930,17 @@ void rd_prev_page(void)
         Page probe_page;
 
         (void)page_checkpoint_find(s_page_curr->start_offset - 1, &probe);
+#ifdef PTEXT_HOST_TEST
+        if (s_test_prev_probe >= 0) probe = s_test_prev_probe;
+#endif
         int32_t safety_limit = s_page_ckpt_count > 1 ? PAGE_CKPT_STEP + 2 : 100000;
+#ifdef PTEXT_HOST_TEST
+        if (s_test_prev_safety >= 0) safety_limit = s_test_prev_safety;
+#endif
         int32_t safety = 0;
         while (probe < s_page_curr->start_offset && safety <= safety_limit) {
             paginate_full(probe, &probe_page);
-            if (probe_page.next_offset >= s_page_curr->start_offset ||
-                probe_page.next_offset >= s_mmap_len) {
+            if (probe_page.next_offset >= s_page_curr->start_offset) {
                 target = probe;
                 found = 1;
                 break;

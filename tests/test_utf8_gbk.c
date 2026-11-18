@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "encoding.h"
 #include "fuzz_seeds.h"
@@ -79,6 +80,13 @@ int main(void)
     for (uint32_t cp = 0; cp <= 0x10FFFF; cp += 4093) {
         if (cp == 0 || (cp >= 0xD800 && cp <= 0xDFFF)) continue;
         char enc[4];
+        if ((cp & 0xFFFE) == 0xFFFE) {
+            if (enc_utf8_encode(cp, enc) != 0) {
+                fprintf(stderr, "noncharacter encoded: %X\n", cp);
+                return 1;
+            }
+            continue;
+        }
         int32_t n = enc_utf8_encode(cp, enc);
         if (n < 1 || n > 4) {
             fprintf(stderr, "bad UTF-8 encode: %X\n", cp);
@@ -92,6 +100,77 @@ int main(void)
         }
         cases++;
     }
+
+    int64_t off = 0;
+    if (enc_decode_utf8(NULL, 0, &off) != 0 || off != 0) return 1;
+    off = -1;
+    if (enc_decode_utf8((const uint8_t *)"x", 1, &off) != 0 || off != -1) return 1;
+    off = 0;
+    if (enc_decode_utf8((const uint8_t *)"\xFF", 1, &off) != 0xFFFD || off != 1) return 1;
+    off = 0;
+    if (enc_decode_utf8((const uint8_t *)"\xE4\xB8", 2, &off) != 0xFFFD || off != 2) return 1;
+    off = 0;
+    if (enc_decode_utf8((const uint8_t *)"\xC0\x80", 2, &off) != 0xFFFD || off != 2) return 1;
+    if (enc_decode_utf8((const uint8_t *)"A", 1, NULL) != 0) return 1;
+    off = 1;
+    if (enc_decode_utf8((const uint8_t *)"A", 1, &off) != 0) return 1;
+    off = 1;
+    if (enc_decode_gbk((const uint8_t *)"A", 1, &off) != 0) return 1;
+    off = -1;
+    if (enc_decode_gbk((const uint8_t *)"A", 1, &off) != 0 || off != -1) return 1;
+    off = 0;
+    if (enc_decode_gbk(NULL, 0, &off) != 0 || off != 0) return 1;
+    off = 0;
+    if (enc_decode_gbk((const uint8_t *)"\x81\x30\xFF\x30", 4, &off) != '?' || off != 3) return 1;
+    off = 0;
+    if (enc_decode_gbk((const uint8_t *)"\x81\x30\x81\x3A", 4, &off) != '?' || off != 4) return 1;
+    if (enc_utf8_prefix_ok(NULL, 0) != 1) return 1;
+    if (enc_utf8_prefix_ok((const uint8_t *)"A", 0) != 1) return 1;
+    if (enc_utf8_prefix_ok((const uint8_t *)"A", 1) != 1) return 1;
+    if (enc_utf8_prefix_ok((const uint8_t *)"\xE4\xB8\xAD", 3) != 1) return 1;
+    if (enc_utf8_prefix_ok((const uint8_t *)"\xFF", 1) != 0) return 1;
+    if (enc_utf8_prefix_ok((const uint8_t *)"\xE4\xB8", 2) != 1) return 1;
+
+    char enc[4];
+    if (enc_utf8_encode('A', enc) != 1 || enc[0] != 'A') return 1;
+    if (enc_utf8_encode(0x7FF, enc) != 2) return 1;
+    if (enc_utf8_encode(0x800, enc) != 3) return 1;
+    if (enc_utf8_encode(0x10000, enc) != 4) return 1;
+    if (enc_utf8_encode(0x80, enc) != 2) return 1;
+    if (enc_utf8_encode(0x10FFFF, enc) != 0) return 1;
+    if (enc_utf8_encode(0x1FFFF, enc) != 0) return 1;
+    if (enc_utf8_encode(0xFFFE, enc) != 0) return 1;
+    if (enc_utf8_encode(0, enc) != 0) return 1;
+    if (enc_utf8_encode(0xD800, enc) != 0) return 1;
+    if (enc_utf8_encode(0x110000, enc) != 0) return 1;
+    if (enc_utf8_encode('A', NULL) != 0) return 1;
+
+    off = -1;
+    if (enc_decode_gbk((const uint8_t *)"A", 1, &off) != 0 || off != -1) return 1;
+    off = 0;
+    if (enc_decode_gbk((const uint8_t *)"\xFF\x40", 2, &off) != '?' || off != 2) return 1;
+
+    off = 0;
+    if (enc_decode_gbk((const uint8_t *)"\xFF\x40", 2, &off) != '?' || off != 2) return 1;
+    off = 0;
+    if (enc_decode_gbk((const uint8_t *)"\x81\x7F", 2, &off) != '?' || off != 2) return 1;
+
+    off = 0;
+    if (enc_decode_gbk((const uint8_t *)"A", 1, NULL) != 0) return 1;
+    off = 0;
+    if (enc_decode_gbk((const uint8_t *)"\x80", 1, &off) != 0x20AC || off != 1) return 1;
+    off = 0;
+    if (enc_decode_gbk((const uint8_t *)"\x81", 1, &off) != '?' || off != 1) return 1;
+    off = 0;
+    if (enc_decode_gbk((const uint8_t *)"\x81\x7F", 2, &off) != '?' || off != 2) return 1;
+    off = 0;
+    if (enc_decode_gbk((const uint8_t *)"\x81\x30\x81", 3, &off) != '?' || off != 3) return 1;
+    off = 0;
+    if (enc_decode_gbk((const uint8_t *)"\x81\x30\x80\x30", 4, &off) != '?' || off != 3) return 1;
+    off = 0;
+    if (enc_decode_gbk((const uint8_t *)"\x81\x30\x81\x2F", 4, &off) != '?' || off != 4) return 1;
+    off = 0;
+    if (enc_decode_gbk((const uint8_t *)"\xFF\x39\xFE\x39", 4, &off) != '?' || off != 4) return 1;
 
     printf("tests passed: %llu cases\n", cases);
     return 0;

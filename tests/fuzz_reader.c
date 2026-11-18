@@ -41,6 +41,11 @@ int main(void)
     uint8_t text[2048];
     uint8_t bm[2048];
     for (int32_t round = 0; round < 5000; round++) {
+        rd_set_font_idx((int32_t)(rnd() % 7));
+        rd_set_indent_idx((int32_t)(rnd() % 3));
+        rd_set_gap_idx((int32_t)(rnd() % 3));
+        rd_set_theme((int32_t)(rnd() & 1));
+
         size_t len = rnd() % sizeof(text);
         for (size_t i = 0; i < len; i++) text[i] = (uint8_t)rnd();
         write_bytes(text_path, text, len);
@@ -52,6 +57,30 @@ int main(void)
         if (rd_open_file("fuzz.txt") == 0) {
             int32_t pages = (int32_t)(rnd() % 8);
             for (int32_t i = 0; i < pages && rd_can_next(); i++) rd_next_page();
+            for (int32_t op = 0; op < 8; op++) {
+                switch (rnd() % 6) {
+                case 0:
+                    if (rd_can_next()) rd_next_page();
+                    break;
+                case 1:
+                    if (rd_can_prev()) rd_prev_page();
+                    break;
+                case 2:
+                    rd_goto_offset((int64_t)(rnd() % (uint32_t)(len + 1)));
+                    break;
+                case 3:
+                    rd_jump_to_offset((int64_t)(rnd() % (uint32_t)(len + 1)));
+                    break;
+                case 4:
+                    rd_toggle_bookmark();
+                    break;
+                default: {
+                    Bookmark b[8];
+                    (void)rd_read_bookmarks("fuzz.txt", b, 8);
+                    break;
+                }
+                }
+            }
             Bookmark b[8];
             (void)rd_read_bookmarks("fuzz.txt", b, 8);
             rd_close();

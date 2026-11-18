@@ -1,5 +1,9 @@
 #include "ui_lists.h"
+#ifdef PTEXT_HOST_TEST
+#include "render_host.h"
+#else
 #include "render.h"
+#endif
 #include "ui_util.h"
 
 #include <stdio.h>

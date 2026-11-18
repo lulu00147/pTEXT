@@ -1,6 +1,10 @@
 #include "ui_reading.h"
 #include "reader.h"
+#ifdef PTEXT_HOST_TEST
+#include "render_host.h"
+#else
 #include "render.h"
+#endif
 #include "ui_util.h"
 
 #include <stdio.h>

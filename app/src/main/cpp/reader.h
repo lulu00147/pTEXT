@@ -1,6 +1,7 @@
 #ifndef READER_H
 #define READER_H
 #include <stdint.h>
+#include <stddef.h>
 
 typedef struct { char path[1024]; char name[256]; int32_t bookmarks; } FileItem;
 typedef struct { int64_t offset; char preview[48]; } Bookmark;
@@ -64,4 +65,33 @@ void rd_prefetch_step(void);
 void rd_reset_prefetch(void);
 int32_t rd_is_prefetching(void);
 void rd_save_progress(void);
+#ifdef PTEXT_HOST_TEST
+void rd_test_paginate_full(int64_t offset);
+int32_t rd_test_line_punct_only(const Line *line);
+int32_t rd_test_is_para_start(int64_t off);
+int32_t rd_test_load_bookmarks(const char *path, Bookmark *out, int32_t cap);
+int32_t rd_test_read_name_sidecar(const char *path, char *out, size_t cap);
+int32_t rd_test_sidecar_path(char *out, size_t cap, const char *dir,
+                             const char *name);
+int32_t rd_test_name_sidecar_path(char *out, size_t cap, const char *path);
+int32_t rd_test_bookmark_preview(int64_t offset, char *out, int32_t cap);
+int32_t rd_test_page_max_lines(void);
+int32_t rd_test_page_max_x(void);
+int32_t rd_test_refresh_bookmark_previews(const char *path, Bookmark *bms,
+                                          int32_t count);
+void rd_test_page_checkpoint_add(int64_t offset, int32_t page_no);
+int32_t rd_test_page_checkpoint_find(int64_t target, int64_t *offset);
+void rd_test_hist_reset(int64_t start);
+void rd_test_hist_push(int64_t start);
+void rd_test_paginate_init(int64_t offset);
+void rd_test_paginate_step(void);
+int32_t rd_test_prefetch_state(void);
+void rd_test_set_state(const char *name, int64_t len, int64_t start);
+void rd_test_clear_state(void);
+void rd_test_set_prefetch(int32_t ready, int64_t target);
+void rd_test_set_page_no(int32_t page_no);
+void rd_test_set_bad_paginate(int32_t mode);
+int32_t rd_test_page_for_offset(int64_t target, int64_t *start);
+void rd_test_set_prev_injection(int64_t probe, int32_t safety);
+#endif
 #endif

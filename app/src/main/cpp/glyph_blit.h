@@ -94,6 +94,7 @@ GLYPH_INLINE void glyph_blit(uint16_t *dst, int32_t dst_stride,
     int32_t x0 = sx < 0 ? 0 : sx;
     int32_t x1 = sx + g->w;
     if (x1 > dst_w) x1 = dst_w;
+    if (x1 <= x0 || y1 <= y0) return;
 
 #if defined(__aarch64__)
     uint8x16x2_t table;

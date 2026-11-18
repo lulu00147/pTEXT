@@ -1,6 +1,10 @@
 #include "ui_settings.h"
 #include "reader.h"
+#ifdef PTEXT_HOST_TEST
+#include "render_host.h"
+#else
 #include "render.h"
+#endif
 #include "ui_util.h"
 #include "clamp.h"
 
@@ -30,7 +34,7 @@ int32_t ui_settings_row_at(int32_t y)
     int32_t l, t, r, b;
     ui_get_settings_rect(&l, &t, &r, &b);
     int32_t rel = y - t - ui_px(50);
-    return rel >= 0 ? (rel + SETTINGS_ROW_H / 2) / SETTINGS_ROW_H : -1;
+    return rel >= 0 ? rel / SETTINGS_ROW_H : -1;
 }
 
 int32_t ui_settings_button_at(int32_t x)
