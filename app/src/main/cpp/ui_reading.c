@@ -40,7 +40,6 @@ void ui_draw_reading(void)
     int32_t footer_zone_top = pl.page_height - pl.margin_bot;
     int32_t fy = r_h() - ui_px(6);
 
-    r_clear_rect(0, footer_zone_top, r_w(), r_h());
     char foot[64];
     int32_t page_no = rd_get_page_no();
     if (page_no > 0) snprintf(foot, sizeof(foot), "第 %d 页", page_no);

@@ -80,7 +80,12 @@ static uint8_t s_glyph_tmp[GLYPH_MAX * GLYPH_MAX];  /* 字形光栅化复用缓�
 /* 主题色：0=暗色(黑底白字), 1=亮色(白底黑字) */
 static int32_t s_theme = 0;
 static uint16_t s_fg_color = 0xFFFF;
+static uint16_t s_bg_color = 0x0000;
 static uint8_t  s_bg_byte  = 0x00;   /* memset 用的字节值 */
+static uint16_t s_blend_lut[16];
+static uint16_t s_lut_fg;
+static uint16_t s_lut_bg;
+static int32_t s_lut_valid;
 
 static int32_t get_glyph_advance_fast(uint32_t cp)
 {
@@ -385,35 +390,53 @@ static inline uint16_t blend565(uint16_t bg, uint16_t fg, int32_t a)
     return (uint16_t)((r << 11) | (g << 5) | b);
 }
 
+static void ensure_blend_lut(uint16_t fg)
+{
+    if (s_lut_valid && s_lut_fg == fg && s_lut_bg == s_bg_color) return;
+    s_lut_fg = fg;
+    s_lut_bg = s_bg_color;
+    for (int32_t a = 0; a < 16; a++) s_blend_lut[a] = blend565(s_bg_color, fg, a);
+    s_lut_valid = 1;
+}
+
+static inline void draw_glyph(int32_t x, int32_t y, const G *g, uint16_t fg)
+{
+    int32_t sx = x + g->xo, sy = y + g->yo;
+    int32_t stride = (g->w + 1) >> 1;
+    int32_t y0 = sy < 0 ? 0 : sy;
+    int32_t y1 = sy + g->h;
+    if (y1 > s_h) y1 = s_h;
+    int32_t x0 = sx < 0 ? 0 : sx;
+    int32_t x1 = sx + g->w;
+    if (x1 > s_w) x1 = s_w;
+    for (int32_t row = y0; row < y1; row++) {
+        int32_t src_row = row - sy;
+        uint16_t *dst = &s_px[row * s_stride];
+        const uint8_t *src = &g->bmp[src_row * stride];
+        for (int32_t col = x0; col < x1; col++) {
+            int32_t src_col = col - sx;
+            uint8_t packed = src[src_col >> 1];
+            int32_t a = (src_col & 1) ? (packed >> 4) : (packed & 0x0F);
+            if (a) {
+                uint16_t bg = dst[col];
+                dst[col] = bg == s_bg_color ? s_blend_lut[a] : blend565(bg, fg, a);
+            }
+        }
+    }
+}
+
 void r_draw_text(int32_t x, int32_t y, const uint32_t *s, int32_t n)
 {
     if (!s_locked || !s_font_ok) return;
     uint16_t fg = s_fg_color;
+    ensure_blend_lut(fg);
     for (int32_t i = 0; i < n; i++) {
         G *g = gc_get(s[i]);
         if (!g || !g->w) {
             x += (g && g->adv) ? g->adv : r_font_h();
             continue;
         }
-        int32_t sx = x + g->xo, sy = y + g->yo;
-        int32_t stride = (g->w + 1) >> 1;
-        int32_t y0 = sy < 0 ? 0 : sy;
-        int32_t y1 = sy + g->h;
-        if (y1 > s_h) y1 = s_h;
-        int32_t x0 = sx < 0 ? 0 : sx;
-        int32_t x1 = sx + g->w;
-        if (x1 > s_w) x1 = s_w;
-        for (int32_t row = y0; row < y1; row++) {
-            int32_t src_row = row - sy;
-            uint16_t *dst = &s_px[row * s_stride];
-            const uint8_t *src = &g->bmp[src_row * stride];
-            for (int32_t col = x0; col < x1; col++) {
-                int32_t src_col = col - sx;
-                uint8_t packed = src[src_col >> 1];
-                int32_t a = (src_col & 1) ? (packed >> 4) : (packed & 0x0F);
-                if (a) dst[col] = blend565(dst[col], fg, a);
-            }
-        }
+        draw_glyph(x, y, g, fg);
         x += g->adv;
     }
 }
@@ -435,6 +458,7 @@ static int justify_punct(uint32_t cp)
 
 void r_draw_text_justified(int32_t x, int32_t y, const uint32_t *s, int32_t n, int32_t target_width)
 {
+    if (!s_locked || !s_font_ok) return;
     if (n < 2) {
         r_draw_text(x, y, s, n);
         return;
@@ -485,9 +509,16 @@ void r_draw_text_justified(int32_t x, int32_t y, const uint32_t *s, int32_t n, i
     }
 
     int32_t px = x;
+    uint16_t fg = s_fg_color;
+    ensure_blend_lut(fg);
     for (int32_t i = 0; i < n; i++) {
-        r_draw_text(px, y, &s[i], 1);
-        px += r_char_advance(s[i]);
+        G *g = gc_get(s[i]);
+        if (!g || !g->w) {
+            px += (g && g->adv) ? g->adv : r_font_h();
+        } else {
+            draw_glyph(px, y, g, fg);
+            px += g->adv;
+        }
         if (i < n - 1) px += gaps[i];
     }
 }
@@ -575,11 +606,14 @@ void r_set_theme(int32_t theme)
     s_theme = theme ? 1 : 0;
     if (s_theme) {
         s_fg_color = 0x0000;   /* 黑字 */
+        s_bg_color = 0xFFFF;
         s_bg_byte  = 0xFF;
     } else {
         s_fg_color = 0xAD55;   /* #A9A9A9，对齐 Legado 夜间正文 */
+        s_bg_color = 0x0000;
         s_bg_byte  = 0x00;
     }
+    s_lut_valid = 0;
 }
 
 void r_update_window(ANativeWindow *w)
