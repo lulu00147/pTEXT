@@ -131,14 +131,23 @@ sh tests/run_reader_tests.sh
 
 口径：PKR110，Android 17，arm64-v8a；release APK；`clock_gettime(CLOCK_MONOTONIC)`；`p50` / `p95` 使用 nearest-rank；帧 = `r_begin` → `r_end`；不含 SurfaceFlinger 提交等待。性能包临时启用 `PTEXT_BENCH` 与 liblog，正式包无日志代码。
 
-本轮复测：阅读页帧 n=100，电话空闲状态。其余路径待 n=100 复测。
+本轮复测：阅读页帧 n=100；CPU 未锁频，记录了实际频率；其余路径待复测。
 
 | 指标 | 读数 | 口径 |
 |---|---|---|
-| 阅读页帧 | p50 4.80 / p95 7.76 / max 11.90 ms | 帧绘制，n=100 |
+| 阅读页帧 | p50 5.00 / p95 8.61 / max 11.08 ms | 帧绘制，n=100 |
 | APK | 115,503 B | 当前 release |
 | PSS | 约 25.3 MB | 默认字号，阅读 100 页后 |
 | PSS | 约 31.3 MB | 最大字号，读到第 271 页末页后 |
+
+同轮 CPU 频率（`time_in_state` 差值）：
+
+```text
+policy0 小核: 76.0% @ 556.8 MHz
+policy6 大核: 99.9% @ 1017.6 MHz
+```
+
+帧延迟随系统调度和频率有明显波动；历史 n=100 样本 p50 4.80 / p95 7.76 / max 11.90 ms。
 
 字形存储 A/B（n=100，默认字号）：
 
