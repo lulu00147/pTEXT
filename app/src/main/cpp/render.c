@@ -1,4 +1,5 @@
 #include "render.h"
+#include "glyph_blit.h"
 #include <string.h>
 #include <stdint.h>
 #include <limits.h>
@@ -371,77 +372,20 @@ void r_stroke_rect(int32_t l, int32_t t, int32_t r, int32_t b, int32_t width)
     }
 }
 
-static inline uint16_t blend565(uint16_t bg, uint16_t fg, int32_t a)
-{
-    if (a <= 0) return bg;
-    if (a >= 15) return fg;
-    int32_t br = (bg >> 11) & 0x1F;
-    int32_t bgc = (bg >> 5) & 0x3F;
-    int32_t bb = bg & 0x1F;
-    int32_t fr = (fg >> 11) & 0x1F;
-    int32_t fgc = (fg >> 5) & 0x3F;
-    int32_t fb = fg & 0x1F;
-    int32_t dr = (fr - br) * a;
-    int32_t dg = (fgc - bgc) * a;
-    int32_t db = (fb - bb) * a;
-    int32_t r = br + (dr >= 0 ? (dr + 7) / 15 : (dr - 7) / 15);
-    int32_t g = bgc + (dg >= 0 ? (dg + 7) / 15 : (dg - 7) / 15);
-    int32_t b = bb + (db >= 0 ? (db + 7) / 15 : (db - 7) / 15);
-    return (uint16_t)((r << 11) | (g << 5) | b);
-}
-
 static void ensure_blend_lut(uint16_t fg)
 {
     if (s_lut_valid && s_lut_fg == fg && s_lut_bg == s_bg_color) return;
     s_lut_fg = fg;
     s_lut_bg = s_bg_color;
-    for (int32_t a = 0; a < 16; a++) s_blend_lut[a] = blend565(s_bg_color, fg, a);
+    for (int32_t a = 0; a < 16; a++) s_blend_lut[a] = glyph_blend565(s_bg_color, fg, a);
     s_lut_valid = 1;
 }
 
 static inline void draw_glyph(int32_t x, int32_t y, const G *g, uint16_t fg)
 {
-    int32_t sx = x + g->xo, sy = y + g->yo;
-    int32_t stride = (g->w + 1) >> 1;
-    int32_t y0 = sy < 0 ? 0 : sy;
-    int32_t y1 = sy + g->h;
-    if (y1 > s_h) y1 = s_h;
-    int32_t x0 = sx < 0 ? 0 : sx;
-    int32_t x1 = sx + g->w;
-    if (x1 > s_w) x1 = s_w;
-    for (int32_t row = y0; row < y1; row++) {
-        int32_t src_row = row - sy;
-        uint16_t *dst = &s_px[row * s_stride];
-        const uint8_t *src = &g->bmp[src_row * stride];
-        int32_t col = x0;
-        if ((col - sx) & 1) {
-            int32_t sc = col - sx;
-            uint8_t packed = src[sc >> 1];
-            uint8_t a = (sc & 1) ? (packed >> 4) : (packed & 0x0F);
-            uint16_t bg = dst[col];
-            dst[col] = bg == s_bg_color ? s_blend_lut[a] : blend565(bg, fg, a);
-            col++;
-        }
-        for (; col + 1 < x1; col += 2) {
-            int32_t sc = col - sx;
-            uint8_t packed = src[sc >> 1];
-            if (!packed) continue;
-            uint8_t a0 = packed & 0x0F;
-            uint8_t a1 = packed >> 4;
-            uint16_t b0 = dst[col], b1 = dst[col + 1];
-            uint16_t v0 = b0 == s_bg_color ? s_blend_lut[a0] : blend565(b0, fg, a0);
-            uint16_t v1 = b1 == s_bg_color ? s_blend_lut[a1] : blend565(b1, fg, a1);
-            uint32_t pair = (uint32_t)v0 | ((uint32_t)v1 << 16);
-            memcpy(&dst[col], &pair, sizeof(pair));
-        }
-        if (col < x1) {
-            int32_t sc = col - sx;
-            uint8_t packed = src[sc >> 1];
-            uint8_t a = (sc & 1) ? (packed >> 4) : (packed & 0x0F);
-            uint16_t bg = dst[col];
-            dst[col] = bg == s_bg_color ? s_blend_lut[a] : blend565(bg, fg, a);
-        }
-    }
+    GlyphBlit gb = {g->bmp, g->w, g->h, g->xo, g->yo};
+    glyph_blit(s_px, s_stride, s_w, s_h, x, y, &gb,
+               fg, s_bg_color, s_blend_lut);
 }
 
 void r_draw_text(int32_t x, int32_t y, const uint32_t *s, int32_t n)

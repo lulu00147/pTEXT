@@ -7,6 +7,9 @@ $cc -std=c11 -O2 -D_GNU_SOURCE -DPTEXT_HOST_TEST -I../app/src/main/cpp -I. \
     ../app/src/main/cpp/persist.c -o test_reader
 ./test_reader
 $cc -std=c11 -O2 -D_GNU_SOURCE -I../app/src/main/cpp -I. \
+    test_glyph_blit.c -o test_glyph_blit
+./test_glyph_blit
+$cc -std=c11 -O2 -D_GNU_SOURCE -I../app/src/main/cpp -I. \
     test_persist.c ../app/src/main/cpp/persist.c -o test_persist
 ./test_persist
-rm -f test_reader test_persist
+rm -f test_reader test_glyph_blit test_persist
