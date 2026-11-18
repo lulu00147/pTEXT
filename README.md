@@ -169,7 +169,7 @@ sh tests/run_reader_tests.sh
 
 去重前后（单次翻页绘制，n=30）：p50 15.07 → 9.08 ms，p95 20.97 → 13.64 ms；后续缓存扩容再降至当前基线。
 
-优化项：预计算 16 级 alpha 混合表、共享字形绘制、删除重复页脚清屏；`APP_CMD_WINDOW_REDRAW_NEEDED` 在完成帧后 5 ms 内去重；字形缓存扩大至 2048 项。
+优化项：预计算 16 级 alpha 混合表、共享字形绘制、删除重复页脚清屏；`APP_CMD_WINDOW_REDRAW_NEEDED` 在完成帧后 20 ms 内去重；字形缓存扩大至 2048 项。
 
 ## 范围
 

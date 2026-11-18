@@ -282,7 +282,7 @@ case APP_CMD_INIT_WINDOW:
         case APP_CMD_WINDOW_REDRAW_NEEDED:
             if (s_need_redraw ||
                 (s_last_draw_ns > 0 &&
-                 monotonic_ns() - s_last_draw_ns < 5000000LL)) {
+                 monotonic_ns() - s_last_draw_ns < 20000000LL)) {
                 break;
             }
             s_need_redraw = 1;
