@@ -6,6 +6,9 @@
 #include <sys/mman.h>
 #include <fcntl.h>
 #include <unistd.h>
+#ifdef PTEXT_MT
+#include <pthread.h>
+#endif
 #include <android/font.h>
 #include <android/font_matcher.h>
 
@@ -161,6 +164,15 @@ static void glyph_release(G *g)
 static G *gc_get(uint32_t cp)
 {
     if (!s_font_ok || !cp) return NULL;
+    if (cp == ' ' || cp == '\t' || cp == 0x3000) {
+        static G space;
+        if (space.cp != cp || space.sz != s_fsz) {
+            space.cp = cp;
+            space.sz = s_fsz;
+            space.adv = get_glyph_advance_fast(cp);
+        }
+        return &space;
+    }
     uint32_t h = (cp * 2654435761u) & GC_MASK;
     G *old = NULL;
     for (int32_t i = 0; i < GC_ASSOC; i++) {
@@ -233,6 +245,20 @@ static G *gc_get(uint32_t cp)
     s_stb_pool_ptr = pool_mark;
     return g;
 }
+
+#ifdef PTEXT_MT
+static pthread_mutex_t s_cache_mu = PTHREAD_MUTEX_INITIALIZER;
+static G *gc_get_mt(uint32_t cp)
+{
+    pthread_mutex_lock(&s_cache_mu);
+    G *g = gc_get(cp);
+    pthread_mutex_unlock(&s_cache_mu);
+    return g;
+}
+#define GC_GET(cp) gc_get_mt(cp)
+#else
+#define GC_GET(cp) gc_get(cp)
+#endif
 
 static void unmap_font(void)
 {
@@ -453,6 +479,32 @@ static void ensure_blend_lut(uint16_t fg)
     s_lut_valid = 1;
 }
 
+void r_prepare_parallel(void)
+{
+    if (s_font_ok) ensure_blend_lut(s_fg_color);
+}
+
+static int gc_is_cached(uint32_t cp)
+{
+    if (cp == ' ' || cp == '\t' || cp == 0x3000) return 1;
+    uint32_t h = (cp * 2654435761u) & GC_MASK;
+    for (int32_t i = 0; i < GC_ASSOC; i++) {
+        const G *g = &s_gc[(h + i) & GC_MASK];
+        if (g->cp == cp && g->sz == s_fsz && g->w && g->cached) return 1;
+    }
+    return 0;
+}
+
+int r_preload_text(const uint32_t *s, int32_t n)
+{
+    if (!s_locked || !s_font_ok || !s) return 0;
+    for (int32_t i = 0; i < n; i++) (void)GC_GET(s[i]);
+    for (int32_t i = 0; i < n; i++) {
+        if (!gc_is_cached(s[i])) return 0;
+    }
+    return 1;
+}
+
 static inline void draw_glyph(int32_t x, int32_t y, const G *g, uint16_t fg)
 {
     if (!g->cached || !g->w) return;
@@ -468,7 +520,7 @@ void r_draw_text(int32_t x, int32_t y, const uint32_t *s, int32_t n)
     uint16_t fg = s_fg_color;
     ensure_blend_lut(fg);
     for (int32_t i = 0; i < n; i++) {
-        G *g = gc_get(s[i]);
+        G *g = GC_GET(s[i]);
         if (!g || !g->w) {
             x += (g && g->adv) ? g->adv : r_font_h();
             continue;
@@ -549,7 +601,7 @@ void r_draw_text_justified(int32_t x, int32_t y, const uint32_t *s, int32_t n, i
     uint16_t fg = s_fg_color;
     ensure_blend_lut(fg);
     for (int32_t i = 0; i < n; i++) {
-        G *g = gc_get(s[i]);
+        G *g = GC_GET(s[i]);
         if (!g || !g->w) {
             px += (g && g->adv) ? g->adv : r_font_h();
         } else {
