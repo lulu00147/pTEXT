@@ -4,6 +4,10 @@
 #include <stdint.h>
 #include <string.h>
 
+#if defined(__aarch64__)
+#include <arm_neon.h>
+#endif
+
 #if defined(_MSC_VER)
 #define GLYPH_INLINE static __forceinline
 #else
@@ -37,6 +41,44 @@ GLYPH_INLINE uint16_t glyph_blend565(uint16_t bg, uint16_t fg, int32_t a)
     return (uint16_t)((r << 11) | (g << 5) | b);
 }
 
+#if defined(__aarch64__)
+GLYPH_INLINE void glyph_neon4(uint16_t *drow, const uint8_t *src, int32_t sc,
+                               const uint8x16x2_t *table,
+                               uint16_t fg, uint16_t bg, const uint16_t *lut)
+{
+    uint8_t p0 = src[sc >> 1];
+    uint8_t p1 = src[(sc + 2) >> 1];
+    if (!(p0 | p1)) return;
+
+    uint16_t packed = (uint16_t)p0 | ((uint16_t)p1 << 8);
+    uint8x8_t pb = vreinterpret_u8_u16(vdup_n_u16(packed));
+    uint8x8_t lo = vand_u8(pb, vdup_n_u8(0x0F));
+    uint8x8_t hi = vshr_n_u8(pb, 4);
+    uint8x8_t alpha = vzip_u8(lo, hi).val[0];
+    uint8x8_t q = vshl_n_u8(alpha, 1);
+    uint8x8_t idx8 = vzip_u8(q, vadd_u8(q, vdup_n_u8(1))).val[0];
+    uint8x16_t idx = vcombine_u8(idx8, vdup_n_u8(0));
+    uint8x8_t res = vget_low_u8(vqtbl2q_u8(*table, idx));
+    uint16x4_t v = vreinterpret_u16_u8(res);
+    uint16x4_t d = vld1_u16(drow);
+    vst1_u16(drow, v);
+
+    uint16x4_t mask = vceq_u16(d, vdup_n_u16(bg));
+    uint64_t mb = vget_lane_u64(vreinterpret_u64_u16(mask), 0);
+    if (mb == UINT64_MAX) return;
+
+    uint16_t orig[4];
+    uint8_t al[8];
+    vst1_u16(orig, d);
+    vst1_u8(al, alpha);
+    for (int32_t i = 0; i < 4; i++) {
+        if ((uint16_t)(mb >> (i * 16)) != 0xFFFFu) {
+            drow[i] = orig[i] == bg ? lut[al[i]] : glyph_blend565(orig[i], fg, al[i]);
+        }
+    }
+}
+#endif
+
 GLYPH_INLINE void glyph_blit(uint16_t *dst, int32_t dst_stride,
                               int32_t dst_w, int32_t dst_h,
                               int32_t x, int32_t y, const GlyphBlit *g,
@@ -53,6 +95,12 @@ GLYPH_INLINE void glyph_blit(uint16_t *dst, int32_t dst_stride,
     int32_t x1 = sx + g->w;
     if (x1 > dst_w) x1 = dst_w;
 
+#if defined(__aarch64__)
+    uint8x16x2_t table;
+    table.val[0] = vld1q_u8((const uint8_t *)lut);
+    table.val[1] = vld1q_u8((const uint8_t *)lut + 16);
+#endif
+
     for (int32_t row = y0; row < y1; row++) {
         int32_t src_row = row - sy;
         uint16_t *drow = &dst[row * dst_stride];
@@ -66,6 +114,13 @@ GLYPH_INLINE void glyph_blit(uint16_t *dst, int32_t dst_stride,
             drow[col] = b == bg ? lut[a] : glyph_blend565(b, fg, a);
             col++;
         }
+#if defined(__aarch64__)
+        for (; col + 3 < x1; col += 4) {
+            int32_t sc = col - sx;
+            if (sc + 3 >= g->w) break;
+            glyph_neon4(&drow[col], src, sc, &table, fg, bg, lut);
+        }
+#endif
         for (; col + 1 < x1; col += 2) {
             int32_t sc = col - sx;
             uint8_t packed = src[sc >> 1];
