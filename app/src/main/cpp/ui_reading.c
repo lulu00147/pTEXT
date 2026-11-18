@@ -119,16 +119,17 @@ void ui_draw_reading(void)
     }
     r_prepare_parallel();
     if (preload_ok) {
-        int32_t split = item_count / 2;
-        BodyJob job0 = {items, 0, split, &pl};
-        BodyJob job1 = {items, split, item_count, &pl};
-        pthread_t t0, t1;
-        int s0 = pthread_create(&t0, NULL, draw_body_thread, &job0);
+        int32_t split1 = item_count / 4;
+        int32_t split2 = split1 + (item_count - split1) / 2;
+        BodyJob job0 = {items, 0, split1, &pl};
+        BodyJob job1 = {items, split1, split2, &pl};
+        BodyJob job2 = {items, split2, item_count, &pl};
+        pthread_t t1, t2;
         int s1 = pthread_create(&t1, NULL, draw_body_thread, &job1);
-        if (s0 != 0) draw_body_thread(&job0);
-        if (s1 != 0) draw_body_thread(&job1);
-        if (s0 == 0) pthread_join(t0, NULL);
-        if (s1 == 0) pthread_join(t1, NULL);
+        int s2 = pthread_create(&t2, NULL, draw_body_thread, &job2);
+        draw_body_thread(&job0);
+        if (s1 == 0) pthread_join(t1, NULL); else draw_body_thread(&job1);
+        if (s2 == 0) pthread_join(t2, NULL); else draw_body_thread(&job2);
     } else {
         for (int32_t i = 0; i < item_count; i++) draw_body_item(&items[i], &pl);
     }
