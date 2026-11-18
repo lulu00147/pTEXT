@@ -566,7 +566,14 @@ void android_main(struct android_app *app)
         int32_t events;
         struct android_poll_source *source;
         int32_t timeout = (app->window && s_need_redraw) ? 0 : -1;
-        if (timeout < 0 && s_state == ST_READING) timeout = 1000;
+        if (timeout < 0 && s_state == ST_READING) {
+            time_t now = time(NULL);
+            struct tm tmv;
+            localtime_r(&now, &tmv);
+            int32_t sec = 60 - tmv.tm_sec;
+            if (sec < 1) sec = 1;
+            timeout = sec * 1000;
+        }
         if (s_center_down_ns > 0 && !s_center_long_fired) {
             struct timespec ts;
             clock_gettime(CLOCK_MONOTONIC, &ts);
