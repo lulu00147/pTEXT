@@ -645,8 +645,6 @@ void android_main(struct android_app *app)
                 nanosleep(&wait, NULL);
                 continue;
             }
-            ARect dirty = {0, 0, r_w(), r_h()};
-            r_set_dirty(&dirty);
 
             if (!r_begin()) {
                 s_need_redraw = 1;

@@ -1,7 +1,6 @@
 #ifndef RENDER_H
 #define RENDER_H
 #include <android/native_window.h>
-#include <android/rect.h>
 #include <stdint.h>
 
 void r_init(ANativeWindow *w);
@@ -25,7 +24,6 @@ void r_set_font_size(float s);
 void r_clear_cache(void);
 int32_t r_w(void);
 int32_t r_h(void);
-void r_set_dirty(const ARect *rect);
 void r_update_window(ANativeWindow *w);
 void r_set_theme(int32_t theme);
 #endif

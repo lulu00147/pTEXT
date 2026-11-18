@@ -370,14 +370,6 @@ void r_deinit(void)
     s_px = NULL;
 }
 
-__attribute__((weak)) extern void ANativeWindow_setDirtyRect(ANativeWindow *window, const ARect *rect);
-
-void r_set_dirty(const ARect *rect) {
-    if (s_win && rect && ANativeWindow_setDirtyRect) {
-        ANativeWindow_setDirtyRect(s_win, rect);
-    }
-}
-
 int32_t r_begin(void)
 {
     if (!s_win) return 0;
