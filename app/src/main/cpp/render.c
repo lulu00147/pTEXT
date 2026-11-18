@@ -53,11 +53,16 @@ static inline int32_t safe_iceil(float x) {
 #define GC_ASSOC 4
 #define GC_MASK  (GC_SIZE - 1)
 #define GLYPH_MAX 128
+#define GLYPH_BLOCK 4096
+#define GLYPH_POOL_BLOCKS 2048
+#define GLYPH_POOL_SIZE ((size_t)GLYPH_BLOCK * GLYPH_POOL_BLOCKS)
 
 typedef struct {
     uint32_t cp;
     float sz;
-    uint8_t bmp[GLYPH_MAX * GLYPH_MAX / 2];  /* 4-bit alpha */
+    uint16_t bmp_block;
+    uint8_t bmp_blocks;
+    uint8_t cached;
     uint8_t w, h;
     int16_t xo, yo;
     int32_t adv;
@@ -74,6 +79,8 @@ static size_t s_font_len = 0;
 static float s_fsz = 36.0f, s_sc;
 static float s_ui_scale = 1.0f;
 static G s_gc[GC_SIZE];
+static uint8_t s_gbmp_pool[GLYPH_POOL_SIZE] __attribute__((aligned(16)));
+static uint32_t s_gbmp_free[(GLYPH_POOL_BLOCKS + 31) / 32];
 static uint32_t s_lru;
 static int32_t s_font_ok = 0;
 static uint8_t s_glyph_tmp[GLYPH_MAX * GLYPH_MAX];  /* 字形光栅化复用缓冲区 */
@@ -96,6 +103,61 @@ static int32_t get_glyph_advance_fast(uint32_t cp)
     return (int32_t)(adv * s_sc);
 }
 
+static inline int gbmp_is_free(int32_t block)
+{
+    return (s_gbmp_free[block >> 5] >> (block & 31)) & 1u;
+}
+
+static inline void gbmp_mark_used(int32_t block)
+{
+    s_gbmp_free[block >> 5] &= ~(1u << (block & 31));
+}
+
+static inline void gbmp_mark_free(int32_t block)
+{
+    s_gbmp_free[block >> 5] |= 1u << (block & 31);
+}
+
+static void gbmp_init(void)
+{
+    memset(s_gbmp_free, 0, sizeof(s_gbmp_free));
+    for (int32_t i = 0; i < GLYPH_POOL_BLOCKS; i++) gbmp_mark_free(i);
+}
+
+static int32_t gbmp_alloc(int32_t blocks)
+{
+    if (blocks <= 0 || blocks > GLYPH_POOL_BLOCKS) return -1;
+    for (int32_t i = 0; i + blocks <= GLYPH_POOL_BLOCKS; i++) {
+        int32_t available = 1;
+        for (int32_t j = 0; j < blocks; j++) {
+            if (!gbmp_is_free(i + j)) { available = 0; break; }
+        }
+        if (available) {
+            for (int32_t j = 0; j < blocks; j++) gbmp_mark_used(i + j);
+            return i;
+        }
+    }
+    return -1;
+}
+
+static void gbmp_free_blocks(int32_t block, int32_t blocks)
+{
+    if (block < 0 || blocks <= 0) return;
+    for (int32_t i = 0; i < blocks && block + i < GLYPH_POOL_BLOCKS; i++) {
+        gbmp_mark_free(block + i);
+    }
+}
+
+static void glyph_release(G *g)
+{
+    if (g->bmp_blocks) gbmp_free_blocks(g->bmp_block, g->bmp_blocks);
+    g->bmp_block = 0;
+    g->bmp_blocks = 0;
+    g->cached = 0;
+    g->w = 0;
+    g->h = 0;
+}
+
 static G *gc_get(uint32_t cp)
 {
     if (!s_font_ok || !cp) return NULL;
@@ -103,13 +165,14 @@ static G *gc_get(uint32_t cp)
     G *old = NULL;
     for (int32_t i = 0; i < GC_ASSOC; i++) {
         G *g = &s_gc[(h + i) & GC_MASK];
-        if (g->cp == cp && g->sz == s_fsz && g->w) {
+        if (g->cp == cp && g->sz == s_fsz && g->w && g->cached) {
             g->lru = ++s_lru;
             return g;
         }
         if (!old || g->lru < old->lru) old = g;
     }
     G *g = old;
+    glyph_release(g);
     g->cp = cp;
     g->sz = s_fsz;
     g->lru = ++s_lru;
@@ -123,28 +186,45 @@ static G *gc_get(uint32_t cp)
 
     int32_t gw = ix1 - ix0;
     int32_t gh = iy1 - iy0;
-    g->w = 0;
-    g->h = 0;
-    g->xo = 0;
-    g->yo = 0;
 
     if (gw > 0 && gh > 0 && gw <= GLYPH_MAX && gh <= GLYPH_MAX) {
-        g->w = (uint8_t)gw;
-        g->h = (uint8_t)gh;
-        g->xo = (int16_t)ix0;
-        g->yo = (int16_t)iy0;
+        int32_t stride = (gw + 1) >> 1;
+        size_t bytes = (size_t)stride * (size_t)gh;
+        int32_t blocks = (int32_t)((bytes + GLYPH_BLOCK - 1) / GLYPH_BLOCK);
+        int32_t block = gbmp_alloc(blocks);
+        while (block < 0) {
+            G *victim = NULL;
+            for (int32_t i = 0; i < GC_SIZE; i++) {
+                G *c = &s_gc[i];
+                if (c == g || !c->w || !c->cached) continue;
+                if (!victim || c->lru < victim->lru) victim = c;
+            }
+            if (!victim) break;
+            glyph_release(victim);
+            block = gbmp_alloc(blocks);
+        }
 
-        stbtt_MakeCodepointBitmap(&s_fi, s_glyph_tmp, g->w, g->h,
-                                  g->w, s_sc, s_sc, cp);
-        memset(g->bmp, 0, sizeof(g->bmp));
-        int32_t stride = (g->w + 1) >> 1;
-        for (int32_t y = 0; y < g->h; y++) {
-            for (int32_t x = 0; x < g->w; x++) {
-                uint8_t a = (uint8_t)(s_glyph_tmp[y * g->w + x] >> 4);
-                if (!a) continue;
-                uint8_t *cell = &g->bmp[y * stride + (x >> 1)];
-                if (x & 1) *cell = (uint8_t)((*cell & 0x0F) | (a << 4));
-                else       *cell = (uint8_t)((*cell & 0xF0) | a);
+        if (block >= 0) {
+            g->w = (uint8_t)gw;
+            g->h = (uint8_t)gh;
+            g->xo = (int16_t)ix0;
+            g->yo = (int16_t)iy0;
+            g->bmp_block = (uint16_t)block;
+            g->bmp_blocks = (uint8_t)blocks;
+            g->cached = 1;
+
+            stbtt_MakeCodepointBitmap(&s_fi, s_glyph_tmp, g->w, g->h,
+                                      g->w, s_sc, s_sc, cp);
+            uint8_t *bmp = &s_gbmp_pool[(size_t)block * GLYPH_BLOCK];
+            memset(bmp, 0, bytes);
+            for (int32_t y = 0; y < g->h; y++) {
+                for (int32_t x = 0; x < g->w; x++) {
+                    uint8_t a = (uint8_t)(s_glyph_tmp[y * g->w + x] >> 4);
+                    if (!a) continue;
+                    uint8_t *cell = &bmp[y * stride + (x >> 1)];
+                    if (x & 1) *cell = (uint8_t)((*cell & 0x0F) | (a << 4));
+                    else       *cell = (uint8_t)((*cell & 0xF0) | a);
+                }
             }
         }
     }
@@ -383,7 +463,9 @@ static void ensure_blend_lut(uint16_t fg)
 
 static inline void draw_glyph(int32_t x, int32_t y, const G *g, uint16_t fg)
 {
-    GlyphBlit gb = {g->bmp, g->w, g->h, g->xo, g->yo};
+    if (!g->cached || !g->w) return;
+    const uint8_t *bmp = &s_gbmp_pool[(size_t)g->bmp_block * GLYPH_BLOCK];
+    GlyphBlit gb = {bmp, g->w, g->h, g->xo, g->yo};
     glyph_blit(s_px, s_stride, s_w, s_h, x, y, &gb,
                fg, s_bg_color, s_blend_lut);
 }
@@ -557,6 +639,7 @@ void r_set_font_size(float s)
 
 void r_clear_cache(void) {
     memset(s_gc, 0, sizeof(s_gc));
+    gbmp_init();
     s_lru = 0;
     s_stb_pool_ptr = 0;
 }
