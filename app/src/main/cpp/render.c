@@ -413,14 +413,33 @@ static inline void draw_glyph(int32_t x, int32_t y, const G *g, uint16_t fg)
         int32_t src_row = row - sy;
         uint16_t *dst = &s_px[row * s_stride];
         const uint8_t *src = &g->bmp[src_row * stride];
-        for (int32_t col = x0; col < x1; col++) {
-            int32_t src_col = col - sx;
-            uint8_t packed = src[src_col >> 1];
-            int32_t a = (src_col & 1) ? (packed >> 4) : (packed & 0x0F);
-            if (a) {
-                uint16_t bg = dst[col];
-                dst[col] = bg == s_bg_color ? s_blend_lut[a] : blend565(bg, fg, a);
-            }
+        int32_t col = x0;
+        if ((col - sx) & 1) {
+            int32_t sc = col - sx;
+            uint8_t packed = src[sc >> 1];
+            uint8_t a = (sc & 1) ? (packed >> 4) : (packed & 0x0F);
+            uint16_t bg = dst[col];
+            dst[col] = bg == s_bg_color ? s_blend_lut[a] : blend565(bg, fg, a);
+            col++;
+        }
+        for (; col + 1 < x1; col += 2) {
+            int32_t sc = col - sx;
+            uint8_t packed = src[sc >> 1];
+            if (!packed) continue;
+            uint8_t a0 = packed & 0x0F;
+            uint8_t a1 = packed >> 4;
+            uint16_t b0 = dst[col], b1 = dst[col + 1];
+            uint16_t v0 = b0 == s_bg_color ? s_blend_lut[a0] : blend565(b0, fg, a0);
+            uint16_t v1 = b1 == s_bg_color ? s_blend_lut[a1] : blend565(b1, fg, a1);
+            uint32_t pair = (uint32_t)v0 | ((uint32_t)v1 << 16);
+            memcpy(&dst[col], &pair, sizeof(pair));
+        }
+        if (col < x1) {
+            int32_t sc = col - sx;
+            uint8_t packed = src[sc >> 1];
+            uint8_t a = (sc & 1) ? (packed >> 4) : (packed & 0x0F);
+            uint16_t bg = dst[col];
+            dst[col] = bg == s_bg_color ? s_blend_lut[a] : blend565(bg, fg, a);
         }
     }
 }
