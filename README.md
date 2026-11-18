@@ -124,8 +124,8 @@ sh tests/run_reader_tests.sh
 
 - 编码：1,065,822 cases PASS。
 - reader/persist：WSL PASS；ASan/UBSan PASS。
-- 设备回归：启动、前后台、中文、书签、导入、图标通过。
-- 未验证：5 分钟实际释放、导入进度逐帧、最新列表 UI。
+- 设备回归：启动、前后台、中文、书签、导入、图标、5 分钟释放、列表 UI 通过。
+- 未验证：导入进度逐帧。
 
 ## 范围
 
