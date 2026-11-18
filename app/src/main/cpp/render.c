@@ -499,12 +499,6 @@ int r_preload_text(const uint32_t *s, int32_t n)
 {
     if (!s_locked || !s_font_ok || !s) return 0;
     for (int32_t i = 0; i < n; i++) (void)GC_GET(s[i]);
-    return 1;
-}
-
-int r_text_cached(const uint32_t *s, int32_t n)
-{
-    if (!s_locked || !s_font_ok || !s) return 0;
     for (int32_t i = 0; i < n; i++) {
         if (!gc_is_cached(s[i])) return 0;
     }

@@ -28,5 +28,4 @@ void r_update_window(ANativeWindow *w);
 void r_set_theme(int32_t theme);
 void r_prepare_parallel(void);
 int r_preload_text(const uint32_t *s, int32_t n);
-int r_text_cached(const uint32_t *s, int32_t n);
 #endif
