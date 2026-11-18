@@ -416,14 +416,8 @@ static inline void draw_glyph(int32_t x, int32_t y, const G *g, uint16_t fg)
         for (int32_t col = x0; col < x1; col++) {
             int32_t src_col = col - sx;
             uint8_t packed = src[src_col >> 1];
-            if (!packed) {
-                if (!(src_col & 1) && col + 1 < x1) col++;
-                continue;
-            }
             int32_t a = (src_col & 1) ? (packed >> 4) : (packed & 0x0F);
-            if (a == 15) {
-                dst[col] = fg;
-            } else if (a) {
+            if (a) {
                 uint16_t bg = dst[col];
                 dst[col] = bg == s_bg_color ? s_blend_lut[a] : blend565(bg, fg, a);
             }
