@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <dirent.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -6,6 +7,27 @@
 #include <unistd.h>
 
 #include "reader.h"
+
+static int count_dir(const char *path)
+{
+    DIR *d = opendir(path);
+    if (!d) return -1;
+    int n = 0;
+    while (readdir(d)) n++;
+    closedir(d);
+    return n;
+}
+
+static int count_lines(const char *path)
+{
+    FILE *f = fopen(path, "r");
+    if (!f) return -1;
+    int n = 0;
+    int c;
+    while ((c = fgetc(f)) != EOF) if (c == '\n') n++;
+    fclose(f);
+    return n;
+}
 
 static void write_file(const char *path, const char *data, size_t len)
 {
@@ -166,11 +188,22 @@ int main(void)
     assert(rd_file_limit_reached() == 1);
 
     rd_close();
+    int fds_before = count_dir("/proc/self/fd");
+    int maps_before = count_lines("/proc/self/maps");
+    for (int32_t i = 0; i < 50; i++) {
+        assert(rd_open_file(long_path) == 0);
+        rd_close();
+    }
+    int fds_after = count_dir("/proc/self/fd");
+    int maps_after = count_lines("/proc/self/maps");
+    assert(fds_before > 0 && maps_before > 0);
+    assert(fds_after <= fds_before + 1);
+    assert(maps_after <= maps_before + 4);
+
     assert(chdir("/") == 0);
     char cleanup[512];
     snprintf(cleanup, sizeof(cleanup), "rm -rf '%s'", dir);
     assert(system(cleanup) == 0);
-
     puts("reader tests passed");
     return 0;
 }
