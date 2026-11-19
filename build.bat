@@ -50,7 +50,7 @@ mkdir build_cpp
 cd build_cpp
 
 :: Tool paths are already prepended to PATH
-"%CMAKE_PATH%" -DCMAKE_TOOLCHAIN_FILE="%NDK_TOOLCHAIN%" -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-37 -DCMAKE_BUILD_TYPE=Release -DCMAKE_LIBRARY_OUTPUT_DIRECTORY="%cd%\..\build\lib\arm64-v8a" -DCMAKE_MAKE_PROGRAM="%NINJA_PATH%" -G "Ninja" ../app/src/main/cpp
+"%CMAKE_PATH%" -DCMAKE_TOOLCHAIN_FILE="%NDK_TOOLCHAIN%" -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-36 -DCMAKE_BUILD_TYPE=Release -DCMAKE_LIBRARY_OUTPUT_DIRECTORY="%cd%\..\build\lib\arm64-v8a" -DCMAKE_MAKE_PROGRAM="%NINJA_PATH%" -G "Ninja" ../app/src/main/cpp
 if %errorlevel% neq 0 ( echo [ERROR] CMake configure failed & cd .. & pause & exit )
 "%CMAKE_PATH%" --build .
 if %errorlevel% neq 0 ( echo [ERROR] C build failed & cd .. & pause & exit )
@@ -62,7 +62,7 @@ if not exist "build" mkdir build
 if %errorlevel% neq 0 ( echo [ERROR] Resource compile failed & pause & exit )
 
 echo [4/8] Linking AndroidManifest...
-%BUILD_TOOLS%\aapt2.exe link -o build\base.apk -I %PLATFORM% --manifest app\src\main\AndroidManifest.xml -R build\res.zip --auto-add-overlay --min-sdk-version 37 --target-sdk-version 37
+%BUILD_TOOLS%\aapt2.exe link -o build\base.apk -I %PLATFORM% --manifest app\src\main\AndroidManifest.xml -R build\res.zip --auto-add-overlay --min-sdk-version 36 --target-sdk-version 37
 if %errorlevel% neq 0 ( echo [ERROR] Resource link failed & pause & exit )
 
 echo [5/8] Compiling Java code...

@@ -1,6 +1,6 @@
 # pTEXT v0.1
 
-Android 17 纯文本阅读器。C11 + Java 11，NativeActivity，arm64-v8a。
+Android 16+ 纯文本阅读器。C11 + Java 11，NativeActivity，arm64-v8a。
 
 ## 构建
 
@@ -19,7 +19,7 @@ Windows，仓库根需 `tools/`。
 build.bat
 ```
 
-产物：`pTEXT.apk`。minSdk 37，targetSdk 37，compileSdk 37.2；versionCode 1，versionName 0.1。
+产物：`pTEXT.apk`。minSdk 36，targetSdk 37，compileSdk 37.2；versionCode 1，versionName 0.1。
 
 `stb_truetype.h` 构建时下载，不入库：
 
@@ -188,7 +188,7 @@ stb 临时池实测峰值约 **35 KiB**，已从 16 MiB 缩至 **256 KiB**；该
 
 ## 范围
 
-- 仅 Android 17 / arm64-v8a。
+- 仅 Android 16+ / arm64-v8a。
 - 系统字体，不打包字体。
 - 100 文件、50 书签、64 页历史、80 行/页、200 字符/行。
 - 不提供搜索、目录、章节识别、Markdown。
