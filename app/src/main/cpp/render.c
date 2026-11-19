@@ -55,6 +55,8 @@ static inline int32_t safe_iceil(float x) {
 #define GC_SIZE  2048
 #define GC_ASSOC 4
 #define GC_MASK  (GC_SIZE - 1)
+#define ADV_SIZE 4096
+#define ADV_MASK (ADV_SIZE - 1)
 #define GLYPH_MAX 128
 #define GLYPH_BLOCK 4096
 #define GLYPH_POOL_BLOCKS 2048
@@ -82,6 +84,8 @@ static size_t s_font_len = 0;
 static float s_fsz = 36.0f, s_sc;
 static float s_ui_scale = 1.0f;
 static G s_gc[GC_SIZE];
+static uint64_t s_adv[ADV_SIZE];
+static uint32_t s_adv_szbits;
 static uint8_t s_gbmp_pool[GLYPH_POOL_SIZE] __attribute__((aligned(16)));
 static uint32_t s_gbmp_free[(GLYPH_POOL_BLOCKS + 31) / 32];
 static uint32_t s_lru;
@@ -658,12 +662,31 @@ void r_draw_text_at_size_color(int32_t x, int32_t y, const uint32_t *s, int32_t 
 int32_t r_char_advance(uint32_t cp)
 {
     if (!s_font_ok || !cp) return 0;
+    union { float f; uint32_t u; } sz = {s_fsz};
+    if (sz.u == s_adv_szbits) {
+        uint32_t ah = (cp * 2654435761u) & ADV_MASK;
+        uint64_t ae = __atomic_load_n(&s_adv[ah], __ATOMIC_RELAXED);
+        if ((uint32_t)(ae >> 32) == cp) return (int32_t)(uint32_t)ae;
+    }
     uint32_t h = (cp * 2654435761u) & GC_MASK;
     for (int32_t i = 0; i < GC_ASSOC; i++) {
         G *g = &s_gc[(h + i) & GC_MASK];
-        if (g->cp == cp && g->sz == s_fsz) return g->adv;
+        if (g->cp == cp && g->sz == s_fsz) {
+            if (sz.u == s_adv_szbits) {
+                uint32_t ah = (cp * 2654435761u) & ADV_MASK;
+                __atomic_store_n(&s_adv[ah], ((uint64_t)cp << 32) | (uint32_t)g->adv,
+                                 __ATOMIC_RELAXED);
+            }
+            return g->adv;
+        }
     }
-    return get_glyph_advance_fast(cp);
+    int32_t adv = get_glyph_advance_fast(cp);
+    if (sz.u == s_adv_szbits) {
+        uint32_t ah = (cp * 2654435761u) & ADV_MASK;
+        __atomic_store_n(&s_adv[ah], ((uint64_t)cp << 32) | (uint32_t)adv,
+                         __ATOMIC_RELAXED);
+    }
+    return adv;
 }
 
 int32_t r_font_h(void)
@@ -683,6 +706,9 @@ void r_set_font_size(float s)
 
 void r_clear_cache(void) {
     memset(s_gc, 0, sizeof(s_gc));
+    memset(s_adv, 0, sizeof(s_adv));
+    union { float f; uint32_t u; } sz = {s_fsz};
+    s_adv_szbits = sz.u;
     gbmp_init();
     s_lru = 0;
     s_stb_pool_ptr = 0;

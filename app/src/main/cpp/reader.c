@@ -798,7 +798,7 @@ static void paginate_step(void)
 {
     if (s_ctx.state != 1) return;
 
-    for (int32_t step = 0; step < 8 &&
+    for (int32_t step = 0; step < 24 &&
          s_ctx.i < s_ctx.max_lines && s_ctx.cur.off < s_mmap_len; step++) {
         layout_line(&s_page_next->lines[s_ctx.i], &s_ctx.cur);
         if (rd_line_blank(&s_page_next->lines[s_ctx.i])) continue;
