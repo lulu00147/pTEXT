@@ -561,6 +561,15 @@ int main(void)
     assert(rd_test_read_name_sidecar("named5.txt", hook_buf, sizeof(hook_buf)) == 1);
     assert(strcmp(hook_buf, "Name") == 0);
 
+    render_host_set_scale(476.0f / 160.0f);
+    rd_set_gap_idx(0);
+    render_host_set_size(1240, 2772);
+    assert(rd_test_page_max_lines() == 37);
+    render_host_set_size(1264, 2780);
+    assert(rd_test_page_max_lines() == 37);
+    render_host_set_scale(1.0f);
+    render_host_set_size(600, 800);
+
     assert(rd_test_page_max_lines() >= 1);
     assert(rd_test_page_max_lines() <= MAX_LINES);
     assert(rd_test_page_max_x() >= 1);

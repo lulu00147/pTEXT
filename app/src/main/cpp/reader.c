@@ -470,7 +470,9 @@ static int32_t page_max_lines(void)
 {
     int32_t lh = rd_get_line_h();
     if (lh < 1) lh = 1;
-    int32_t n = (r_h() - MARGIN_TOP - MARGIN_BOT) / lh;
+    int32_t avail = r_h() - MARGIN_TOP - MARGIN_BOT;
+    int32_t step = lh * 10 + 7;
+    int32_t n = avail > 0 ? (avail * 10) / step + 1 : 1;
     if (n < 1) n = 1;
     if (n > MAX_LINES) n = MAX_LINES;
     return n;
