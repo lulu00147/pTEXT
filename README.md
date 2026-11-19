@@ -131,7 +131,7 @@ sh tests/run_reader_tests.sh
 
 口径：PKR110，Android 17，arm64-v8a；release APK；`clock_gettime(CLOCK_MONOTONIC)`；`p50` / `p95` 使用 nearest-rank；帧 = `r_begin` → `r_end`；不含 SurfaceFlinger 提交等待。性能包临时启用 `PTEXT_BENCH` 与 liblog，正式包无日志代码。
 
-本轮复测：阅读页帧 n=100；CPU 未锁频，记录了实际频率；其余路径待复测。
+本轮复测：阅读页帧 n=100；CPU 未锁频，记录了实际频率；其余路径待复测。以下为历史基线，最新双机 A/B 见本节末。
 
 | 指标 | 读数 | 口径 |
 |---|---|---|
@@ -156,13 +156,38 @@ NEON4: p50 4.16 / p95 7.03 ms
 NEON8: p50 4.11 / p95 6.69 ms
 ```
 
-三路正文并行（五轮 n=100 中位）：
+三路正文并行（历史五轮 n=100 中位）：
 
 ```text
 p50 2.94 / p95 5.17 / max 7.59 ms
 ```
 
 主线程 + 两个工作线程按 25% / 37.5% / 37.5% 分正文；绘制前预加载全部正文字形，字形缓存加锁；若预加载失败则回退单线程。设备端逐像素测试通过；CPU 频率仍保持在最低档。
+
+### 单线程 / 多线程 A/B（2026-11-19）
+
+同一文本 `bench.txt`（623,786 B，SHA-256 `7FAA22892E2D66137EB050129C42FB14F183DE340CCACB1DCD8AE32AA5CB0814`，2000 章），两台设备分别安装单线程和多线程版本。  
+每轮从第 1 页连续执行 100 次真实下一页操作，采样 100 帧；共 3 轮，取中位。  
+帧时延仍按 `r_begin` → `r_end`；CPU 为 100 次翻页期间 `/proc/<pid>/stat` 的 `utime + stime` 差值，包含分页、预取和绘制。CPU 未锁频。
+
+| 设备 | 版本 | 帧 p50 | 帧 p95 | max | CPU / 100 次翻页 | CPU / 帧 |
+|---|---|---:|---:|---:|---:|---:|
+| PKR110 / Android 17 | 单线程 | 3.44 ms | 5.66 ms | 8.23 ms | 780 ms | 7.8 ms |
+| PKR110 / Android 17 | 多线程 | 2.27 ms | 4.10 ms | 7.82 ms | 680 ms | 6.8 ms |
+| PJA110 / Android 16 | 单线程 | 15.78 ms | 28.96 ms | 32.73 ms | 2,820 ms | 28.2 ms |
+| PJA110 / Android 16 | 多线程 | 9.43 ms | 15.07 ms | 18.16 ms | 2,420 ms | 24.2 ms |
+
+CPU 频率中位（`time_in_state` 差值）：
+
+```text
+PKR110 MT: policy0 1029 MHz, policy6 1018 MHz
+PKR110 ST: policy0 1024 MHz, policy6 1018 MHz
+PJA110 MT: policy0 821 MHz, policy3 997 MHz, policy7 864 MHz
+PJA110 ST: policy0 819 MHz, policy3 1003 MHz, policy7 864 MHz
+```
+
+多线程相对单线程：PKR110 p50 降约 34%、p95 降约 28%、CPU 降约 13%；PJA110 p50 降约 40%、p95 降约 48%、CPU 降约 14%。  
+PJA110 的绝对耗时明显高于 PKR110，主要来自设备性能差异，不是同一硬件上的版本差异。单线程/多线程基准 APK 均为 119,600 B；正常 release 为 119,598 B。
 
 字形存储 A/B（n=100，默认字号）：
 
