@@ -75,7 +75,54 @@ int main(void)
     const char *empty_path = "empty.txt";
     write_file(empty_path, "", 0);
     assert(rd_test_is_para_start(0) == 1);
+    assert(rd_test_line_break_allowed('A', 'B') == 1);
+    assert(rd_test_line_break_allowed(0x4E2D, 0x6587) == 1);
+    assert(rd_test_line_break_allowed(0x4E2D, 0xFF0C) == 0);
+    assert(rd_test_line_break_allowed(0x300A, 0x4E2D) == 0);
+    assert(rd_test_line_break_allowed('A', 0x0301) == 0);
     assert(rd_open_file(empty_path) != 0);
+
+    Settings saved_settings = *rd_get_settings();
+    rd_set_indent_idx(0);
+    rd_set_gap_idx(0);
+    char cjk_text[256];
+    int cjk_len = 0;
+    for (int i = 0; i < 28; i++) {
+        memcpy(cjk_text + cjk_len, "中", 3);
+        cjk_len += 3;
+    }
+    memcpy(cjk_text + cjk_len, "文，后\n", 10);
+    cjk_len += 10;
+    write_file("cjk-break.txt", cjk_text, (size_t)cjk_len);
+    assert(rd_open_file("cjk-break.txt") == 0);
+    Page *cjk_page = rd_get_page();
+    assert(cjk_page->count >= 2);
+    assert(cjk_page->lines[0].len == 28);
+    assert(cjk_page->lines[1].text[0] == 0x6587);
+    assert(cjk_page->lines[1].text[1] == 0xFF0C);
+    rd_close();
+    (void)unlink("../.prog/cjk-break.txt.bin");
+
+    cjk_len = 0;
+    for (int i = 0; i < 28; i++) {
+        memcpy(cjk_text + cjk_len, "中", 3);
+        cjk_len += 3;
+    }
+    memcpy(cjk_text + cjk_len, "（文）\n", 10);
+    cjk_len += 10;
+    write_file("cjk-open.txt", cjk_text, (size_t)cjk_len);
+    assert(rd_open_file("cjk-open.txt") == 0);
+    cjk_page = rd_get_page();
+    assert(cjk_page->count >= 2);
+    assert(cjk_page->lines[0].len == 28);
+    assert(cjk_page->lines[1].text[0] == 0xFF08);
+    assert(cjk_page->lines[1].text[1] == 0x6587);
+    rd_close();
+    (void)unlink("../.prog/cjk-open.txt.bin");
+
+    rd_set_indent_idx(saved_settings.indent_idx);
+    rd_set_gap_idx(saved_settings.gap_idx);
+
 
     const char *long_path = "long.txt";
     char *text = malloc(40001);

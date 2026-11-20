@@ -542,6 +542,96 @@ static int32_t page_for_offset(int64_t target, int64_t *page_start)
     return number;
 }
 
+/* CJK 禁则：优先在合法字符边界换行，避免标点落到行首或开引号落到行尾。 */
+static int32_t no_break_before(uint32_t cp)
+{
+    switch (cp) {
+    case '.':
+    case ',':
+    case ':':
+    case ';':
+    case '!':
+    case '?':
+    case ')':
+    case ']':
+    case '}':
+    case 0x00BB:  /* » */
+    case 0x2019:  /* ’ */
+    case 0x201D:  /* ” */
+    case 0x2014:  /* — */
+    case 0x2026:  /* … */
+    case 0x3001:  /* 、 */
+    case 0x3002:  /* 。 */
+    case 0x3009:  /* 〉 */
+    case 0x300B:  /* 》 */
+    case 0x300D:  /* 」 */
+    case 0x300F:  /* 』 */
+    case 0x3011:  /* 】 */
+    case 0x3015:  /* 〕 */
+    case 0x3017:  /* 〗 */
+    case 0x3019:  /* 〙 */
+    case 0x301B:  /* 〛 */
+    case 0xFF01:  /* ！ */
+    case 0xFF09:  /* ） */
+    case 0xFF0C:  /* ， */
+    case 0xFF0E:  /* ． */
+    case 0xFF1A:  /* ： */
+    case 0xFF1B:  /* ； */
+    case 0xFF1F:  /* ？ */
+    case 0xFF3D:  /* ］ */
+    case 0xFF5D:  /* ｝ */
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+static int32_t no_break_after(uint32_t cp)
+{
+    switch (cp) {
+    case '(':
+    case '[':
+    case '{':
+    case 0x00AB:  /* « */
+    case 0x2018:  /* ‘ */
+    case 0x201C:  /* “ */
+    case 0x3008:  /* 〈 */
+    case 0x300A:  /* 《 */
+    case 0x300C:  /* 「 */
+    case 0x300E:  /* 『 */
+    case 0x3010:  /* 【 */
+    case 0x3014:  /* 〔 */
+    case 0x3016:  /* 〖 */
+    case 0x3018:  /* 〘 */
+    case 0x301A:  /* 〚 */
+    case 0xFF08:  /* （ */
+    case 0xFF3B:  /* ［ */
+    case 0xFF5B:  /* ｛ */
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+static int32_t is_combining_mark(uint32_t cp)
+{
+    return (cp >= 0x0300 && cp <= 0x036F) ||
+           (cp >= 0x1AB0 && cp <= 0x1AFF) ||
+           (cp >= 0x1DC0 && cp <= 0x1DFF) ||
+           (cp >= 0x20D0 && cp <= 0x20FF) ||
+           (cp >= 0xFE20 && cp <= 0xFE2F) ||
+           (cp >= 0xFE00 && cp <= 0xFE0F) ||
+           (cp >= 0xE0100 && cp <= 0xE01EF);
+}
+
+static int32_t line_break_allowed(uint32_t left, uint32_t right)
+{
+    if (!left || !right) return 1;
+    if (is_combining_mark(right)) return 0;
+    if (no_break_after(left) || no_break_before(right)) return 0;
+    return 1;
+}
+
 static void layout_line(Line *line, LineCursor *cur)
 {
     line->len = 0;
@@ -549,12 +639,22 @@ static void layout_line(Line *line, LineCursor *cur)
     line->justify = 0;
     cur->x = line->indent;
 
+    int64_t last_break_off = cur->off;
+    int32_t last_break_len = 0;
+    int32_t last_break_x = cur->x;
+    uint32_t prev_cp = 0;
+
     while (cur->off < s_mmap_len) {
         if (line->len >= MAX_CHARS - 1) break;
 
         int64_t prev = cur->off;
         uint32_t cp = s_decode((const uint8_t *)s_mmap_data, s_mmap_len, &cur->off);
         if (cp == 0) break;
+        if (prev_cp && line_break_allowed(prev_cp, cp)) {
+            last_break_off = prev;
+            last_break_len = line->len;
+            last_break_x = cur->x;
+        }
         if (cp == '\r') {
             if (cur->off < s_mmap_len && s_mmap_data[cur->off] == '\n') cur->off++;
             break;
@@ -570,12 +670,19 @@ static void layout_line(Line *line, LineCursor *cur)
                 line->justify = 1;
                 break;
             }
-            cur->off = prev;
+            if (last_break_len > 0) {
+                cur->off = last_break_off;
+                line->len = last_break_len;
+                cur->x = last_break_x;
+            } else {
+                cur->off = prev;
+            }
             line->justify = 1;
             break;
         }
         line->text[line->len++] = cp;
         cur->x += cw;
+        prev_cp = cp;
     }
 
     cur->para_start = is_para_start(cur->off);
@@ -649,6 +756,11 @@ void rd_test_paginate_full(int64_t offset)
 int32_t rd_test_line_punct_only(const Line *line)
 {
     return line_punct_only(line);
+}
+
+int32_t rd_test_line_break_allowed(uint32_t left, uint32_t right)
+{
+    return line_break_allowed(left, right);
 }
 
 int32_t rd_test_is_para_start(int64_t off)

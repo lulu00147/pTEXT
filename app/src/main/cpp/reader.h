@@ -68,6 +68,7 @@ void rd_save_progress(void);
 #ifdef PTEXT_HOST_TEST
 void rd_test_paginate_full(int64_t offset);
 int32_t rd_test_line_punct_only(const Line *line);
+int32_t rd_test_line_break_allowed(uint32_t left, uint32_t right);
 int32_t rd_test_is_para_start(int64_t off);
 int32_t rd_test_load_bookmarks(const char *path, Bookmark *out, int32_t cap);
 int32_t rd_test_read_name_sidecar(const char *path, char *out, size_t cap);
