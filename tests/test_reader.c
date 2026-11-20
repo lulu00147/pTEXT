@@ -123,6 +123,39 @@ int main(void)
     rd_set_indent_idx(saved_settings.indent_idx);
     rd_set_gap_idx(saved_settings.gap_idx);
 
+    size_t index_len = 1200000;
+    char *index_text = malloc(index_len);
+    assert(index_text != NULL);
+    const char *index_unit = "中文索引测试，句号。下一句。\n";
+    size_t unit_len = strlen(index_unit);
+    for (size_t i = 0; i < index_len; i++) index_text[i] = index_unit[i % unit_len];
+    write_file("idx-large.txt", index_text, index_len);
+    free(index_text);
+
+    assert(rd_open_file("idx-large.txt") == 0);
+    for (int i = 0; i < 200 && rd_can_next(); i++) rd_next_page();
+    int32_t index_page = rd_get_page_no();
+    assert(index_page > 1);
+    rd_close();
+    FILE *idx_file = fopen("../.idx/idx-large.txt.bin", "rb");
+    assert(idx_file != NULL);
+    fclose(idx_file);
+
+    assert(rd_open_file("idx-large.txt") == 0);
+    assert(rd_get_page_no() >= index_page);
+    int64_t index_off = 0;
+    int32_t index_no = 0;
+    rd_reset_page_cache();
+    assert(rd_test_idx_lookup(rd_get_file_len() - 1, &index_off, &index_no) > 0);
+    assert(index_off >= 0 && index_off < rd_get_file_len());
+    assert(index_no > 0);
+    rd_close();
+
+    write_file("../.idx/idx-large.txt.bin", "bad", 3);
+    assert(rd_open_file("idx-large.txt") == 0);
+    rd_close();
+    (void)unlink("../.prog/idx-large.txt.bin");
+    (void)unlink("../.idx/idx-large.txt.bin");
 
     const char *long_path = "long.txt";
     char *text = malloc(40001);

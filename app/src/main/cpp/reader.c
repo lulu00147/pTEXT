@@ -189,6 +189,7 @@ static int32_t page_checkpoint_find(int64_t target, int64_t *off);
 
 static char *s_mmap_data;
 static int64_t s_mmap_len;
+static int64_t s_mmap_mtime;
 static TextDecodeFn s_decode;
 
 static Page s_page_a;
@@ -204,13 +205,45 @@ static int32_t s_page_no;
 
 #define PAGE_CKPT_MAX 1024
 #define PAGE_CKPT_STEP 64
+#define IDX_MAGIC 0x32445850u
+#define IDX_VERSION 1u
+#define IDX_STEP PAGE_CKPT_STEP
+#define IDX_MIN_FILE (1024 * 1024)
+#define IDX_MIN_TARGET (256 * 1024)
+#define LAYOUT_RULES_VERSION 1u
 static int64_t s_page_ckpt_off[PAGE_CKPT_MAX];
 static int32_t s_page_ckpt_no[PAGE_CKPT_MAX];
 static int32_t s_page_ckpt_count;
+static int32_t s_idx_dirty;
+
+typedef struct {
+    uint32_t magic;
+    uint32_t version;
+    uint32_t step;
+    uint32_t count;
+    uint32_t layout_hash;
+    uint32_t checksum;
+    uint32_t reserved;
+    uint32_t reserved2;
+    int64_t file_size;
+    int64_t file_mtime;
+} IdxHeader;
+
+typedef struct {
+    int64_t off;
+    int32_t page_no;
+    int32_t reserved;
+} IdxRecord;
+
+_Static_assert(sizeof(IdxHeader) == 48, "index header layout");
+_Static_assert(sizeof(IdxRecord) == 16, "index record layout");
+
+static uint8_t s_idx_buf[sizeof(IdxHeader) + PAGE_CKPT_MAX * sizeof(IdxRecord)] __attribute__((aligned(8)));
 
 void rd_reset_page_cache(void)
 {
     s_page_ckpt_count = 0;
+    s_idx_dirty = 0;
 }
 
 static Settings s_settings = {3, 1, 0, 0, 14};
@@ -235,6 +268,8 @@ static PageContext s_ctx;
 static void load_settings(void);
 static void paginate_full(int64_t offset, Page *target);
 static int32_t page_for_offset(int64_t target, int64_t *page_start);
+static void idx_save(void);
+static int32_t idx_lookup(int64_t target, int64_t *off, int32_t *page_no);
 static int32_t bookmark_preview(int64_t offset, char *out, int32_t cap);
 static void refresh_bookmark_previews(const char *path, Bookmark *bms,
                                       int32_t count);
@@ -273,6 +308,8 @@ void rd_init(const char *path)
     snprintf(sub, sizeof(sub), "%s/.prog", s_data_path);
     mkdir(sub, 0755);
     snprintf(sub, sizeof(sub), "%s/.bm", s_data_path);
+    mkdir(sub, 0755);
+    snprintf(sub, sizeof(sub), "%s/.idx", s_data_path);
     mkdir(sub, 0755);
     snprintf(sub, sizeof(sub), "%s/files", s_data_path);
     mkdir(sub, 0755);
@@ -368,6 +405,9 @@ int32_t rd_open_file(const char *path)
         close(fd);
         return -1;
     }
+    struct stat st;
+    int64_t mtime = 0;
+    if (fstat(fd, &st) == 0) mtime = (int64_t)st.st_mtime;
 
     void *map = mmap(NULL, (size_t)len, PROT_READ, MAP_PRIVATE, fd, 0);
     close(fd);
@@ -375,6 +415,7 @@ int32_t rd_open_file(const char *path)
 
     s_mmap_data = (char *)map;
     s_mmap_len = len;
+    s_mmap_mtime = mtime;
 
     const char *name = strrchr(path, '/');
     snprintf(s_cur_name, sizeof(s_cur_name), "%s", name ? name + 1 : path);
@@ -433,7 +474,10 @@ int32_t rd_open_file(const char *path)
 void rd_close(void)
 {
     rd_save_progress();
+    idx_save();
     close_mapping();
+    s_mmap_mtime = 0;
+    s_idx_dirty = 0;
     s_cur_name[0] = '\0';
     s_page_curr->count = 0;
     s_page_curr->start_offset = 0;
@@ -495,6 +539,7 @@ static void page_checkpoint_add(int64_t off, int32_t page_no)
     s_page_ckpt_off[s_page_ckpt_count] = off;
     s_page_ckpt_no[s_page_ckpt_count] = page_no;
     s_page_ckpt_count++;
+    s_idx_dirty = 1;
 }
 
 static int32_t page_checkpoint_find(int64_t target, int64_t *off)
@@ -522,11 +567,141 @@ PageLayout rd_get_layout(void)
     return pl;
 }
 
+static void idx_hash_u32(uint32_t *h, uint32_t v)
+{
+    *h ^= v;
+    *h *= 16777619u;
+}
+
+static uint32_t idx_layout_hash(void)
+{
+    uint32_t h = 2166136261u;
+    PageLayout pl = rd_get_layout();
+    idx_hash_u32(&h, LAYOUT_RULES_VERSION);
+    idx_hash_u32(&h, (uint32_t)s_settings.font_idx);
+    idx_hash_u32(&h, (uint32_t)s_settings.indent_idx);
+    idx_hash_u32(&h, (uint32_t)s_settings.gap_idx);
+    idx_hash_u32(&h, (uint32_t)pl.margin_x);
+    idx_hash_u32(&h, (uint32_t)pl.margin_top);
+    idx_hash_u32(&h, (uint32_t)pl.margin_bot);
+    idx_hash_u32(&h, (uint32_t)pl.line_height);
+    idx_hash_u32(&h, (uint32_t)pl.text_width);
+    idx_hash_u32(&h, (uint32_t)pl.page_height);
+    idx_hash_u32(&h, (uint32_t)r_font_h());
+    idx_hash_u32(&h, (uint32_t)r_char_advance(0x4E2D));
+    return h;
+}
+
+static void idx_save(void)
+{
+    if (!s_idx_dirty || !s_mmap_data || s_mmap_len < IDX_MIN_FILE ||
+        s_page_ckpt_count < 2) return;
+
+    char path[1024];
+    if (!sidecar_path(path, sizeof(path), ".idx", s_cur_name)) return;
+
+    IdxHeader h;
+    memset(&h, 0, sizeof(h));
+    h.magic = IDX_MAGIC;
+    h.version = IDX_VERSION;
+    h.step = IDX_STEP;
+    h.count = (uint32_t)s_page_ckpt_count;
+    h.layout_hash = idx_layout_hash();
+    h.file_size = s_mmap_len;
+    h.file_mtime = s_mmap_mtime;
+
+    uint32_t checksum = 2166136261u;
+    uint8_t *p = s_idx_buf + sizeof(h);
+    for (int32_t i = 0; i < s_page_ckpt_count; i++) {
+        IdxRecord r;
+        r.off = s_page_ckpt_off[i];
+        r.page_no = s_page_ckpt_no[i];
+        r.reserved = 0;
+        memcpy(p + (size_t)i * sizeof(r), &r, sizeof(r));
+        const uint8_t *rp = (const uint8_t *)&r;
+        for (size_t j = 0; j < sizeof(r); j++) {
+            checksum ^= rp[j];
+            checksum *= 16777619u;
+        }
+    }
+    h.checksum = checksum;
+    memcpy(s_idx_buf, &h, sizeof(h));
+    size_t total = sizeof(h) + (size_t)s_page_ckpt_count * sizeof(IdxRecord);
+    if (persist_write_atomic(path, s_idx_buf, total) == 0) s_idx_dirty = 0;
+}
+
+static int32_t idx_lookup(int64_t target, int64_t *off, int32_t *page_no)
+{
+    if (!s_mmap_data || !s_cur_name[0] || s_mmap_len < IDX_MIN_FILE ||
+        target < IDX_MIN_TARGET || s_page_ckpt_count > 0) return 0;
+
+    char path[1024];
+    if (!sidecar_path(path, sizeof(path), ".idx", s_cur_name)) return 0;
+    FILE *f = fopen(path, "rb");
+    if (!f) return 0;
+
+    IdxHeader h;
+    int32_t ok = 0;
+    if (fread(&h, sizeof(h), 1, f) == 1 &&
+        h.magic == IDX_MAGIC && h.version == IDX_VERSION &&
+        h.step == IDX_STEP && h.count > 0 && h.count <= PAGE_CKPT_MAX &&
+        h.file_size == s_mmap_len && h.file_mtime == s_mmap_mtime &&
+        h.layout_hash == idx_layout_hash()) {
+        IdxRecord *recs = (IdxRecord *)(void *)(s_idx_buf + sizeof(h));
+        if ((size_t)h.count <= PAGE_CKPT_MAX &&
+            fread(recs, sizeof(IdxRecord), h.count, f) == h.count) {
+            uint32_t checksum = 2166136261u;
+            int64_t prev_off = -1;
+            int32_t prev_page = 0;
+            ok = 1;
+            for (uint32_t i = 0; i < h.count; i++) {
+                const uint8_t *rp = (const uint8_t *)&recs[i];
+                for (size_t j = 0; j < sizeof(recs[i]); j++) {
+                    checksum ^= rp[j];
+                    checksum *= 16777619u;
+                }
+                if (recs[i].off < 0 || recs[i].off >= s_mmap_len ||
+                    recs[i].off <= prev_off || recs[i].page_no <= prev_page) {
+                    ok = 0;
+                    break;
+                }
+                prev_off = recs[i].off;
+                prev_page = recs[i].page_no;
+            }
+            if (ok && checksum == h.checksum) {
+                uint32_t lo = 0, hi = h.count;
+                while (lo < hi) {
+                    uint32_t mid = lo + (hi - lo) / 2;
+                    if (recs[mid].off <= target) lo = mid + 1;
+                    else hi = mid;
+                }
+                if (lo > 0) {
+                    for (uint32_t i = 0; i < lo; i++) {
+                        s_page_ckpt_off[i] = recs[i].off;
+                        s_page_ckpt_no[i] = recs[i].page_no;
+                    }
+                    s_page_ckpt_count = (int32_t)lo;
+                    s_idx_dirty = 0;
+                    *off = recs[lo - 1].off;
+                    *page_no = recs[lo - 1].page_no;
+                    fclose(f);
+                    return 1;
+                }
+            }
+        }
+    }
+    fclose(f);
+    s_page_ckpt_count = 0;
+    s_idx_dirty = 0;
+    return 0;
+}
+
 static int32_t page_for_offset(int64_t target, int64_t *page_start)
 {
     Page probe;
     int64_t off = 0;
     int32_t number = 1;
+    (void)idx_lookup(target, &off, &number);
     page_checkpoint_add(off, number);
 
     while (off < target) {
@@ -761,6 +936,11 @@ int32_t rd_test_line_punct_only(const Line *line)
 int32_t rd_test_line_break_allowed(uint32_t left, uint32_t right)
 {
     return line_break_allowed(left, right);
+}
+
+int32_t rd_test_idx_lookup(int64_t target, int64_t *off, int32_t *page_no)
+{
+    return idx_lookup(target, off, page_no);
 }
 
 int32_t rd_test_is_para_start(int64_t off)
@@ -1324,6 +1504,11 @@ int32_t rd_delete_file(const char *path)
         side_error = 1;
     }
     if (sidecar_path(side, sizeof(side), ".bm", base)) {
+        if (unlink(side) != 0 && errno != ENOENT) side_error = 1;
+    } else {
+        side_error = 1;
+    }
+    if (sidecar_path(side, sizeof(side), ".idx", base)) {
         if (unlink(side) != 0 && errno != ENOENT) side_error = 1;
     } else {
         side_error = 1;
