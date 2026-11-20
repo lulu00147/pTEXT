@@ -1,5 +1,6 @@
 #include "render.h"
 #include "glyph_blit.h"
+#include "glyph_blit8.h"
 #include <string.h>
 #include <stdint.h>
 #include <limits.h>
@@ -61,18 +62,12 @@ static inline int32_t safe_iceil(float x) {
 #define GLYPH_BLOCK 1024
 #define GLYPH_POOL_BLOCKS 8192
 #define GLYPH_POOL_SIZE ((size_t)GLYPH_BLOCK * GLYPH_POOL_BLOCKS)
-#define COLOR_BLOCK 1024
-#define COLOR_POOL_BLOCKS 8192
-#define COLOR_POOL_SIZE ((size_t)COLOR_BLOCK * COLOR_POOL_BLOCKS)
-_Static_assert(GLYPH_POOL_SIZE == 8u * 1024u * 1024u, "alpha pool must stay 8 MiB");
-_Static_assert(COLOR_POOL_SIZE == 8u * 1024u * 1024u, "color pool must stay 8 MiB");
-_Static_assert(GLYPH_BLOCK % 2 == 0 && COLOR_BLOCK % 2 == 0, "RGB565 block alignment");
-_Static_assert(GLYPH_POOL_BLOCKS <= 65536 && COLOR_POOL_BLOCKS <= 65536,
-               "16-bit block index capacity");
-_Static_assert(((GLYPH_MAX * GLYPH_MAX + 1) / 2 + GLYPH_BLOCK - 1) / GLYPH_BLOCK <= 255,
-               "alpha block count fits uint8");
-_Static_assert((GLYPH_MAX * GLYPH_MAX * 2 + COLOR_BLOCK - 1) / COLOR_BLOCK <= 255,
-               "color block count fits uint8");
+_Static_assert(GLYPH_POOL_SIZE == 8u * 1024u * 1024u, "glyph pool must stay 8 MiB");
+_Static_assert(GLYPH_BLOCK % 2 == 0, "glyph block alignment");
+_Static_assert(GLYPH_POOL_BLOCKS <= 65536, "16-bit glyph block index capacity");
+_Static_assert((GLYPH_MAX * GLYPH_MAX + GLYPH_BLOCK - 1) / GLYPH_BLOCK <= 255,
+               "glyph block count fits uint8");
+
 
 
 typedef struct {
@@ -85,10 +80,6 @@ typedef struct {
     int16_t xo, yo;
     int32_t adv;
     uint32_t lru;
-    uint16_t color_block;
-    uint16_t color_fg;
-    uint16_t color_bg;
-    uint8_t color_blocks;
 } G;
 
 static ANativeWindow *s_win;
@@ -105,8 +96,6 @@ static uint64_t s_adv[ADV_SIZE];
 static uint32_t s_adv_szbits;
 static uint8_t s_gbmp_pool[GLYPH_POOL_SIZE] __attribute__((aligned(16)));
 static uint32_t s_gbmp_free[(GLYPH_POOL_BLOCKS + 31) / 32];
-static uint8_t s_cbmp_pool[COLOR_POOL_SIZE] __attribute__((aligned(16)));
-static uint32_t s_cbmp_free[(COLOR_POOL_BLOCKS + 31) / 32];
 static uint32_t s_lru;
 static int32_t s_font_ok = 0;
 static uint8_t s_glyph_tmp[GLYPH_MAX * GLYPH_MAX];  /* 字形光栅化复用缓冲区 */
@@ -116,7 +105,7 @@ static int32_t s_theme = 0;
 static uint16_t s_fg_color = 0xFFFF;
 static uint16_t s_bg_color = 0x0000;
 static uint8_t  s_bg_byte  = 0x00;   /* memset 用的字节值 */
-static uint16_t s_blend_lut[16];
+static uint16_t s_blend_lut[256];
 static uint16_t s_lut_fg;
 static uint16_t s_lut_bg;
 static int32_t s_lut_valid;
@@ -174,59 +163,11 @@ static void gbmp_free_blocks(int32_t block, int32_t blocks)
     }
 }
 
-static inline int cbmp_is_free(int32_t block)
-{
-    return (s_cbmp_free[block >> 5] >> (block & 31)) & 1u;
-}
-
-static inline void cbmp_mark_used(int32_t block)
-{
-    s_cbmp_free[block >> 5] &= ~(1u << (block & 31));
-}
-
-static inline void cbmp_mark_free(int32_t block)
-{
-    s_cbmp_free[block >> 5] |= 1u << (block & 31);
-}
-
-static void cbmp_init(void)
-{
-    memset(s_cbmp_free, 0, sizeof(s_cbmp_free));
-    for (int32_t i = 0; i < COLOR_POOL_BLOCKS; i++) cbmp_mark_free(i);
-}
-
-static int32_t cbmp_alloc(int32_t blocks)
-{
-    if (blocks <= 0 || blocks > COLOR_POOL_BLOCKS) return -1;
-    for (int32_t i = 0; i + blocks <= COLOR_POOL_BLOCKS; i++) {
-        int32_t available = 1;
-        for (int32_t j = 0; j < blocks; j++) {
-            if (!cbmp_is_free(i + j)) { available = 0; break; }
-        }
-        if (available) {
-            for (int32_t j = 0; j < blocks; j++) cbmp_mark_used(i + j);
-            return i;
-        }
-    }
-    return -1;
-}
-
-static void cbmp_free_blocks(int32_t block, int32_t blocks)
-{
-    if (block < 0 || blocks <= 0) return;
-    for (int32_t i = 0; i < blocks && block + i < COLOR_POOL_BLOCKS; i++) {
-        cbmp_mark_free(block + i);
-    }
-}
-
 static void glyph_release(G *g)
 {
     if (g->bmp_blocks) gbmp_free_blocks(g->bmp_block, g->bmp_blocks);
-    if (g->color_blocks) cbmp_free_blocks(g->color_block, g->color_blocks);
     g->bmp_block = 0;
     g->bmp_blocks = 0;
-    g->color_block = 0;
-    g->color_blocks = 0;
     g->cached = 0;
     g->w = 0;
     g->h = 0;
@@ -271,7 +212,7 @@ static G *gc_get(uint32_t cp)
     int32_t gh = iy1 - iy0;
 
     if (gw > 0 && gh > 0 && gw <= GLYPH_MAX && gh <= GLYPH_MAX) {
-        int32_t stride = (gw + 1) >> 1;
+        int32_t stride = gw;
         size_t bytes = (size_t)stride * (size_t)gh;
         int32_t blocks = (int32_t)((bytes + GLYPH_BLOCK - 1) / GLYPH_BLOCK);
         int32_t block = gbmp_alloc(blocks);
@@ -299,16 +240,7 @@ static G *gc_get(uint32_t cp)
             stbtt_MakeCodepointBitmap(&s_fi, s_glyph_tmp, g->w, g->h,
                                       g->w, s_sc, s_sc, cp);
             uint8_t *bmp = &s_gbmp_pool[(size_t)block * GLYPH_BLOCK];
-            memset(bmp, 0, bytes);
-            for (int32_t y = 0; y < g->h; y++) {
-                for (int32_t x = 0; x < g->w; x++) {
-                    uint8_t a = (uint8_t)(s_glyph_tmp[y * g->w + x] >> 4);
-                    if (!a) continue;
-                    uint8_t *cell = &bmp[y * stride + (x >> 1)];
-                    if (x & 1) *cell = (uint8_t)((*cell & 0x0F) | (a << 4));
-                    else       *cell = (uint8_t)((*cell & 0xF0) | a);
-                }
-            }
+            memcpy(bmp, s_glyph_tmp, bytes);
         }
     }
 
@@ -546,91 +478,13 @@ static void ensure_blend_lut(uint16_t fg)
     if (s_lut_valid && s_lut_fg == fg && s_lut_bg == s_bg_color) return;
     s_lut_fg = fg;
     s_lut_bg = s_bg_color;
-    for (int32_t a = 0; a < 16; a++) s_blend_lut[a] = glyph_blend565(s_bg_color, fg, a);
+    for (int32_t a = 0; a < 256; a++) s_blend_lut[a] = glyph_blend565_255(s_bg_color, fg, a);
     s_lut_valid = 1;
 }
 
 void r_prepare_parallel(void)
 {
     if (s_font_ok) ensure_blend_lut(s_fg_color);
-}
-
-#ifdef PTEXT_MT
-static pthread_mutex_t s_color_mu = PTHREAD_MUTEX_INITIALIZER;
-#endif
-
-static uint16_t *glyph_color_bitmap(G *g)
-{
-    uint8_t blocks = __atomic_load_n(&g->color_blocks, __ATOMIC_ACQUIRE);
-    if (blocks && g->color_fg == s_fg_color && g->color_bg == s_bg_color) {
-        return (uint16_t *)&s_cbmp_pool[(size_t)g->color_block * COLOR_BLOCK];
-    }
-#ifdef PTEXT_MT
-    pthread_mutex_lock(&s_color_mu);
-#endif
-    blocks = __atomic_load_n(&g->color_blocks, __ATOMIC_RELAXED);
-    if (blocks && g->color_fg == s_fg_color && g->color_bg == s_bg_color) {
-#ifdef PTEXT_MT
-        pthread_mutex_unlock(&s_color_mu);
-#endif
-        return (uint16_t *)&s_cbmp_pool[(size_t)g->color_block * COLOR_BLOCK];
-    }
-    if (blocks) {
-        cbmp_free_blocks(g->color_block, blocks);
-        g->color_block = 0;
-        __atomic_store_n(&g->color_blocks, 0, __ATOMIC_RELAXED);
-    }
-    ensure_blend_lut(s_fg_color);
-    int32_t bytes = (int32_t)g->w * g->h * 2;
-    int32_t nblocks = (bytes + COLOR_BLOCK - 1) / COLOR_BLOCK;
-    int32_t block = cbmp_alloc(nblocks);
-    if (block < 0) {
-#ifdef PTEXT_MT
-        pthread_mutex_unlock(&s_color_mu);
-#endif
-        return NULL;
-    }
-    const uint8_t *src = &s_gbmp_pool[(size_t)g->bmp_block * GLYPH_BLOCK];
-    uint16_t *dst = (uint16_t *)&s_cbmp_pool[(size_t)block * COLOR_BLOCK];
-    int32_t src_stride = (g->w + 1) >> 1;
-    for (int32_t y = 0; y < g->h; y++) {
-        const uint8_t *srow = &src[y * src_stride];
-        uint16_t *drow = &dst[y * g->w];
-        for (int32_t x = 0; x < g->w; x++) {
-            uint8_t packed = srow[x >> 1];
-            uint8_t a = (x & 1) ? (packed >> 4) : (packed & 0x0F);
-            drow[x] = s_blend_lut[a];
-        }
-    }
-    g->color_block = (uint16_t)block;
-    g->color_fg = s_fg_color;
-    g->color_bg = s_bg_color;
-    __atomic_store_n(&g->color_blocks, (uint8_t)nblocks, __ATOMIC_RELEASE);
-#ifdef PTEXT_MT
-    pthread_mutex_unlock(&s_color_mu);
-#endif
-    return dst;
-}
-
-static inline int glyph_color_blit(uint16_t *dst, int32_t dst_stride,
-                                   int32_t dst_w, int32_t dst_h,
-                                   int32_t x, int32_t y, const G *g,
-                                   const uint16_t *src)
-{
-    int32_t sx = x + g->xo, sy = y + g->yo;
-    int32_t y0 = sy < 0 ? 0 : sy;
-    int32_t y1 = sy + g->h;
-    if (y1 > dst_h) y1 = dst_h;
-    int32_t x0 = sx < 0 ? 0 : sx;
-    int32_t x1 = sx + g->w;
-    if (x1 > dst_w) x1 = dst_w;
-    if (x1 <= x0 || y1 <= y0) return 0;
-    for (int32_t row = y0; row < y1; row++) {
-        memcpy(&dst[row * dst_stride + x0],
-               &src[(row - sy) * g->w + (x0 - sx)],
-               (size_t)(x1 - x0) * 2);
-    }
-    return 1;
 }
 
 static int gc_is_cached(uint32_t cp)
@@ -665,18 +519,13 @@ static inline void draw_glyph(int32_t x, int32_t y, G *g, uint16_t fg,
                               int32_t bg_only)
 {
     if (!g->cached || !g->w) return;
-    if (bg_only) {
-        const uint16_t *color = glyph_color_bitmap(g);
-        if (color && glyph_color_blit(s_px, s_stride, s_w, s_h,
-                                      x, y, g, color)) return;
-    }
     const uint8_t *bmp = &s_gbmp_pool[(size_t)g->bmp_block * GLYPH_BLOCK];
-    GlyphBlit gb = {bmp, g->w, g->h, g->xo, g->yo};
+    GlyphBlit8 gb = {bmp, g->w, g->h, g->xo, g->yo};
     if (bg_only) {
-        glyph_blit_bg(s_px, s_stride, s_w, s_h, x, y, &gb, s_blend_lut);
+        glyph_blit8_bg(s_px, s_stride, s_w, s_h, x, y, &gb, s_blend_lut);
     } else {
-        glyph_blit(s_px, s_stride, s_w, s_h, x, y, &gb,
-                   fg, s_bg_color, s_blend_lut);
+        glyph_blit8(s_px, s_stride, s_w, s_h, x, y, &gb,
+                    fg, s_bg_color, s_blend_lut);
     }
 }
 
@@ -886,7 +735,6 @@ void r_clear_cache(void) {
     union { float f; uint32_t u; } sz = {s_fsz};
     s_adv_szbits = sz.u;
     gbmp_init();
-    cbmp_init();
     s_lru = 0;
     s_stb_pool_ptr = 0;
 }

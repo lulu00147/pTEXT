@@ -9,6 +9,9 @@ $cc -std=c11 -O2 -D_GNU_SOURCE -DPTEXT_HOST_TEST -I../app/src/main/cpp -I. \
 $cc -std=c11 -O2 -D_GNU_SOURCE -I../app/src/main/cpp -I. \
     test_glyph_blit.c -o test_glyph_blit
 ./test_glyph_blit
+$cc -std=c11 -O2 -D_GNU_SOURCE -I../app/src/main/cpp -I. \
+    test_glyph_blit8.c -o test_glyph_blit8
+./test_glyph_blit8
 $cc -std=c11 -O2 -D_GNU_SOURCE -DPTEXT_HOST_TEST -I../app/src/main/cpp -I. \
     test_index.c render_host.c ../app/src/main/cpp/reader.c \
     ../app/src/main/cpp/encoding.c ../app/src/main/cpp/persist.c \
@@ -49,6 +52,6 @@ $cc -std=c11 -O2 -D_GNU_SOURCE -DPTEXT_HOST_TEST -I../app/src/main/cpp -I. \
 $cc -std=c11 -O2 -D_GNU_SOURCE -I../app/src/main/cpp -I. \
     test_utf8_gbk.c ../app/src/main/cpp/encoding.c -o test_utf8_gbk
 ./test_utf8_gbk
-rm -f test_reader test_glyph_blit test_index test_persist test_persist_fault \
+rm -f test_reader test_glyph_blit test_glyph_blit8 test_index test_persist test_persist_fault \
       test_ui_settings test_ui_lists test_ui_reading test_ui_reading_mt \
       test_reader_io_fault test_utf8_gbk
