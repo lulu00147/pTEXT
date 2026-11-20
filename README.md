@@ -51,7 +51,7 @@ KEY_PASSWORD=...
 | `reader.c` | mmap、分页、历史、书签、设置、检查点 |
 | `encoding.c` | UTF-8、GBK、GB18030 |
 | `persist.c` | 临时文件 + fsync + rename |
-| `render.c` | 系统字体、RGB565、4-bit alpha 字形缓存 |
+| `render.c` | 系统字体、RGB565、4-bit alpha 字形缓存、预着色 RGB565 字形缓存 |
 | `nolog.c` | `__android_log_print` 空实现 |
 | `MainActivity.java` | NativeActivity 壳、SAF 导入、常亮 |
 
@@ -110,31 +110,25 @@ files/<name>.txt.name   原始显示名
 
 ## 性能
 
-口径：arm64-v8a release；`clock_gettime(CLOCK_MONOTONIC)`；`p50` / `p95` 使用 nearest-rank；帧 = `r_begin` → `r_end`，不含 SurfaceFlinger 提交等待。
+当前 release `eafe6f1` 的正文绘制阶段，使用真实小说《樱树抽芽时，想你.txt》485,562 B，连续 100 页，2 轮中位数。数值是正文阶段累计时间，不是整帧 p50。
 
-同一文本 `bench.txt`（623,786 B，SHA-256 `7FAA22892E2D66137EB050129C42FB14F183DE340CCACB1DCD8AE32AA5CB0814`，2000 章），两台设备分别安装单线程和多线程版本。每轮从第 1 页连续执行 100 次真实下一页操作，采样 100 帧；共 3 轮，取中位。CPU 为 100 次翻页期间 `/proc/<pid>/stat` 的 `utime + stime` 差值，包含分页、预取和绘制；CPU 未锁频。
+| 设备 | 版本 | 正文 / 100 页 | 每页 |
+|---|---|---:|---:|
+| PKR110 / Android 17 | 单线程 | 236 ms | 2.36 ms |
+| PKR110 / Android 17 | 多线程 | 217 ms | 2.17 ms |
+| PJA110 / Android 16 | 单线程 | 869 ms | 8.69 ms |
+| PJA110 / Android 16 | 多线程 | 734 ms | 7.34 ms |
 
-| 设备 | 版本 | 帧 p50 | 帧 p95 | max | CPU / 100 次翻页 | CPU / 帧 |
-|---|---|---:|---:|---:|---:|---:|
-| PKR110 / Android 17 | 单线程 | 3.44 ms | 5.66 ms | 8.23 ms | 780 ms | 7.8 ms |
-| PKR110 / Android 17 | 多线程 | 2.27 ms | 4.10 ms | 7.82 ms | 680 ms | 6.8 ms |
-| PJA110 / Android 16 | 单线程 | 15.78 ms | 28.96 ms | 32.73 ms | 2,820 ms | 28.2 ms |
-| PJA110 / Android 16 | 多线程 | 9.43 ms | 15.07 ms | 18.16 ms | 2,420 ms | 24.2 ms |
+多线程正文阶段相对单线程：PKR 约降 8%，PJA 约降 16%。
 
-多线程相对单线程：PKR110 p50 降约 34%、p95 降约 28%、CPU 降约 13%；PJA110 p50 降约 40%、p95 降约 48%、CPU 降约 14%。
-
-CPU 频率中位（`time_in_state` 差值）：
+正文使用主线程 + 两个工作线程三路绘制；字形预加载失败时回退单线程。字形缓存：
 
 ```text
-PKR110 MT: policy0 1029 MHz, policy6 1018 MHz
-PKR110 ST: policy0 1024 MHz, policy6 1018 MHz
-PJA110 MT: policy0 821 MHz, policy3 997 MHz, policy7 864 MHz
-PJA110 ST: policy0 819 MHz, policy3 1003 MHz, policy7 864 MHz
+alpha 字形缓存：4 MiB，2048 项
+彩色字形缓存：  8 MiB，RGB565
 ```
 
-PJA110 的翻页线程多数停在 729/864 MHz，PKR110 的线程可升到 2.4–2.7 GHz；两者阶段耗时差与频率差基本一致。PJA110 在持续压测下可升到 2.5/2.6 GHz，说明高耗时主要来自 OEM governor 对短翻页负载的升频策略，不是绘制代码路径差异。
-
-单线程/多线程基准 APK 均为 119,600 B；正常 release 为 119,598 B。正文采用主线程 + 两个工作线程三路绘制，字形预加载失败时回退单线程。
+PJA 的主要限制仍是默认调度下 worker 落在低频 little/mid core；未使用绑核、优先级或超频手段。
 
 ## 省电
 
