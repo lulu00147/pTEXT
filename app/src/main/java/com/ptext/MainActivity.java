@@ -7,6 +7,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.provider.OpenableColumns;
 import android.view.MotionEvent;
 import android.view.Window;
@@ -25,17 +26,21 @@ import java.nio.charset.StandardCharsets;
 public class MainActivity extends NativeActivity {
     private static final int REQ = 1001;
     private static final long SCREEN_ON_TIMEOUT_MS = 5 * 60 * 1000L;
+    private static final long SCREEN_ON_REFRESH_MS = 1000L;
     private static volatile MainActivity sInst;
     private static volatile int sRescan;
     private static int sFileCounter;
 
     private final Handler screenHandler = new Handler(Looper.getMainLooper());
     private boolean screenActive;
+    private boolean screenOnFlag;
+    private long lastKeepMs;
     private volatile boolean importing;
     private Toast progressToast;
     private final Runnable releaseScreenOn = () -> {
         Window w = getWindow();
         if (w != null) w.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        screenOnFlag = false;
     };
 
     @Override
@@ -61,6 +66,8 @@ public class MainActivity extends NativeActivity {
     @Override
     protected void onPause() {
         screenActive = false;
+        screenOnFlag = false;
+        lastKeepMs = 0;
         screenHandler.removeCallbacks(releaseScreenOn);
         Window w = getWindow();
         if (w != null) w.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -80,9 +87,15 @@ public class MainActivity extends NativeActivity {
 
     private void keepScreenOn() {
         if (!screenActive) return;
+        long now = SystemClock.uptimeMillis();
+        if (screenOnFlag && now - lastKeepMs < SCREEN_ON_REFRESH_MS) return;
         Window w = getWindow();
         if (w == null) return;
-        w.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        if (!screenOnFlag) {
+            w.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            screenOnFlag = true;
+        }
+        lastKeepMs = now;
         screenHandler.removeCallbacks(releaseScreenOn);
         screenHandler.postDelayed(releaseScreenOn, SCREEN_ON_TIMEOUT_MS);
     }
