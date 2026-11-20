@@ -52,18 +52,28 @@ static inline int32_t safe_iceil(float x) {
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
 
-#define GC_SIZE  2048
+#define GC_SIZE  4096
 #define GC_ASSOC 4
 #define GC_MASK  (GC_SIZE - 1)
 #define ADV_SIZE 4096
 #define ADV_MASK (ADV_SIZE - 1)
 #define GLYPH_MAX 128
-#define GLYPH_BLOCK 4096
-#define GLYPH_POOL_BLOCKS 2048
+#define GLYPH_BLOCK 1024
+#define GLYPH_POOL_BLOCKS 8192
 #define GLYPH_POOL_SIZE ((size_t)GLYPH_BLOCK * GLYPH_POOL_BLOCKS)
-#define COLOR_BLOCK 4096
-#define COLOR_POOL_BLOCKS 2048
+#define COLOR_BLOCK 1024
+#define COLOR_POOL_BLOCKS 8192
 #define COLOR_POOL_SIZE ((size_t)COLOR_BLOCK * COLOR_POOL_BLOCKS)
+_Static_assert(GLYPH_POOL_SIZE == 8u * 1024u * 1024u, "alpha pool must stay 8 MiB");
+_Static_assert(COLOR_POOL_SIZE == 8u * 1024u * 1024u, "color pool must stay 8 MiB");
+_Static_assert(GLYPH_BLOCK % 2 == 0 && COLOR_BLOCK % 2 == 0, "RGB565 block alignment");
+_Static_assert(GLYPH_POOL_BLOCKS <= 65536 && COLOR_POOL_BLOCKS <= 65536,
+               "16-bit block index capacity");
+_Static_assert(((GLYPH_MAX * GLYPH_MAX + 1) / 2 + GLYPH_BLOCK - 1) / GLYPH_BLOCK <= 255,
+               "alpha block count fits uint8");
+_Static_assert((GLYPH_MAX * GLYPH_MAX * 2 + COLOR_BLOCK - 1) / COLOR_BLOCK <= 255,
+               "color block count fits uint8");
+
 
 typedef struct {
     uint32_t cp;
