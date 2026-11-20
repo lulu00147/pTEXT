@@ -62,7 +62,7 @@ static inline int32_t safe_iceil(float x) {
 #define GLYPH_POOL_BLOCKS 2048
 #define GLYPH_POOL_SIZE ((size_t)GLYPH_BLOCK * GLYPH_POOL_BLOCKS)
 #define COLOR_BLOCK 4096
-#define COLOR_POOL_BLOCKS 1024
+#define COLOR_POOL_BLOCKS 2048
 #define COLOR_POOL_SIZE ((size_t)COLOR_BLOCK * COLOR_POOL_BLOCKS)
 
 typedef struct {
