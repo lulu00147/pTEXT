@@ -509,13 +509,25 @@ int r_preload_text(const uint32_t *s, int32_t n)
     return 1;
 }
 
-static inline void draw_glyph(int32_t x, int32_t y, const G *g, uint16_t fg)
+static int32_t s_bg_only;
+
+void r_set_bg_only(int32_t on)
+{
+    s_bg_only = on;
+}
+
+static inline void draw_glyph(int32_t x, int32_t y, const G *g, uint16_t fg,
+                              int32_t bg_only)
 {
     if (!g->cached || !g->w) return;
     const uint8_t *bmp = &s_gbmp_pool[(size_t)g->bmp_block * GLYPH_BLOCK];
     GlyphBlit gb = {bmp, g->w, g->h, g->xo, g->yo};
-    glyph_blit(s_px, s_stride, s_w, s_h, x, y, &gb,
-               fg, s_bg_color, s_blend_lut);
+    if (bg_only) {
+        glyph_blit_bg(s_px, s_stride, s_w, s_h, x, y, &gb, s_blend_lut);
+    } else {
+        glyph_blit(s_px, s_stride, s_w, s_h, x, y, &gb,
+                   fg, s_bg_color, s_blend_lut);
+    }
 }
 
 void r_draw_text(int32_t x, int32_t y, const uint32_t *s, int32_t n)
@@ -523,13 +535,20 @@ void r_draw_text(int32_t x, int32_t y, const uint32_t *s, int32_t n)
     if (!s_locked || !s_font_ok) return;
     uint16_t fg = s_fg_color;
     ensure_blend_lut(fg);
+    int32_t right = 0;
+    int32_t have_right = 0;
     for (int32_t i = 0; i < n; i++) {
         G *g = GC_GET(s[i]);
         if (!g || !g->w) {
             x += (g && g->adv) ? g->adv : r_font_h();
             continue;
         }
-        draw_glyph(x, y, g, fg);
+        int32_t gx = x + g->xo;
+        int32_t bg_only = s_bg_only && (!have_right || gx >= right);
+        draw_glyph(x, y, g, fg, bg_only);
+        int32_t gr = gx + g->w;
+        if (!have_right || gr > right) right = gr;
+        have_right = 1;
         x += g->adv;
     }
 }
@@ -604,12 +623,19 @@ void r_draw_text_justified(int32_t x, int32_t y, const uint32_t *s, int32_t n, i
     int32_t px = x;
     uint16_t fg = s_fg_color;
     ensure_blend_lut(fg);
+    int32_t right = 0;
+    int32_t have_right = 0;
     for (int32_t i = 0; i < n; i++) {
         G *g = GC_GET(s[i]);
         if (!g || !g->w) {
             px += (g && g->adv) ? g->adv : r_font_h();
         } else {
-            draw_glyph(px, y, g, fg);
+            int32_t gx = px + g->xo;
+            int32_t bg_only = s_bg_only && (!have_right || gx >= right);
+            draw_glyph(px, y, g, fg, bg_only);
+            int32_t gr = gx + g->w;
+            if (!have_right || gr > right) right = gr;
+            have_right = 1;
             px += g->adv;
         }
         if (i < n - 1) px += gaps[i];

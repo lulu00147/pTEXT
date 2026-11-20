@@ -58,6 +58,7 @@ void r_draw_text(int32_t x, int32_t y, const uint32_t *s, int32_t n)
     (void)x; (void)y; (void)s; (void)n;
     atomic_fetch_add(&text_calls, 1);
 }
+void r_set_bg_only(int32_t on) { (void)on; }
 void r_draw_text_justified(int32_t x, int32_t y, const uint32_t *s, int32_t n,
                            int32_t target_width)
 {

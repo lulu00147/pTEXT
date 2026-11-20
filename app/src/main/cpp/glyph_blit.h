@@ -152,4 +152,105 @@ GLYPH_INLINE void glyph_blit(uint16_t *dst, int32_t dst_stride,
     }
 }
 
+GLYPH_INLINE void glyph_blit_bg(uint16_t *dst, int32_t dst_stride,
+                                 int32_t dst_w, int32_t dst_h,
+                                 int32_t x, int32_t y, const GlyphBlit *g,
+                                 const uint16_t *lut)
+{
+    if (!dst || !g || !g->bmp || !lut || dst_stride < dst_w) return;
+
+    int32_t sx = x + g->xo, sy = y + g->yo;
+    int32_t src_stride = (g->w + 1) >> 1;
+    int32_t y0 = sy < 0 ? 0 : sy;
+    int32_t y1 = sy + g->h;
+    if (y1 > dst_h) y1 = dst_h;
+    int32_t x0 = sx < 0 ? 0 : sx;
+    int32_t x1 = sx + g->w;
+    if (x1 > dst_w) x1 = dst_w;
+    if (x1 <= x0 || y1 <= y0) return;
+
+#if defined(__aarch64__)
+    uint8x16x2_t table;
+    table.val[0] = vld1q_u8((const uint8_t *)lut);
+    table.val[1] = vld1q_u8((const uint8_t *)lut + 16);
+#endif
+
+    for (int32_t row = y0; row < y1; row++) {
+        int32_t src_row = row - sy;
+        uint16_t *drow = &dst[row * dst_stride];
+        const uint8_t *src = &g->bmp[src_row * src_stride];
+        int32_t col = x0;
+        if ((col - sx) & 1) {
+            int32_t sc = col - sx;
+            uint8_t a = (src[sc >> 1] >> 4) & 0x0F;
+            if (a) drow[col] = lut[a];
+            col++;
+        }
+#if defined(__aarch64__)
+        for (; col + 7 < x1; col += 8) {
+            int32_t sc = col - sx;
+            if (sc + 7 >= g->w) break;
+            uint8_t p0 = src[sc >> 1];
+            uint8_t p1 = src[(sc + 2) >> 1];
+            uint8_t p2 = src[(sc + 4) >> 1];
+            uint8_t p3 = src[(sc + 6) >> 1];
+            if (!(p0 | p1 | p2 | p3)) continue;
+
+            uint16_t packed = (uint16_t)p0 | ((uint16_t)p1 << 8);
+            uint8x8_t pb = vreinterpret_u8_u16(vdup_n_u16(packed));
+            uint8x8_t lo = vand_u8(pb, vdup_n_u8(0x0F));
+            uint8x8_t hi = vshr_n_u8(pb, 4);
+            uint8x8_t alpha = vzip_u8(lo, hi).val[0];
+            uint8x8_t q = vshl_n_u8(alpha, 1);
+            uint8x8_t idx8 = vzip_u8(q, vadd_u8(q, vdup_n_u8(1))).val[0];
+            uint8x16_t idx = vcombine_u8(idx8, vdup_n_u8(0));
+            uint8x8_t res = vget_low_u8(vqtbl2q_u8(table, idx));
+            vst1_u16(&drow[col], vreinterpret_u16_u8(res));
+
+            packed = (uint16_t)p2 | ((uint16_t)p3 << 8);
+            pb = vreinterpret_u8_u16(vdup_n_u16(packed));
+            lo = vand_u8(pb, vdup_n_u8(0x0F));
+            hi = vshr_n_u8(pb, 4);
+            alpha = vzip_u8(lo, hi).val[0];
+            q = vshl_n_u8(alpha, 1);
+            idx8 = vzip_u8(q, vadd_u8(q, vdup_n_u8(1))).val[0];
+            idx = vcombine_u8(idx8, vdup_n_u8(0));
+            res = vget_low_u8(vqtbl2q_u8(table, idx));
+            vst1_u16(&drow[col + 4], vreinterpret_u16_u8(res));
+        }
+        for (; col + 3 < x1; col += 4) {
+            int32_t sc = col - sx;
+            if (sc + 3 >= g->w) break;
+            uint8_t p0 = src[sc >> 1];
+            uint8_t p1 = src[(sc + 2) >> 1];
+            if (!(p0 | p1)) continue;
+            uint16_t packed = (uint16_t)p0 | ((uint16_t)p1 << 8);
+            uint8x8_t pb = vreinterpret_u8_u16(vdup_n_u16(packed));
+            uint8x8_t lo = vand_u8(pb, vdup_n_u8(0x0F));
+            uint8x8_t hi = vshr_n_u8(pb, 4);
+            uint8x8_t alpha = vzip_u8(lo, hi).val[0];
+            uint8x8_t q = vshl_n_u8(alpha, 1);
+            uint8x8_t idx8 = vzip_u8(q, vadd_u8(q, vdup_n_u8(1))).val[0];
+            uint8x16_t idx = vcombine_u8(idx8, vdup_n_u8(0));
+            uint8x8_t res = vget_low_u8(vqtbl2q_u8(table, idx));
+            vst1_u16(&drow[col], vreinterpret_u16_u8(res));
+        }
+#endif
+        for (; col + 1 < x1; col += 2) {
+            int32_t sc = col - sx;
+            uint8_t packed = src[sc >> 1];
+            if (!packed) continue;
+            uint8_t a0 = packed & 0x0F;
+            uint8_t a1 = packed >> 4;
+            if (a0) drow[col] = lut[a0];
+            if (a1) drow[col + 1] = lut[a1];
+        }
+        if (col < x1) {
+            int32_t sc = col - sx;
+            uint8_t a = (src[sc >> 1] >> ((sc & 1) ? 4 : 0)) & 0x0F;
+            if (a) drow[col] = lut[a];
+        }
+    }
+}
+
 #endif

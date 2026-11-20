@@ -103,6 +103,7 @@ void ui_draw_reading(void)
     }
 
     int32_t vstep_x10 = pl.line_height * 10 + 7;
+    r_set_bg_only(1);
 #ifdef PTEXT_MT
     BodyItem items[80];
     int32_t item_count = 0;
@@ -154,4 +155,5 @@ void ui_draw_reading(void)
         draw_i++;
     }
 #endif
+    r_set_bg_only(0);
 }
