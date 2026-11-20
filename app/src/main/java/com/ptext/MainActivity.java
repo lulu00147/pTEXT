@@ -26,7 +26,6 @@ import java.nio.charset.StandardCharsets;
 public class MainActivity extends NativeActivity {
     private static final int REQ = 1001;
     private static final long SCREEN_ON_TIMEOUT_MS = 5 * 60 * 1000L;
-    private static final long SCREEN_ON_REFRESH_MS = 1000L;
     private static volatile MainActivity sInst;
     private static volatile int sRescan;
     private static int sFileCounter;
@@ -34,10 +33,17 @@ public class MainActivity extends NativeActivity {
     private final Handler screenHandler = new Handler(Looper.getMainLooper());
     private boolean screenActive;
     private boolean screenOnFlag;
-    private long lastKeepMs;
+    private boolean releaseScheduled;
+    private long lastTouchMs;
     private volatile boolean importing;
     private Toast progressToast;
     private final Runnable releaseScreenOn = () -> {
+        releaseScheduled = false;
+        long remain = SCREEN_ON_TIMEOUT_MS - (SystemClock.uptimeMillis() - lastTouchMs);
+        if (screenActive && remain > 0) {
+            scheduleRelease(remain);
+            return;
+        }
         Window w = getWindow();
         if (w != null) w.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         screenOnFlag = false;
@@ -67,7 +73,8 @@ public class MainActivity extends NativeActivity {
     protected void onPause() {
         screenActive = false;
         screenOnFlag = false;
-        lastKeepMs = 0;
+        releaseScheduled = false;
+        lastTouchMs = 0;
         screenHandler.removeCallbacks(releaseScreenOn);
         Window w = getWindow();
         if (w != null) w.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -87,17 +94,21 @@ public class MainActivity extends NativeActivity {
 
     private void keepScreenOn() {
         if (!screenActive) return;
-        long now = SystemClock.uptimeMillis();
-        if (screenOnFlag && now - lastKeepMs < SCREEN_ON_REFRESH_MS) return;
-        Window w = getWindow();
-        if (w == null) return;
+        lastTouchMs = SystemClock.uptimeMillis();
         if (!screenOnFlag) {
+            Window w = getWindow();
+            if (w == null) return;
             w.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
             screenOnFlag = true;
         }
-        lastKeepMs = now;
-        screenHandler.removeCallbacks(releaseScreenOn);
-        screenHandler.postDelayed(releaseScreenOn, SCREEN_ON_TIMEOUT_MS);
+        if (!releaseScheduled) {
+            scheduleRelease(SCREEN_ON_TIMEOUT_MS);
+        }
+    }
+
+    private void scheduleRelease(long delayMs) {
+        releaseScheduled = true;
+        screenHandler.postDelayed(releaseScreenOn, delayMs);
     }
 
     public static void resetScreenOn() {
