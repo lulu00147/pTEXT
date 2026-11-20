@@ -42,6 +42,24 @@ static void reference_blit(uint16_t *dst, const GlyphBlit *g, int32_t x, int32_t
     }
 }
 
+static void reference_blit_bg(uint16_t *dst, const GlyphBlit *g, int32_t x, int32_t y,
+                              const uint16_t *lut)
+{
+    int32_t sx = x + g->xo, sy = y + g->yo;
+    int32_t stride = (g->w + 1) >> 1;
+    for (int32_t row = 0; row < g->h; row++) {
+        int32_t dy = sy + row;
+        if (dy < 0 || dy >= DH) continue;
+        for (int32_t col = 0; col < g->w; col++) {
+            int32_t dx = sx + col;
+            if (dx < 0 || dx >= DW) continue;
+            uint8_t packed = g->bmp[row * stride + (col >> 1)];
+            uint8_t a = (col & 1) ? (packed >> 4) : (packed & 0x0F);
+            if (a) dst[dy * DS + dx] = lut[a];
+        }
+    }
+}
+
 static void run_case(const char *name, int32_t x, int32_t y,
                      uint16_t fg, uint16_t bg, int32_t xo, int32_t yo)
 {
@@ -77,12 +95,48 @@ static void run_case(const char *name, int32_t x, int32_t y,
     }
 }
 
+static void run_bg_case(const char *name, int32_t x, int32_t y, int32_t xo, int32_t yo)
+{
+    static const uint8_t bmp[] = {
+        0x00, 0x00, 0x00, 0x00, 0x00,
+        0x0F, 0x00, 0x34, 0x00, 0x00,
+        0xF0, 0x12, 0x00, 0x00, 0x00,
+        0x5A, 0xA5, 0x0F, 0xF0, 0x00,
+        0xFF, 0x00, 0x66, 0x00, 0x00,
+    };
+    GlyphBlit g = {bmp, 9, 5, xo, yo};
+    uint16_t lut[16];
+    uint16_t actual[DH * DS];
+    uint16_t expected[DH * DS];
+
+    for (int32_t i = 0; i < 16; i++) lut[i] = (uint16_t)(0x1000 + i * 0x0101);
+    for (int32_t yy = 0; yy < DH; yy++) {
+        for (int32_t xx = 0; xx < DS; xx++) {
+            uint16_t v = (uint16_t)(((xx + yy) & 1) ? 0x1234 : 0xABCD);
+            actual[yy * DS + xx] = v;
+            expected[yy * DS + xx] = v;
+        }
+    }
+
+    reference_blit_bg(expected, &g, x, y, lut);
+    glyph_blit_bg(actual, DS, DW, DH, x, y, &g, lut);
+    for (int32_t i = 0; i < DH * DS; i++) {
+        if (actual[i] != expected[i]) {
+            fprintf(stderr, "%s: mismatch at pixel %d: got 0x%04X expected 0x%04X\n",
+                    name, i, actual[i], expected[i]);
+            assert(0);
+        }
+    }
+}
+
 static void run_random_case(uint32_t *state)
 {
     uint8_t bmp[128];
     uint16_t lut[16];
     uint16_t actual[DH * DS];
     uint16_t expected[DH * DS];
+    uint16_t actual_bg[DH * DS];
+    uint16_t expected_bg[DH * DS];
     uint32_t r = *state;
     r = r * 1664525u + 1013904223u;
     int32_t w = 1 + (int32_t)(r % 14);
@@ -113,6 +167,8 @@ static void run_random_case(uint32_t *state)
             uint16_t v = (uint16_t)((xx * 37 + yy * 101) ^ (uint16_t)bg);
             actual[yy * DS + xx] = v;
             expected[yy * DS + xx] = v;
+            actual_bg[yy * DS + xx] = v;
+            expected_bg[yy * DS + xx] = v;
         }
     }
 
@@ -120,6 +176,12 @@ static void run_random_case(uint32_t *state)
     glyph_blit(actual, DS, DW, DH, x, y, &g, fg, bg, lut);
     for (int32_t i = 0; i < DH * DS; i++) {
         assert(actual[i] == expected[i]);
+    }
+
+    reference_blit_bg(expected_bg, &g, x, y, lut);
+    glyph_blit_bg(actual_bg, DS, DW, DH, x, y, &g, lut);
+    for (int32_t i = 0; i < DH * DS; i++) {
+        assert(actual_bg[i] == expected_bg[i]);
     }
     *state = r;
 }
@@ -145,6 +207,18 @@ int main(void)
         }
     }
 
+    run_bg_case("bg-even", 10, 4, 1, 1);
+    run_bg_case("bg-odd", 11, 4, 0, 1);
+    run_bg_case("bg-left-clip", -5, 4, 2, 1);
+    run_bg_case("bg-right-clip", DW - 4, 4, 1, 1);
+    run_bg_case("bg-top-clip", 10, -2, 1, 1);
+    run_bg_case("bg-bottom-clip", 10, DH - 2, 1, 1);
+    run_bg_case("bg-outside", 10, DH + 8, 1, 1);
+    run_bg_case("bg-far-left", -20, 4, -3, 1);
+    run_bg_case("bg-far-right", DW + 20, 4, 1, 1);
+    run_bg_case("bg-far-top", 10, -20, 1, -3);
+    run_bg_case("bg-far-bottom", 10, DH + 20, 1, 1);
+
     uint32_t random_state = 0x12345678u;
     for (int32_t i = 0; i < 5000; i++) run_random_case(&random_state);
 
@@ -158,6 +232,11 @@ int main(void)
     glyph_blit(buf, DS, DW, DH, 0, 0, &no_bmp, 0xFFFF, 0, lut);
     glyph_blit(buf, DS, DW, DH, 0, 0, &valid, 0xFFFF, 0, NULL);
     glyph_blit(buf, DW - 1, DW, DH, 0, 0, &valid, 0xFFFF, 0, lut);
+    glyph_blit_bg(NULL, DS, DW, DH, 0, 0, &valid, lut);
+    glyph_blit_bg(buf, DS, DW, DH, 0, 0, NULL, lut);
+    glyph_blit_bg(buf, DS, DW, DH, 0, 0, &no_bmp, lut);
+    glyph_blit_bg(buf, DS, DW, DH, 0, 0, &valid, NULL);
+    glyph_blit_bg(buf, DW - 1, DW, DH, 0, 0, &valid, lut);
 
     uint16_t untouched[DH * DS];
     for (int32_t i = 0; i < DH * DS; i++) untouched[i] = 0xA5A5;
@@ -166,6 +245,8 @@ int main(void)
     uint16_t zero_lut[16] = {0};
     glyph_blit(untouched, DS, DW, DH, 10, 4, &zero_w, 0xFFFF, 0, zero_lut);
     glyph_blit(untouched, DS, DW, DH, 10, 4, &zero_h, 0xFFFF, 0, zero_lut);
+    glyph_blit_bg(untouched, DS, DW, DH, 10, 4, &zero_w, zero_lut);
+    glyph_blit_bg(untouched, DS, DW, DH, 10, 4, &zero_h, zero_lut);
     for (int32_t i = 0; i < DH * DS; i++) assert(untouched[i] == 0xA5A5);
 
     puts("glyph blit tests passed");

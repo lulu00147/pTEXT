@@ -24,6 +24,8 @@ static _Atomic int32_t text_calls;
 static _Atomic int32_t justified_calls;
 static _Atomic int32_t size_text_calls;
 static _Atomic int32_t preload_calls;
+static _Atomic int32_t bg_on_calls;
+static _Atomic int32_t bg_off_calls;
 #ifdef PTEXT_MT
 static int32_t fail_threads;
 int __real_pthread_create(pthread_t *, const pthread_attr_t *,
@@ -58,7 +60,11 @@ void r_draw_text(int32_t x, int32_t y, const uint32_t *s, int32_t n)
     (void)x; (void)y; (void)s; (void)n;
     atomic_fetch_add(&text_calls, 1);
 }
-void r_set_bg_only(int32_t on) { (void)on; }
+void r_set_bg_only(int32_t on)
+{
+    if (on) atomic_fetch_add(&bg_on_calls, 1);
+    else atomic_fetch_add(&bg_off_calls, 1);
+}
 void r_draw_text_justified(int32_t x, int32_t y, const uint32_t *s, int32_t n,
                            int32_t target_width)
 {
@@ -102,6 +108,8 @@ int main(void)
     assert(clear_calls == 1);
     assert(text_calls > 0);
     assert(size_text_calls > 0);
+    assert(atomic_load(&bg_on_calls) > 0);
+    assert(atomic_load(&bg_on_calls) == atomic_load(&bg_off_calls));
 
     kBookmarked = 1;
     ui_draw_reading();
