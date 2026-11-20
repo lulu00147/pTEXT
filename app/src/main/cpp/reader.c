@@ -630,6 +630,60 @@ static void idx_save(void)
     if (persist_write_atomic(path, s_idx_buf, total) == 0) s_idx_dirty = 0;
 }
 
+static int32_t idx_parse(const uint8_t *buf, size_t len,
+                         int64_t file_size, int64_t file_mtime,
+                         uint32_t layout_hash, int64_t target,
+                         int64_t *off, int32_t *page_no, uint32_t *prefix_count)
+{
+    if (!buf || len < sizeof(IdxHeader) || !off || !page_no) return 0;
+
+    IdxHeader h;
+    memcpy(&h, buf, sizeof(h));
+    if (h.magic != IDX_MAGIC || h.version != IDX_VERSION ||
+        h.step != IDX_STEP || h.count == 0 || h.count > PAGE_CKPT_MAX ||
+        h.file_size != file_size || h.file_mtime != file_mtime ||
+        h.layout_hash != layout_hash) return 0;
+
+    size_t expected = sizeof(h) + (size_t)h.count * sizeof(IdxRecord);
+    if (len != expected) return 0;
+
+    const uint8_t *base = buf + sizeof(h);
+    uint32_t checksum = 2166136261u;
+    int64_t prev_off = -1;
+    int32_t prev_page = 0;
+    for (uint32_t i = 0; i < h.count; i++) {
+        IdxRecord r;
+        memcpy(&r, base + (size_t)i * sizeof(r), sizeof(r));
+        const uint8_t *rp = (const uint8_t *)&r;
+        for (size_t j = 0; j < sizeof(r); j++) {
+            checksum ^= rp[j];
+            checksum *= 16777619u;
+        }
+        if (r.off < 0 || r.off >= file_size ||
+            r.off <= prev_off || r.page_no <= prev_page) return 0;
+        prev_off = r.off;
+        prev_page = r.page_no;
+    }
+    if (checksum != h.checksum) return 0;
+
+    uint32_t lo = 0, hi = h.count;
+    while (lo < hi) {
+        uint32_t mid = lo + (hi - lo) / 2;
+        IdxRecord r;
+        memcpy(&r, base + (size_t)mid * sizeof(r), sizeof(r));
+        if (r.off <= target) lo = mid + 1;
+        else hi = mid;
+    }
+    if (lo == 0) return 0;
+
+    IdxRecord selected;
+    memcpy(&selected, base + (size_t)(lo - 1) * sizeof(selected), sizeof(selected));
+    *off = selected.off;
+    *page_no = selected.page_no;
+    if (prefix_count) *prefix_count = lo;
+    return 1;
+}
+
 static int32_t idx_lookup(int64_t target, int64_t *off, int32_t *page_no)
 {
     if (!s_mmap_data || !s_cur_name[0] || s_mmap_len < IDX_MIN_FILE ||
@@ -639,61 +693,45 @@ static int32_t idx_lookup(int64_t target, int64_t *off, int32_t *page_no)
     if (!sidecar_path(path, sizeof(path), ".idx", s_cur_name)) return 0;
     FILE *f = fopen(path, "rb");
     if (!f) return 0;
-
-    IdxHeader h;
-    int32_t ok = 0;
-    if (fread(&h, sizeof(h), 1, f) == 1 &&
-        h.magic == IDX_MAGIC && h.version == IDX_VERSION &&
-        h.step == IDX_STEP && h.count > 0 && h.count <= PAGE_CKPT_MAX &&
-        h.file_size == s_mmap_len && h.file_mtime == s_mmap_mtime &&
-        h.layout_hash == idx_layout_hash()) {
-        IdxRecord *recs = (IdxRecord *)(void *)(s_idx_buf + sizeof(h));
-        if ((size_t)h.count <= PAGE_CKPT_MAX &&
-            fread(recs, sizeof(IdxRecord), h.count, f) == h.count) {
-            uint32_t checksum = 2166136261u;
-            int64_t prev_off = -1;
-            int32_t prev_page = 0;
-            ok = 1;
-            for (uint32_t i = 0; i < h.count; i++) {
-                const uint8_t *rp = (const uint8_t *)&recs[i];
-                for (size_t j = 0; j < sizeof(recs[i]); j++) {
-                    checksum ^= rp[j];
-                    checksum *= 16777619u;
-                }
-                if (recs[i].off < 0 || recs[i].off >= s_mmap_len ||
-                    recs[i].off <= prev_off || recs[i].page_no <= prev_page) {
-                    ok = 0;
-                    break;
-                }
-                prev_off = recs[i].off;
-                prev_page = recs[i].page_no;
-            }
-            if (ok && checksum == h.checksum) {
-                uint32_t lo = 0, hi = h.count;
-                while (lo < hi) {
-                    uint32_t mid = lo + (hi - lo) / 2;
-                    if (recs[mid].off <= target) lo = mid + 1;
-                    else hi = mid;
-                }
-                if (lo > 0) {
-                    for (uint32_t i = 0; i < lo; i++) {
-                        s_page_ckpt_off[i] = recs[i].off;
-                        s_page_ckpt_no[i] = recs[i].page_no;
-                    }
-                    s_page_ckpt_count = (int32_t)lo;
-                    s_idx_dirty = 0;
-                    *off = recs[lo - 1].off;
-                    *page_no = recs[lo - 1].page_no;
-                    fclose(f);
-                    return 1;
-                }
-            }
-        }
+    if (fseek(f, 0, SEEK_END) != 0) {
+        fclose(f);
+        return 0;
+    }
+    long fsize = ftell(f);
+    if (fsize <= 0 || (size_t)fsize > sizeof(s_idx_buf) || fseek(f, 0, SEEK_SET) != 0) {
+        fclose(f);
+        return 0;
+    }
+    size_t len = (size_t)fsize;
+    if (fread(s_idx_buf, 1, len, f) != len) {
+        fclose(f);
+        return 0;
     }
     fclose(f);
-    s_page_ckpt_count = 0;
+
+    uint32_t prefix = 0;
+    int64_t selected_off = 0;
+    int32_t selected_page = 0;
+    if (!idx_parse(s_idx_buf, len, s_mmap_len, s_mmap_mtime,
+                   idx_layout_hash(), target, &selected_off,
+                   &selected_page, &prefix)) {
+        s_page_ckpt_count = 0;
+        s_idx_dirty = 0;
+        return 0;
+    }
+
+    const uint8_t *base = s_idx_buf + sizeof(IdxHeader);
+    for (uint32_t i = 0; i < prefix; i++) {
+        IdxRecord r;
+        memcpy(&r, base + (size_t)i * sizeof(r), sizeof(r));
+        s_page_ckpt_off[i] = r.off;
+        s_page_ckpt_no[i] = r.page_no;
+    }
+    s_page_ckpt_count = (int32_t)prefix;
     s_idx_dirty = 0;
-    return 0;
+    *off = selected_off;
+    *page_no = selected_page;
+    return 1;
 }
 
 static int32_t page_for_offset(int64_t target, int64_t *page_start)
@@ -941,6 +979,16 @@ int32_t rd_test_line_break_allowed(uint32_t left, uint32_t right)
 int32_t rd_test_idx_lookup(int64_t target, int64_t *off, int32_t *page_no)
 {
     return idx_lookup(target, off, page_no);
+}
+
+int32_t rd_test_idx_parse(const uint8_t *buf, size_t len,
+                          int64_t file_size, int64_t file_mtime,
+                          uint32_t layout_hash, int64_t target,
+                          int64_t *off, int32_t *page_no,
+                          uint32_t *prefix_count)
+{
+    return idx_parse(buf, len, file_size, file_mtime, layout_hash,
+                     target, off, page_no, prefix_count);
 }
 
 int32_t rd_test_is_para_start(int64_t off)

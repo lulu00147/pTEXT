@@ -149,9 +149,19 @@ int main(void)
     assert(rd_test_idx_lookup(rd_get_file_len() - 1, &index_off, &index_no) > 0);
     assert(index_off >= 0 && index_off < rd_get_file_len());
     assert(index_no > 0);
+    rd_reset_page_cache();
+    assert(rd_test_idx_lookup(0, &index_off, &index_no) == 0);
     rd_close();
 
     write_file("../.idx/idx-large.txt.bin", "bad", 3);
+    assert(rd_open_file("idx-large.txt") == 0);
+    rd_reset_page_cache();
+    assert(rd_test_idx_lookup(rd_get_file_len() - 1, &index_off, &index_no) == 0);
+    rd_close();
+
+    char junk[20000];
+    memset(junk, 0xA5, sizeof(junk));
+    write_file("../.idx/idx-large.txt.bin", junk, sizeof(junk));
     assert(rd_open_file("idx-large.txt") == 0);
     rd_close();
     (void)unlink("../.prog/idx-large.txt.bin");

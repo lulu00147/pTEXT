@@ -70,6 +70,11 @@ void rd_test_paginate_full(int64_t offset);
 int32_t rd_test_line_punct_only(const Line *line);
 int32_t rd_test_line_break_allowed(uint32_t left, uint32_t right);
 int32_t rd_test_idx_lookup(int64_t target, int64_t *off, int32_t *page_no);
+int32_t rd_test_idx_parse(const uint8_t *buf, size_t len,
+                          int64_t file_size, int64_t file_mtime,
+                          uint32_t layout_hash, int64_t target,
+                          int64_t *off, int32_t *page_no,
+                          uint32_t *prefix_count);
 int32_t rd_test_is_para_start(int64_t off);
 int32_t rd_test_load_bookmarks(const char *path, Bookmark *out, int32_t cap);
 int32_t rd_test_read_name_sidecar(const char *path, char *out, size_t cap);
