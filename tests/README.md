@@ -34,6 +34,7 @@
 | `test_ui_lists.c` | 文件/书签列表滚动、命中、导入区、空列表、小窗口 |
 | `test_ui_reading.c` | 阅读页页眉/页脚/正文/书签星号/空内容；单线程与 `PTEXT_MT` |
 | `test_utf8_gbk.c` | UTF-8、GBK、GB18030、截断和非法序列 |
+| `test_affinity.c` | 大小核模式夹紧和绑定入口 |
 | `test_reader_io_fault.c` | reader 的 fopen/open/mmap/fread/fseek 等 I/O 故障 |
 
 编码固定用例与随机用例合计 1,065,822 cases。
