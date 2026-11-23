@@ -525,6 +525,17 @@ int main(void)
     Bookmark bad_header_out[1];
     assert(rd_read_bookmarks(bad_header_path, bad_header_out, 1) == 0);
 
+    const char *size_header_path = "sizeheader.txt";
+    write_file(size_header_path, "x\n", 2);
+    uint32_t size_header[4] = {0x314D4250u, 1u, 0u, 0u};
+    FILE *sh = fopen("../.bm/sizeheader.txt.bin", "wb");
+    assert(sh != NULL);
+    assert(fwrite(size_header, sizeof(size_header), 1, sh) == 1);
+    assert(fputc('x', sh) != EOF);
+    fclose(sh);
+    Bookmark size_header_out[1];
+    assert(rd_read_bookmarks(size_header_path, size_header_out, 1) == 0);
+
     const char *one_path = "one.txt";
     write_file(one_path, "A", 1);
     assert(rd_open_file(one_path) == 0);
@@ -1311,6 +1322,12 @@ int main(void)
     assert(rd_get_page()->count <= MAX_LINES);
     rd_close();
     render_host_set_size(600, 800);
+
+    const char *punct_sweep = "([{)]},.:;!?，。！？；：、“”‘’（）《》〈〉「」『』【】〔〕〖〗〘〚〛〉》」』】〕〗〙〛！）．：；？］｝»’”—…、。";
+    write_file("punct-sweep.txt", punct_sweep, (uint32_t)strlen(punct_sweep));
+    assert(rd_open_file("punct-sweep.txt") == 0);
+    assert(rd_get_page()->count > 0);
+    rd_close();
 
     write_file("cleanup.txt", "keep", 4);
     write_file("cleanup.txt.name", "keep-name", 9);
