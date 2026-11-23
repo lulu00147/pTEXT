@@ -52,6 +52,34 @@ static void *draw_body_thread(void *arg)
     return NULL;
 }
 
+static void body_split(const BodyItem *items, int32_t count,
+                       int32_t *split1, int32_t *split2)
+{
+    if (count < 3) {
+        *split1 = count / 3;
+        *split2 = (*split1) * 2;
+        return;
+    }
+
+    int64_t total = 0;
+    for (int32_t i = 0; i < count; i++) total += items[i].line->len + 1;
+
+    int64_t acc = 0;
+    int32_t a = 0, b = 0;
+    for (int32_t i = 0; i < count; i++) {
+        acc += items[i].line->len + 1;
+        if (a == 0 && acc * 3 >= total) a = i + 1;
+        if (b == 0 && acc * 3 >= total * 2) b = i + 1;
+    }
+
+    if (a < 1) a = 1;
+    if (a > count - 1) a = count - 1;
+    if (b <= a) b = a + 1;
+    if (b > count - 1) b = count - 1;
+    *split1 = a;
+    *split2 = b;
+}
+
 #define PAGE_SEEN_SLOTS 1024
 static uint32_t s_page_seen_key[PAGE_SEEN_SLOTS];
 static uint32_t s_page_seen_gen[PAGE_SEEN_SLOTS];
@@ -152,8 +180,8 @@ void ui_draw_reading(void)
 #endif
     r_prepare_parallel();
     if (preload_ok) {
-        int32_t split1 = item_count / 3;
-        int32_t split2 = split1 * 2;
+        int32_t split1, split2;
+        body_split(items, item_count, &split1, &split2);
         BodyJob job0 = {items, 0, split1, &pl};
         BodyJob job1 = {items, split1, split2, &pl};
         BodyJob job2 = {items, split2, item_count, &pl};
