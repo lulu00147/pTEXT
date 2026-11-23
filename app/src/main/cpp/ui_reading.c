@@ -74,7 +74,6 @@ static void body_split(const BodyItem *items, int32_t count,
         if (b == 0 && acc * 3 >= total * 2) b = i + 1;
     }
 
-    if (a < 1) a = 1;
     if (a > count - 1) a = count - 1;
     if (b <= a) b = a + 1;
     if (b > count - 1) b = count - 1;
@@ -86,6 +85,13 @@ static void body_split(const BodyItem *items, int32_t count,
 static uint32_t s_page_seen_key[PAGE_SEEN_SLOTS];
 static uint32_t s_page_seen_gen[PAGE_SEEN_SLOTS];
 static uint32_t s_page_gen;
+
+#ifdef PTEXT_HOST_TEST
+void ui_test_reset_page_gen(void)
+{
+    s_page_gen = 0xFFFFFFFFu;
+}
+#endif
 #endif
 
 void ui_draw_reading(void)

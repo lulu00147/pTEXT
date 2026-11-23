@@ -17,6 +17,7 @@ static int64_t kFileLen = 100;
 static int32_t kPageNo = 2;
 static int32_t kBookmarked;
 static int32_t kPreloadOk = 1;
+static int32_t kFastPrepareOk = 1;
 static int32_t kBookNameNull;
 static char kBookName[128] = "book";
 static _Atomic int32_t clear_calls;
@@ -91,7 +92,7 @@ int32_t r_preload_cp(uint32_t cp)
     return kPreloadOk;
 }
 void r_fast_begin(void) {}
-int r_fast_prepare(void) { return 1; }
+int r_fast_prepare(void) { return kFastPrepareOk; }
 void r_fast_end(void) {}
 void affinity_bind_current(void) {}
 
@@ -130,6 +131,25 @@ int main(void)
     ui_draw_reading();
     assert(justified_calls > justified_before);
 
+    kPage.count = 1;
+    kPage.lines[0].len = 1;
+    kPage.lines[0].text[0] = 'K';
+    kPage.lines[0].justify = 1;
+    ui_draw_reading();
+
+    kPage.count = 1;
+    kPage.lines[0].len = 2;
+    kPage.lines[0].text[0] = 0x4E00;
+    kPage.lines[0].text[1] = 0x5200;
+    kPage.lines[0].justify = 0;
+    ui_draw_reading();
+
+    kFastPrepareOk = 0;
+    kPage.lines[0].len = 1;
+    kPage.lines[0].text[0] = 'F';
+    ui_draw_reading();
+    kFastPrepareOk = 1;
+
     kPage.count = 4;
     for (int32_t i = 0; i < 4; i++) {
         kPage.lines[i].len = 1 + (i & 1);
@@ -156,6 +176,21 @@ int main(void)
         kPage.lines[i].text[1] = 0x4E2D;
         kPage.lines[i].justify = 0;
     }
+    ui_draw_reading();
+
+    kPage.count = 3;
+    kPage.lines[0].len = 200;
+    kPage.lines[1].len = 1;
+    kPage.lines[2].len = 1;
+    for (int32_t i = 0; i < 3; i++) {
+        kPage.lines[i].text[0] = 'A' + i;
+        kPage.lines[i].justify = 0;
+    }
+    ui_draw_reading();
+
+    kPage.lines[0].len = 1;
+    kPage.lines[1].len = 1;
+    kPage.lines[2].len = 200;
     ui_draw_reading();
 
     kPage.count = 0;
@@ -206,6 +241,12 @@ int main(void)
     snprintf(kBookName, sizeof(kBookName), "book");
 
 #ifdef PTEXT_MT
+    ui_test_reset_page_gen();
+    kPage.count = 1;
+    kPage.lines[0].len = 1;
+    kPage.lines[0].text[0] = 'Q';
+    kPage.lines[0].justify = 0;
+    ui_draw_reading();
     kPreloadOk = 1;
     fail_threads = 1;
     ui_draw_reading();

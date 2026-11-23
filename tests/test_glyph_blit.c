@@ -196,6 +196,7 @@ int main(void)
             run_case("even", 10, 4, fgs[fi], bgs[bi], 1, 1);
             run_case("odd", 11, 4, fgs[fi], bgs[bi], 0, 1);
             run_case("left-clip", -5, 4, fgs[fi], bgs[bi], 2, 1);
+            run_case("even-left-clip", -4, 4, fgs[fi], bgs[bi], 2, 1);
             run_case("right-clip", DW - 4, 4, fgs[fi], bgs[bi], 1, 1);
             run_case("top-clip", 10, -2, fgs[fi], bgs[bi], 1, 1);
             run_case("bottom-clip", 10, DH - 2, fgs[fi], bgs[bi], 1, 1);
@@ -210,6 +211,7 @@ int main(void)
     run_bg_case("bg-even", 10, 4, 1, 1);
     run_bg_case("bg-odd", 11, 4, 0, 1);
     run_bg_case("bg-left-clip", -5, 4, 2, 1);
+    run_bg_case("bg-even-left-clip", -4, 4, 2, 1);
     run_bg_case("bg-right-clip", DW - 4, 4, 1, 1);
     run_bg_case("bg-top-clip", 10, -2, 1, 1);
     run_bg_case("bg-bottom-clip", 10, DH - 2, 1, 1);

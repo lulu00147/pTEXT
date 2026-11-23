@@ -5,7 +5,7 @@ cd "$(dirname "$0")"
 CC="${CC:-clang}"
 PROFDATA="${LLVM_PROFDATA:-llvm-profdata-19}"
 LLVMCOV="${LLVM_COV:-llvm-cov-19}"
-OUT="${TMPDIR:-/tmp}/ptext-mcdc"
+OUT="${MCDC_OUT:-${TMPDIR:-/tmp}/ptext-mcdc}"
 FLAGS="-std=c11 -O0 -g -D_GNU_SOURCE -DPTEXT_HOST_TEST -fprofile-instr-generate -fcoverage-mapping -fcoverage-mcdc -I../app/src/main/cpp -I."
 
 rm -rf "$OUT"
