@@ -25,6 +25,9 @@ void r_draw_text_at_size_color(int32_t x, int32_t y, const uint32_t *s,
 void r_prepare_parallel(void);
 int32_t r_preload_text(const uint32_t *s, int32_t n);
 int32_t r_preload_cp(uint32_t cp);
+void r_fast_begin(void);
+int r_fast_prepare(void);
+void r_fast_end(void);
 int32_t r_text_width(const uint32_t *s, int32_t n);
 int32_t r_text_width_at_size(const uint32_t *s, int32_t n, float size);
 

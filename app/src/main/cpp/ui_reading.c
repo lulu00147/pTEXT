@@ -131,6 +131,9 @@ void ui_draw_reading(void)
         memset(s_page_seen_gen, 0, sizeof(s_page_seen_gen));
         s_page_gen = 1;
     }
+#ifdef PTEXT_MT
+    r_fast_begin();
+#endif
     for (int32_t i = 0; i < item_count; i++) {
         const Line *line = items[i].line;
         for (int32_t j = 0; j < line->len; j++) {
@@ -143,6 +146,10 @@ void ui_draw_reading(void)
             preload_ok &= r_preload_cp(cp);
         }
     }
+#ifdef PTEXT_MT
+    int32_t fast_ok = preload_ok && r_fast_prepare();
+    (void)fast_ok;
+#endif
     r_prepare_parallel();
     if (preload_ok) {
         int32_t split1 = item_count / 3;
@@ -159,6 +166,9 @@ void ui_draw_reading(void)
     } else {
         for (int32_t i = 0; i < item_count; i++) draw_body_item(&items[i], &pl);
     }
+#ifdef PTEXT_MT
+    r_fast_end();
+#endif
 #else
     int32_t draw_i = 0;
     for (int32_t i = 0; i < p->count; i++) {

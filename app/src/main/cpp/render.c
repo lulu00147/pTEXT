@@ -255,6 +255,11 @@ static G *gc_get(uint32_t cp)
     return g;
 }
 
+static inline int fast_space_cp(uint32_t cp)
+{
+    return cp == ' ' || cp == '\t' || cp == 0x3000;
+}
+
 #ifdef PTEXT_MT
 static pthread_mutex_t s_cache_mu = PTHREAD_MUTEX_INITIALIZER;
 static G *gc_get_mt(uint32_t cp)
@@ -264,8 +269,88 @@ static G *gc_get_mt(uint32_t cp)
     pthread_mutex_unlock(&s_cache_mu);
     return g;
 }
+
+#define FAST_SLOTS 8192
+static uint32_t s_fast_key[FAST_SLOTS];
+static uint32_t s_fast_gen[FAST_SLOTS];
+static G *s_fast_ptr[FAST_SLOTS];
+static uint32_t s_fast_cur;
+static int32_t s_fast_mode;
+static int32_t s_fast_bad;
+static int32_t s_fast_draw;
+
+void r_fast_begin(void)
+{
+    s_fast_cur++;
+    if (s_fast_cur == 0) {
+        memset(s_fast_gen, 0, sizeof(s_fast_gen));
+        s_fast_cur = 1;
+    }
+    s_fast_mode = 1;
+    s_fast_bad = 0;
+    s_fast_draw = 0;
+}
+
+static void fast_record(uint32_t cp, G *g)
+{
+    if (!s_fast_mode || !g) return;
+    uint32_t base = (cp * 2654435761u) & (FAST_SLOTS - 1);
+    for (int32_t i = 0; i < FAST_SLOTS; i++) {
+        uint32_t slot = (base + (uint32_t)i) & (FAST_SLOTS - 1);
+        if (s_fast_gen[slot] != s_fast_cur) {
+            s_fast_gen[slot] = s_fast_cur;
+            s_fast_key[slot] = cp;
+            s_fast_ptr[slot] = g;
+            return;
+        }
+        if (s_fast_key[slot] == cp) {
+            s_fast_ptr[slot] = g;
+            return;
+        }
+    }
+    s_fast_bad = 1;
+}
+
+int r_fast_prepare(void)
+{
+    if (!s_fast_mode || s_fast_bad) return 0;
+    for (int32_t i = 0; i < FAST_SLOTS; i++) {
+        if (s_fast_gen[i] != s_fast_cur) continue;
+        G *g = s_fast_ptr[i];
+        uint32_t cp = s_fast_key[i];
+        if (!g || g->sz != s_fsz) return 0;
+        if (!fast_space_cp(cp) && (!g->cached || g->cp != cp)) return 0;
+    }
+    s_fast_mode = 0;
+    s_fast_draw = 1;
+    return 1;
+}
+
+void r_fast_end(void)
+{
+    s_fast_draw = 0;
+    s_fast_mode = 0;
+}
+
+static G *gc_get_draw(uint32_t cp)
+{
+    if (!s_fast_draw) return gc_get_mt(cp);
+    uint32_t base = (cp * 2654435761u) & (FAST_SLOTS - 1);
+    for (int32_t i = 0; i < FAST_SLOTS; i++) {
+        uint32_t slot = (base + (uint32_t)i) & (FAST_SLOTS - 1);
+        if (s_fast_gen[slot] != s_fast_cur) return NULL;
+        if (s_fast_key[slot] != cp) continue;
+        G *g = s_fast_ptr[slot];
+        if (!g || g->sz != s_fsz) return NULL;
+        if (!fast_space_cp(cp) && (!g->cached || g->cp != cp)) return NULL;
+        return g;
+    }
+    return NULL;
+}
+#define GC_DRAW(cp) gc_get_draw(cp)
 #define GC_GET(cp) gc_get_mt(cp)
 #else
+#define GC_DRAW(cp) gc_get(cp)
 #define GC_GET(cp) gc_get(cp)
 #endif
 
@@ -503,8 +588,12 @@ int r_preload_text(const uint32_t *s, int32_t n)
 int r_preload_cp(uint32_t cp)
 {
     if (!s_locked || !s_font_ok || !cp) return 0;
-    (void)GC_GET(cp);
-    return 1;
+    G *g = GC_GET(cp);
+#ifdef PTEXT_MT
+    fast_record(cp, g);
+#endif
+    if (fast_space_cp(cp)) return g != NULL;
+    return g && g->cached;
 }
 
 static int32_t s_bg_only;
@@ -536,7 +625,7 @@ void r_draw_text(int32_t x, int32_t y, const uint32_t *s, int32_t n)
     int32_t right = 0;
     int32_t have_right = 0;
     for (int32_t i = 0; i < n; i++) {
-        G *g = GC_GET(s[i]);
+        G *g = GC_DRAW(s[i]);
         if (!g || !g->w) {
             x += (g && g->adv) ? g->adv : r_font_h();
             continue;
@@ -624,7 +713,7 @@ void r_draw_text_justified(int32_t x, int32_t y, const uint32_t *s, int32_t n, i
     int32_t right = 0;
     int32_t have_right = 0;
     for (int32_t i = 0; i < n; i++) {
-        G *g = GC_GET(s[i]);
+        G *g = GC_DRAW(s[i]);
         if (!g || !g->w) {
             px += (g && g->adv) ? g->adv : r_font_h();
         } else {
