@@ -11,6 +11,9 @@ int main(void)
     const uint8_t *empty = (const uint8_t *)"";
     uint32_t empty_cp = 0;
     if (utf8_next(&empty, empty, &empty_cp) != UTF8_END) return 1;
+#ifdef PTEXT_HOST_TEST
+    if (enc_test_utf8_next_empty() != UTF8_END) return 1;
+#endif
     static const uint8_t bad_over2[] = {0xC0, 0x80};
     static const uint8_t bad_over3[] = {0xE0, 0x80, 0x80};
     static const uint8_t bad_over4[] = {0xF0, 0x80, 0x80, 0x80};

@@ -59,9 +59,12 @@ static inline Utf8Result utf8_next(const uint8_t **p, const uint8_t *end,
     }
     *p = s + need;
 
-    if ((need == 1 && value < 2) ||
-        (need == 2 && value < 0x800) ||
-        (need == 3 && value < 0x10000) ||
+    int overlong = 0;
+    if (need == 1) overlong = value < 2;
+    else if (need == 2) overlong = value < 0x800;
+    else overlong = value < 0x10000;
+
+    if (overlong ||
         value > 0x10FFFF ||
         (value >= 0xD800 && value <= 0xDFFF) ||
         (value & 0xFFFE) == 0xFFFE) {

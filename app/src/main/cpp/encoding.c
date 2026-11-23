@@ -3,6 +3,15 @@
 #include "gbk_table.h"
 #include "gb18030_table.h"
 
+#ifdef PTEXT_HOST_TEST
+int32_t enc_test_utf8_next_empty(void)
+{
+    const uint8_t *p = (const uint8_t *)"";
+    uint32_t cp = 0;
+    return utf8_next(&p, p, &cp);
+}
+#endif
+
 static uint32_t gb18030_lookup(uint32_t idx)
 {
     int32_t lo = 0, hi = GB18030_RANGE_COUNT - 1;

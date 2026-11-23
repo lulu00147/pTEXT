@@ -138,6 +138,10 @@ int main(void)
     glyph_blit8(buf, DS, DW, DH, 0, 0, &valid, 0xFFFF, 0, NULL);
     for (int i = 0; i < DH * DS; i++) buf[i] = 0x0010;
     glyph_blit8(buf, DS, DW, DH, 0, 0, &valid, 0xFFFF, 0x0010, lut);
+    for (int i = 0; i < DH * DS; i++) buf[i] = 0x0010;
+    uint8_t ink_bmp[1] = {1};
+    GlyphBlit8 ink = {ink_bmp, 1, 1, 0, 0};
+    glyph_blit8(buf, DS, DW, DH, 0, 0, &ink, 0xFFFF, 0x0010, lut);
     for (int i = 0; i < DH * DS; i++) buf[i] = 0;
     glyph_blit8(buf, DS, DW, DH, 0, DH, &valid, 0xFFFF, 0, lut);
     glyph_blit8_bg(NULL, DS, DW, DH, 0, 0, &valid, lut);

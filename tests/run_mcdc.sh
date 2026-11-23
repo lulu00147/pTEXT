@@ -19,6 +19,26 @@ $CC $FLAGS test_reader.c render_host.c ../app/src/main/cpp/reader.c \
 $CC $FLAGS test_utf8_gbk.c ../app/src/main/cpp/encoding.c -o "$OUT/test_utf8"
 "$OUT/test_utf8"
 
+$CC $FLAGS test_index.c render_host.c ../app/src/main/cpp/reader.c \
+    ../app/src/main/cpp/encoding.c ../app/src/main/cpp/persist.c -o "$OUT/test_index"
+"$OUT/test_index"
+
+$CC $FLAGS test_index_fault.c render_host.c ../app/src/main/cpp/reader.c \
+    ../app/src/main/cpp/encoding.c ../app/src/main/cpp/persist.c \
+    -Wl,--wrap=open -Wl,--wrap=write -Wl,--wrap=fsync -Wl,--wrap=close \
+    -Wl,--wrap=rename -o "$OUT/test_index_fault"
+"$OUT/test_index_fault"
+
+$CC $FLAGS test_index_crash.c render_host.c ../app/src/main/cpp/reader.c \
+    ../app/src/main/cpp/encoding.c ../app/src/main/cpp/persist.c \
+    -Wl,--wrap=open -Wl,--wrap=write -Wl,--wrap=fsync -Wl,--wrap=close \
+    -Wl,--wrap=rename -o "$OUT/test_index_crash"
+"$OUT/test_index_crash"
+
+$CC $FLAGS fuzz_reader.c render_host.c ../app/src/main/cpp/reader.c \
+    ../app/src/main/cpp/encoding.c ../app/src/main/cpp/persist.c -o "$OUT/fuzz_reader"
+"$OUT/fuzz_reader"
+
 $CC $FLAGS test_glyph_blit.c -o "$OUT/test_glyph"
 "$OUT/test_glyph"
 
@@ -62,6 +82,8 @@ REPORT="$OUT/mcdc.txt"
 "$LLVMCOV" report \
     -object "$OUT/test_reader" -object "$OUT/test_utf8" \
     -object "$OUT/test_glyph" -object "$OUT/test_glyph8" -object "$OUT/test_persist" \
+    -object "$OUT/test_index" -object "$OUT/test_index_fault" \
+    -object "$OUT/test_index_crash" -object "$OUT/fuzz_reader" \
     -object "$OUT/test_persist_fault" -object "$OUT/test_ui_settings" \
     -object "$OUT/test_ui_lists" -object "$OUT/test_ui_reading" \
     -object "$OUT/test_ui_reading_mt" -object "$OUT/test_reader_io_fault" \

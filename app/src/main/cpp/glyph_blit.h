@@ -79,6 +79,11 @@ GLYPH_INLINE void glyph_neon4(uint16_t *drow, const uint8_t *src, int32_t sc,
 }
 #endif
 
+GLYPH_INLINE uint8_t glyph_nibble(uint8_t packed, int32_t sc)
+{
+    return (uint8_t)((packed >> ((sc & 1) << 2)) & 0x0F);
+}
+
 GLYPH_INLINE void glyph_blit(uint16_t *dst, int32_t dst_stride,
                               int32_t dst_w, int32_t dst_h,
                               int32_t x, int32_t y, const GlyphBlit *g,
@@ -110,7 +115,7 @@ GLYPH_INLINE void glyph_blit(uint16_t *dst, int32_t dst_stride,
         if ((col - sx) & 1) {
             int32_t sc = col - sx;
             uint8_t packed = src[sc >> 1];
-            uint8_t a = (sc & 1) ? (packed >> 4) : (packed & 0x0F);
+            uint8_t a = glyph_nibble(packed, sc);
             uint16_t b = drow[col];
             drow[col] = b == bg ? lut[a] : glyph_blend565(b, fg, a);
             col++;
@@ -145,7 +150,7 @@ GLYPH_INLINE void glyph_blit(uint16_t *dst, int32_t dst_stride,
         if (col < x1) {
             int32_t sc = col - sx;
             uint8_t packed = src[sc >> 1];
-            uint8_t a = (sc & 1) ? (packed >> 4) : (packed & 0x0F);
+            uint8_t a = glyph_nibble(packed, sc);
             uint16_t b = drow[col];
             drow[col] = b == bg ? lut[a] : glyph_blend565(b, fg, a);
         }
@@ -247,7 +252,7 @@ GLYPH_INLINE void glyph_blit_bg(uint16_t *dst, int32_t dst_stride,
         }
         if (col < x1) {
             int32_t sc = col - sx;
-            uint8_t a = (src[sc >> 1] >> ((sc & 1) ? 4 : 0)) & 0x0F;
+            uint8_t a = glyph_nibble((uint8_t)(src[sc >> 1]), sc);
             if (a) drow[col] = lut[a];
         }
     }
