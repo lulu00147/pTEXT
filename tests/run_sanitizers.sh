@@ -41,6 +41,11 @@ $cc $flags $inc test_persist.c ../app/src/main/cpp/persist.c \
     -o /tmp/ptext_test_persist_asan
 /tmp/ptext_test_persist_asan
 
+$cc $flags $inc test_persist_dir.c ../app/src/main/cpp/persist.c \
+    -Wl,--wrap=open -Wl,--wrap=fsync -Wl,--wrap=close \
+    -o /tmp/ptext_test_persist_dir_asan
+/tmp/ptext_test_persist_dir_asan
+
 $cc $flags $inc test_persist_fault.c ../app/src/main/cpp/persist.c \
     -Wl,--wrap=write -Wl,--wrap=fsync -Wl,--wrap=rename -Wl,--wrap=close \
     -Wl,--wrap=snprintf -o /tmp/ptext_test_persist_fault_asan
@@ -85,6 +90,7 @@ $cc $flags $inc test_utf8_gbk.c ../app/src/main/cpp/encoding.c \
 
 rm -f /tmp/ptext_test_reader_asan /tmp/ptext_test_glyph_asan \
       /tmp/ptext_test_index_asan /tmp/ptext_test_persist_asan \
+      /tmp/ptext_test_persist_dir_asan \
       /tmp/ptext_test_index_fault_asan /tmp/ptext_test_index_crash_asan \
       /tmp/ptext_test_glyph8_asan \
       /tmp/ptext_test_persist_fault_asan /tmp/ptext_test_ui_asan \

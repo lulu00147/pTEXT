@@ -3,7 +3,36 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <string.h>
 #include <unistd.h>
+
+static void fsync_parent_dir(const char *path)
+{
+    const char *slash = strrchr(path, '/');
+    char dir[1100];
+    if (!slash) {
+        dir[0] = '.';
+        dir[1] = '\0';
+    } else {
+        size_t n = (size_t)(slash - path);
+        if (n == 0) {
+            dir[0] = '/';
+            n = 1;
+        } else {
+            memcpy(dir, path, n);
+        }
+        dir[n] = '\0';
+    }
+
+    int flags = O_RDONLY | O_CLOEXEC;
+#ifdef O_DIRECTORY
+    flags |= O_DIRECTORY;
+#endif
+    int dfd = open(dir, flags);
+    if (dfd < 0) return;
+    (void)fsync(dfd);
+    close(dfd);
+}
 
 int32_t persist_write_atomic(const char *path, const void *buf, size_t len)
 {
@@ -36,7 +65,10 @@ int32_t persist_write_atomic(const char *path, const void *buf, size_t len)
 
     int32_t ok = fsync(fd) == 0;
     if (close(fd) != 0) ok = 0;
-    if (ok && rename(tmp, path) == 0) return 0;
+    if (ok && rename(tmp, path) == 0) {
+        fsync_parent_dir(path);
+        return 0;
+    }
     unlink(tmp);
     return -1;
 }

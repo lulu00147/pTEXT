@@ -27,6 +27,7 @@
 | `test_glyph_blit.c` | 4-bit 字形裁剪、空位图、非法参数、随机差分 |
 | `test_glyph_blit8.c` | 8-bit 字形正常/背景/裁剪/随机/空参数 |
 | `test_persist.c` | 临时文件 + fsync + rename 正常路径 |
+| `test_persist_dir.c` | rename 后父目录 fsync；目录同步失败仍保留已提交文件 |
 | `test_persist_fault.c` | 持久化写入故障注入 |
 | `test_ui_settings.c` | 设置面板几何、命中、边界、文本适配 |
 | `test_ui_lists.c` | 文件/书签列表滚动、命中、导入区、空列表、小窗口 |

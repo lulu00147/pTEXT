@@ -79,7 +79,7 @@ typedef struct {
     uint8_t w, h;
     int16_t xo, yo;
     int32_t adv;
-    uint32_t lru;
+    uint64_t lru;
 } G;
 
 static ANativeWindow *s_win;
@@ -96,7 +96,7 @@ static uint64_t s_adv[ADV_SIZE];
 static uint32_t s_adv_szbits;
 static uint8_t s_gbmp_pool[GLYPH_POOL_SIZE] __attribute__((aligned(16)));
 static uint32_t s_gbmp_free[(GLYPH_POOL_BLOCKS + 31) / 32];
-static uint32_t s_lru;
+static uint64_t s_lru;
 static int32_t s_font_ok = 0;
 static uint8_t s_glyph_tmp[GLYPH_MAX * GLYPH_MAX];  /* 字形光栅化复用缓冲区 */
 
