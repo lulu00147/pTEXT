@@ -51,7 +51,7 @@ KEY_PASSWORD=...
 | `reader.c` | mmap、分页、历史、书签、设置、检查点 |
 | `encoding.c` | UTF-8、GBK、GB18030 |
 | `persist.c` | 临时文件 + fsync + rename |
-| `render.c` | 系统字体、RGB565、4-bit alpha 字形缓存、预着色 RGB565 字形缓存 |
+| `render.c` | 系统字体、RGB565、8-bit 灰度字形缓存、256 项 RGB565 LUT |
 | `nolog.c` | `__android_log_print` 空实现 |
 | `MainActivity.java` | NativeActivity 壳、SAF 导入、常亮 |
 
@@ -110,25 +110,25 @@ files/<name>.txt.name   原始显示名
 
 ## 性能
 
-当前 release `eafe6f1` 的正文绘制阶段，使用真实小说《樱树抽芽时，想你.txt》485,562 B，连续 100 页，2 轮中位数。数值是正文阶段累计时间，不是整帧 p50。
+当前 release `9aa2378` 使用 8-bit 灰度字形缓存和 256 项 RGB565 LUT。真实小说《樱树抽芽时，想你.txt》485,562 B，连续 100 页；每台设备两轮，排除前 5 页冷启动，取平均。数值为 `r_begin` → `r_end` 的整页绘制时间，包含清屏、页眉页脚和正文。
 
-| 设备 | 版本 | 正文 / 100 页 | 每页 |
-|---|---|---:|---:|
-| PKR110 / Android 17 | 单线程 | 236 ms | 2.36 ms |
-| PKR110 / Android 17 | 多线程 | 217 ms | 2.17 ms |
-| PJA110 / Android 16 | 单线程 | 869 ms | 8.69 ms |
-| PJA110 / Android 16 | 多线程 | 734 ms | 7.34 ms |
+| 设备 | 灰度缓存 | 旧双池缓存 |
+|---|---:|---:|
+| PKR110 / Android 17 | 2.13 ms/页 | 2.46 ms/页 |
+| PJA110 / Android 16 | 3.26 ms/页 | 3.28 ms/页 |
 
-多线程正文阶段相对单线程：PKR 约降 8%，PJA 约降 16%。
+灰度版相对旧双池：PKR 约快 14%，PJA 基本持平。PJA 的 p95 有波动，未见稳定回退。
 
-正文使用主线程 + 两个工作线程三路绘制；字形预加载失败时回退单线程。字形缓存：
+字形缓存：
 
 ```text
-alpha 字形缓存：4 MiB，2048 项
-彩色字形缓存：  8 MiB，RGB565
+8 MiB 单池
+4096 项
+1024 B 块
+8-bit 灰度 + 256 项 RGB565 LUT
 ```
 
-PJA 的主要限制仍是默认调度下 worker 落在低频 little/mid core；未使用绑核、优先级或超频手段。
+单线程/多线程 APK 均已构建；本轮 A/B 只采样多线程版本。
 
 ## 省电
 
