@@ -39,6 +39,11 @@ $clang $flags $inc fuzz_encoding.c ../app/src/main/cpp/encoding.c \
     > /tmp/ptext_fuzz_encoding.log 2>&1
 tail -20 /tmp/ptext_fuzz_encoding.log
 
+$clang $flags $inc fuzz_glyph_blit8.c -o /tmp/ptext_fuzz_glyph8
+/tmp/ptext_fuzz_glyph8 -runs=20000 -max_len=1024 "$corpus" \
+    > /tmp/ptext_fuzz_glyph8.log 2>&1
+tail -20 /tmp/ptext_fuzz_glyph8.log
+
 $clang $flags -DPTEXT_HOST_TEST $inc fuzz_reader_libfuzzer.c render_host.c \
     ../app/src/main/cpp/reader.c ../app/src/main/cpp/encoding.c \
     ../app/src/main/cpp/persist.c -o /tmp/ptext_fuzz_reader
@@ -60,5 +65,5 @@ $clang $flags -DPTEXT_HOST_TEST $inc fuzz_index_libfuzzer.c render_host.c \
     > /tmp/ptext_fuzz_index.log 2>&1
 tail -20 /tmp/ptext_fuzz_index.log
 
-rm -f /tmp/ptext_fuzz_encoding /tmp/ptext_fuzz_reader /tmp/ptext_fuzz_index /tmp/ptext_fuzz_index_file
+rm -f /tmp/ptext_fuzz_encoding /tmp/ptext_fuzz_reader /tmp/ptext_fuzz_index /tmp/ptext_fuzz_index_file /tmp/ptext_fuzz_glyph8
 rm -rf "$corpus"

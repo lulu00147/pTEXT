@@ -56,6 +56,7 @@
 | 目标 | 次数 |
 |---|---:|
 | encoding | 50,000 |
+| glyph blit8 差分 | 20,000 |
 | reader/bookmarks | 5,000 |
 | index parser | 100,000 |
 | index file（真实 `.idx` 加载） | 5,000 |
