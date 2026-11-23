@@ -1154,6 +1154,11 @@ void rd_test_set_state(const char *name, int64_t len, int64_t start)
     s_page_curr->start_offset = start;
 }
 
+void rd_test_reset_checkpoints(void)
+{
+    s_page_ckpt_count = 0;
+}
+
 void rd_test_clear_state(void)
 {
     s_mmap_data = NULL;
@@ -1640,6 +1645,51 @@ int32_t rd_read_bookmarks(const char *path, Bookmark *out, int32_t cap)
     if (count > 0) refresh_bookmark_previews(path, out, count);
     return count;
 }
+
+#ifdef PTEXT_HOST_TEST
+int32_t rd_test_bookmark_count(const char *path)
+{
+    return bookmark_count(path);
+}
+
+int32_t rd_test_bm_legacy_count(const char *path)
+{
+    FILE *f = fopen(path, "rb");
+    if (!f) return 0;
+    int32_t n = bm_legacy_count(f);
+    fclose(f);
+    return n;
+}
+
+void rd_test_cleanup_sidecars(const char *files)
+{
+    cleanup_sidecar_dir(files, DIR_PROGRESS, 1);
+    cleanup_name_sidecars(files);
+}
+
+void rd_test_idx_save_guard(void)
+{
+    static char probe[2];
+    s_mmap_data = probe;
+    s_mmap_len = IDX_MIN_FILE;
+    s_idx_dirty = 1;
+    s_page_ckpt_count = 0;
+    idx_save();
+}
+
+int32_t rd_test_bookmark_preview_null(void)
+{
+    static char out[8];
+    return bookmark_preview(NULL, 1, enc_decode_utf8, 0, out, sizeof(out));
+}
+
+int32_t rd_test_bookmark_preview_bad_decode(void)
+{
+    static const uint8_t data[] = {'A'};
+    static char out[8];
+    return bookmark_preview(data, 1, NULL, 0, out, sizeof(out));
+}
+#endif
 
 void rd_prefetch_step(void)
 {

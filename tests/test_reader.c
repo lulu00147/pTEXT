@@ -1271,6 +1271,11 @@ int main(void)
 
     assert(rd_read_bookmarks("empty.txt", empty_bm, 0) == 0);
     assert(rd_read_bookmarks("empty.txt", NULL, 1) == 0);
+    assert(rd_test_bookmark_preview_null() == 0);
+    assert(rd_test_bookmark_preview_bad_decode() == 0);
+    rd_test_idx_save_guard();
+    rd_test_cleanup_sidecars(".");
+    assert(rd_test_bookmark_count("missing.bin") == 0);
     assert(rd_open_file("missing-file.txt") != 0);
     int64_t no_idx_off = -1;
     int32_t no_idx_page = -1;

@@ -208,6 +208,8 @@ int main(void)
     int64_t off = -1;
     int32_t page = -1;
     assert(rd_test_idx_parse(buf, len, size, mtime, hash, 500,
+                             &off, &page, NULL) == 1);
+    assert(rd_test_idx_parse(buf, len, size, mtime, hash, 500,
                              NULL, &page, NULL) == 0);
     assert(rd_test_idx_parse(buf, len, size, mtime, hash, 500,
                              &off, NULL, NULL) == 0);
