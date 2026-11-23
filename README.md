@@ -94,10 +94,11 @@ files/<name>.txt        正文
 files/<name>.txt.name   原始显示名
 .prog/<name>.txt.bin    进度
 .bm/<name>.txt.bin      书签
+.idx/<name>.txt.bin     分页索引（可选，可重建）
 .prog/settings.bin      设置
 ```
 
-`rd_scan_dir` 只读书签头和文件大小；完整 checksum 在打开书签列表时校验。书签兼容旧裸 `Bookmark` 文件。
+`rd_scan_dir` 只读书签头和文件大小；完整 checksum 在打开书签列表时校验。书签兼容旧裸 `Bookmark` 文件。`.idx` 仅对超过 1 MiB 的文件生成，删除后会自动重建。
 
 ## 操作
 
