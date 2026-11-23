@@ -617,27 +617,48 @@ static inline void draw_glyph(int32_t x, int32_t y, G *g, uint16_t fg,
     }
 }
 
+typedef struct {
+    int32_t x, y;
+    G *g;
+    uint8_t bg_only;
+} DrawCmd;
+
+static void draw_cmds(const DrawCmd *cmds, int32_t count, uint16_t fg)
+{
+    for (int32_t i = 0; i < count; i++) {
+        draw_glyph(cmds[i].x, cmds[i].y, cmds[i].g, fg, cmds[i].bg_only);
+    }
+}
+
 void r_draw_text(int32_t x, int32_t y, const uint32_t *s, int32_t n)
 {
     if (!s_locked || !s_font_ok) return;
     uint16_t fg = s_fg_color;
     ensure_blend_lut(fg);
+    DrawCmd cmds[512];
+    int32_t count = 0;
     int32_t right = 0;
     int32_t have_right = 0;
-    for (int32_t i = 0; i < n; i++) {
+    int32_t px = x;
+    for (int32_t i = 0; i < n && count < 512; i++) {
         G *g = GC_DRAW(s[i]);
         if (!g || !g->w) {
-            x += (g && g->adv) ? g->adv : r_font_h();
+            px += (g && g->adv) ? g->adv : r_font_h();
             continue;
         }
-        int32_t gx = x + g->xo;
-        int32_t bg_only = s_bg_only && (!have_right || gx >= right);
-        draw_glyph(x, y, g, fg, bg_only);
+        int32_t gx = px + g->xo;
+        uint8_t bg_only = (uint8_t)(s_bg_only && (!have_right || gx >= right));
+        cmds[count].x = px;
+        cmds[count].y = y;
+        cmds[count].g = g;
+        cmds[count].bg_only = bg_only;
+        count++;
         int32_t gr = gx + g->w;
         if (!have_right || gr > right) right = gr;
         have_right = 1;
-        x += g->adv;
+        px += g->adv;
     }
+    draw_cmds(cmds, count, fg);
 }
 
 static int justify_space(uint32_t cp)
@@ -710,6 +731,8 @@ void r_draw_text_justified(int32_t x, int32_t y, const uint32_t *s, int32_t n, i
     int32_t px = x;
     uint16_t fg = s_fg_color;
     ensure_blend_lut(fg);
+    DrawCmd cmds[256];
+    int32_t count = 0;
     int32_t right = 0;
     int32_t have_right = 0;
     for (int32_t i = 0; i < n; i++) {
@@ -718,8 +741,12 @@ void r_draw_text_justified(int32_t x, int32_t y, const uint32_t *s, int32_t n, i
             px += (g && g->adv) ? g->adv : r_font_h();
         } else {
             int32_t gx = px + g->xo;
-            int32_t bg_only = s_bg_only && (!have_right || gx >= right);
-            draw_glyph(px, y, g, fg, bg_only);
+            uint8_t bg_only = (uint8_t)(s_bg_only && (!have_right || gx >= right));
+            cmds[count].x = px;
+            cmds[count].y = y;
+            cmds[count].g = g;
+            cmds[count].bg_only = bg_only;
+            count++;
             int32_t gr = gx + g->w;
             if (!have_right || gr > right) right = gr;
             have_right = 1;
@@ -727,6 +754,7 @@ void r_draw_text_justified(int32_t x, int32_t y, const uint32_t *s, int32_t n, i
         }
         if (i < n - 1) px += gaps[i];
     }
+    draw_cmds(cmds, count, fg);
 }
 
 int32_t r_text_width(const uint32_t *s, int32_t n)

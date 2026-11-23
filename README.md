@@ -120,6 +120,7 @@ files/<name>.txt.name   原始显示名
 | 8-bit 灰度字形缓存 | ✓ | ✓ |
 | 256 项 RGB565 LUT | ✓ | ✓ |
 | 背景/普通 blit 分离 | ✓ | ✓ |
+| 行级 DrawCmd Display List | ✓ | ✓ |
 | 相邻 alpha 双像素 32-bit 写入 | ✓ | ✓ |
 | 页级 codepoint 去重 | — | ✓ |
 | 单遍字形预加载 | — | ✓ |
