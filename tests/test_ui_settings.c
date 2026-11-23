@@ -99,6 +99,19 @@ int main(void)
     kSettings.affinity_idx = 0;
     ui_draw_settings();
 
+    for (int32_t y = t - 100; y <= b + 100; y += 3) {
+        int32_t row = ui_settings_row_at(y);
+        assert(row >= -1);
+        assert(ui_settings_contains(l, y) == (y <= b && y >= t));
+    }
+    for (int32_t x = l - 100; x <= r + 100; x += 3) {
+        int32_t btn = ui_settings_button_at(x);
+        int32_t aff = ui_settings_affinity_button_at(x);
+        assert(btn == 0 || btn == 1);
+        assert(aff >= -1 && aff <= 2);
+        assert(ui_settings_contains(x, t) == (x >= l && x <= r));
+    }
+
     kWidth = 200;
     kHeight = 160;
     ui_get_settings_rect(&l, &t, &r, &b);

@@ -53,6 +53,20 @@ int main(void)
     assert(persist_write_atomic("empty.bin", NULL, 0) == 0);
     struct stat empty_st;
     assert(stat("empty.bin", &empty_st) == 0 && empty_st.st_size == 0);
+
+    enum { EX_LEN = 1024 };
+    uint8_t payload[EX_LEN];
+    for (int32_t i = 0; i < EX_LEN; i++) payload[i] = (uint8_t)(i * 37 + 11);
+    for (size_t n = 0; n <= EX_LEN; n++) {
+        assert(persist_write_atomic("exhaust.bin", payload, n) == 0);
+        FILE *ef = fopen("exhaust.bin", "rb");
+        assert(ef != NULL);
+        uint8_t roundtrip[EX_LEN];
+        assert(fread(roundtrip, 1, n, ef) == n);
+        assert(memcmp(roundtrip, payload, n) == 0);
+        assert(fgetc(ef) == EOF);
+        fclose(ef);
+    }
     char too_long[1200];
     memset(too_long, 'x', sizeof(too_long));
     too_long[sizeof(too_long) - 1] = '\0';

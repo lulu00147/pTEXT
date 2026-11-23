@@ -98,6 +98,20 @@ int main(void)
     ui_draw_file_list(&scroll, 0);
     kLimit = 0;
 
+    for (int32_t count = 0; count <= 40; count++) {
+        kFileCount = count;
+        int32_t max = ui_file_max_scroll(count);
+        assert(max >= 0);
+        for (int32_t y = -200; y <= 1200; y += 7) {
+            int32_t idx = ui_file_index_at(y, max / 2);
+            assert(idx >= -1 && idx < count);
+            int32_t bi = ui_bm_index_at(y, max / 2);
+            assert(bi >= -1);
+        }
+        assert(ui_file_mark_left() >= 0);
+    }
+    kFileCount = 3;
+
     Bookmark bm;
     memset(&bm, 0, sizeof(bm));
     snprintf(bm.preview, sizeof(bm.preview), "preview");

@@ -1,21 +1,15 @@
 #include <assert.h>
+#include <stdint.h>
 #include <stdio.h>
 #include "affinity.h"
 
 int main(void)
 {
-    affinity_set_mode(-1);
-    assert(affinity_test_mode() == 0);
-    affinity_bind_current();
-
-    affinity_set_mode(0);
-    assert(affinity_test_mode() == 0);
-    affinity_set_mode(1);
-    assert(affinity_test_mode() == 1);
-    affinity_set_mode(2);
-    assert(affinity_test_mode() == 2);
-    affinity_set_mode(3);
-    assert(affinity_test_mode() == 2);
+    for (int32_t mode = -300; mode <= 300; mode++) {
+        affinity_set_mode(mode);
+        int32_t want = mode < 0 ? 0 : (mode > 2 ? 2 : mode);
+        assert(affinity_test_mode() == want);
+    }
     affinity_bind_current();
     assert(affinity_test_ready() == 1);
 
