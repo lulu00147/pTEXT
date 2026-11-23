@@ -130,6 +130,34 @@ int main(void)
     ui_draw_reading();
     assert(justified_calls > justified_before);
 
+    kPage.count = 4;
+    for (int32_t i = 0; i < 4; i++) {
+        kPage.lines[i].len = 1 + (i & 1);
+        kPage.lines[i].text[0] = 'A' + i;
+        kPage.lines[i].text[1] = 0x4E2D;
+        kPage.lines[i].justify = 0;
+    }
+    ui_draw_reading();
+
+    kPage.count = 3;
+    for (int32_t i = 0; i < 3; i++) {
+        kPage.lines[i].len = 1 + i;
+        kPage.lines[i].text[0] = 'A' + i;
+        kPage.lines[i].text[1] = 0x4E2D;
+        kPage.lines[i].text[2] = 'Z';
+        kPage.lines[i].justify = 0;
+    }
+    ui_draw_reading();
+
+    kPage.count = 5;
+    for (int32_t i = 0; i < 5; i++) {
+        kPage.lines[i].len = 1 + (i & 1);
+        kPage.lines[i].text[0] = 'A' + i;
+        kPage.lines[i].text[1] = 0x4E2D;
+        kPage.lines[i].justify = 0;
+    }
+    ui_draw_reading();
+
     kPage.count = 0;
     ui_draw_reading();
 

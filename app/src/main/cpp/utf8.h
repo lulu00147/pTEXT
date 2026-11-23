@@ -64,8 +64,7 @@ static inline Utf8Result utf8_next(const uint8_t **p, const uint8_t *end,
         (need == 3 && value < 0x10000) ||
         value > 0x10FFFF ||
         (value >= 0xD800 && value <= 0xDFFF) ||
-        (value & 0xFFFE) == 0xFFFE ||
-        value == 0) {
+        (value & 0xFFFE) == 0xFFFE) {
         *cp = 0xFFFD;
         return UTF8_INVALID;
     }

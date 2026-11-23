@@ -4,9 +4,13 @@
 
 #include "encoding.h"
 #include "fuzz_seeds.h"
+#include "utf8.h"
 
 int main(void)
 {
+    const uint8_t *empty = (const uint8_t *)"";
+    uint32_t empty_cp = 0;
+    if (utf8_next(&empty, empty, &empty_cp) != UTF8_END) return 1;
     uint32_t rng = 0x13579BDFu;
     uint8_t buf[512];
     unsigned long long cases = 0;
