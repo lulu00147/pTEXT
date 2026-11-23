@@ -129,8 +129,70 @@ static void run_bg_case(const char *name, int32_t x, int32_t y, int32_t xo, int3
     }
 }
 
-static void run_random_case(uint32_t *state)
+static void exhaustive_small(void)
 {
+    static const int32_t xs[] = {-2, -1, 0, 1, DW - 2, DW - 1, DW};
+    static const int32_t ys[] = {-1, 0, 1, DH - 1, DH};
+    static const int32_t offs[] = {-1, 0, 1};
+    static const uint8_t edge[] = {0x00, 0x01, 0x0F, 0x10, 0x11, 0xFF, 0x5A};
+    uint16_t fg = 0xF800, bg = 0x0010;
+    uint16_t lut[16];
+    for (int32_t i = 0; i < 16; i++) lut[i] = ref_blend(bg, fg, i);
+
+    for (int32_t w = 1; w <= 2; w++) {
+        for (int32_t h = 1; h <= 2; h++) {
+            int32_t stride = (w + 1) >> 1;
+            int32_t patterns = (w * h <= 2) ? 256 : 2401;
+            for (int32_t p = 0; p < patterns; p++) {
+                uint8_t bmp[4] = {0};
+                if (w * h <= 2) {
+                    uint32_t v = (uint32_t)p;
+                    for (int32_t i = 0; i < stride * h; i++) {
+                        bmp[i] = (uint8_t)v;
+                        v >>= 8;
+                    }
+                } else {
+                    uint32_t v = (uint32_t)p;
+                    for (int32_t i = 0; i < 4; i++) {
+                        bmp[i >> 1] |= (uint8_t)(edge[v % 7] << ((i & 1) * 4));
+                        v /= 7;
+                    }
+                }
+                GlyphBlit g = {bmp, w, h, 0, 0};
+                for (size_t oi = 0; oi < sizeof(offs) / sizeof(offs[0]); oi++) {
+                    g.xo = offs[oi];
+                    for (size_t oj = 0; oj < sizeof(offs) / sizeof(offs[0]); oj++) {
+                        g.yo = offs[oj];
+                        for (size_t xi = 0; xi < sizeof(xs) / sizeof(xs[0]); xi++) {
+                            for (size_t yi = 0; yi < sizeof(ys) / sizeof(ys[0]); yi++) {
+                                uint16_t actual[DH * DS];
+                                uint16_t expected[DH * DS];
+                                for (int32_t i = 0; i < DH * DS; i++) {
+                                    uint16_t v = (uint16_t)((i * 37) ^ bg);
+                                    actual[i] = v;
+                                    expected[i] = v;
+                                }
+                                reference_blit(expected, &g, xs[xi], ys[yi], fg, bg, lut);
+                                glyph_blit(actual, DS, DW, DH, xs[xi], ys[yi], &g,
+                                           fg, bg, lut);
+                                assert(memcmp(actual, expected, sizeof(actual)) == 0);
+
+                                for (int32_t i = 0; i < DH * DS; i++) {
+                                    actual[i] = expected[i] = (uint16_t)(i * 13);
+                                }
+                                reference_blit_bg(expected, &g, xs[xi], ys[yi], lut);
+                                glyph_blit_bg(actual, DS, DW, DH, xs[xi], ys[yi], &g, lut);
+                                assert(memcmp(actual, expected, sizeof(actual)) == 0);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+static void run_random_case(uint32_t *state){
     uint8_t bmp[128];
     uint16_t lut[16];
     uint16_t actual[DH * DS];
@@ -222,6 +284,7 @@ int main(void)
     run_bg_case("bg-far-bottom", 10, DH + 20, 1, 1);
 
     uint32_t random_state = 0x12345678u;
+    exhaustive_small();
     for (int32_t i = 0; i < 5000; i++) run_random_case(&random_state);
 
     uint16_t buf[DH * DS] = {0};

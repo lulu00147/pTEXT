@@ -25,8 +25,8 @@
 | `test_index.c` | 索引头/记录解析、校验和、单调性、截断、多余数据、1024/1025 记录、`INT64_MAX` 边界 |
 | `test_index_fault.c` | `.idx.tmp` 的 open/write/短写/fsync/close/rename 失败；旧索引不被破坏 |
 | `test_index_crash.c` | 临时写入后、fsync 后、rename 后杀进程；验证原子性 |
-| `test_glyph_blit.c` | 4-bit 字形裁剪、空位图、非法参数、随机差分 |
-| `test_glyph_blit8.c` | 8-bit 字形正常/背景/裁剪/随机/空参数/空位图/非法 stride |
+| `test_glyph_blit.c` | 4-bit 字形裁剪、空位图、非法参数、随机差分、1×1/1×2/2×1/2×2 有限域穷举 |
+| `test_glyph_blit8.c` | 8-bit 字形正常/背景/裁剪/随机/空参数/空位图/非法 stride/有限域穷举 |
 | `test_persist.c` | 临时文件 + fsync + rename 正常路径 |
 | `test_persist_dir.c` | rename 后父目录 fsync；目录同步失败仍保留已提交文件 |
 | `test_persist_fault.c` | 持久化写入故障注入 |

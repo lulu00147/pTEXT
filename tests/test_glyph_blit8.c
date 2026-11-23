@@ -63,6 +63,68 @@ static void run_case(const char *name, int32_t x, int32_t y,
     }
 }
 
+static void exhaustive_small(void)
+{
+    static const int32_t xs[] = {-2, -1, 0, 1, DW - 2, DW - 1, DW};
+    static const int32_t ys[] = {-1, 0, 1, DH - 1, DH};
+    static const int32_t offs[] = {-1, 0, 1};
+    static const uint8_t edge[] = {0, 1, 15, 127, 128, 254, 255};
+    uint16_t fg = 0xF800, bg = 0x0010;
+    uint16_t lut[256];
+    for (int32_t i = 0; i < 256; i++) lut[i] = glyph_blend565_255(bg, fg, i);
+
+    for (int32_t w = 1; w <= 2; w++) {
+        for (int32_t h = 1; h <= 2; h++) {
+            int32_t pixels = w * h;
+            int32_t patterns = pixels == 1 ? 256 : (pixels == 2 ? 49 : 2401);
+            for (int32_t p = 0; p < patterns; p++) {
+                uint8_t bmp[4];
+                if (pixels == 1) {
+                    bmp[0] = (uint8_t)p;
+                } else if (pixels == 2) {
+                    bmp[0] = edge[p / 7];
+                    bmp[1] = edge[p % 7];
+                } else {
+                    uint32_t v = (uint32_t)p;
+                    for (int32_t i = 0; i < 4; i++) {
+                        bmp[i] = edge[v % 7];
+                        v /= 7;
+                    }
+                }
+                GlyphBlit8 g = {bmp, w, h, 0, 0};
+                for (size_t oi = 0; oi < sizeof(offs) / sizeof(offs[0]); oi++) {
+                    g.xo = offs[oi];
+                    for (size_t oj = 0; oj < sizeof(offs) / sizeof(offs[0]); oj++) {
+                        g.yo = offs[oj];
+                        for (size_t xi = 0; xi < sizeof(xs) / sizeof(xs[0]); xi++) {
+                            for (size_t yi = 0; yi < sizeof(ys) / sizeof(ys[0]); yi++) {
+                                uint16_t actual[DH * DS];
+                                uint16_t expected[DH * DS];
+                                for (int32_t i = 0; i < DH * DS; i++) {
+                                    uint16_t v = (uint16_t)((i * 37) ^ bg);
+                                    actual[i] = v;
+                                    expected[i] = v;
+                                }
+                                ref_blit(expected, &g, xs[xi], ys[yi], fg, bg, lut, 0);
+                                glyph_blit8(actual, DS, DW, DH, xs[xi], ys[yi], &g,
+                                            fg, bg, lut);
+                                assert(memcmp(actual, expected, sizeof(actual)) == 0);
+
+                                for (int32_t i = 0; i < DH * DS; i++) {
+                                    actual[i] = expected[i] = (uint16_t)(i * 13);
+                                }
+                                ref_blit(expected, &g, xs[xi], ys[yi], fg, bg, lut, 1);
+                                glyph_blit8_bg(actual, DS, DW, DH, xs[xi], ys[yi], &g, lut);
+                                assert(memcmp(actual, expected, sizeof(actual)) == 0);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 static void run_random_case(uint32_t *state)
 {
     uint8_t bmp[256];
@@ -123,6 +185,7 @@ int main(void)
     run_case("bg-outside", 100, 100, 1, 1, 1);
 
     uint32_t state = 0x13579BDFu;
+    exhaustive_small();
     for (int i = 0; i < 5000; i++) run_random_case(&state);
 
     uint16_t buf[DH * DS] = {0};
