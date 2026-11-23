@@ -254,7 +254,7 @@ void rd_reset_page_cache(void)
     s_idx_dirty = 0;
 }
 
-static Settings s_settings = {3, 1, 0, 0, 14, 0};
+static Settings s_settings = {3, 1, 0, 0, 14, 2};
 
 typedef struct {
     int64_t off;
@@ -1355,7 +1355,7 @@ static void load_settings(void)
                     s_settings.gap_idx = clamp_i32(tmp.gap_idx, 0, 2);
                     s_settings.theme = clamp_i32(tmp.theme, 0, 1);
                     s_settings.affinity_idx = rn >= sizeof(Settings)
-                        ? clamp_i32(tmp.affinity_idx, 0, 2) : 0;
+                        ? clamp_i32(tmp.affinity_idx, 0, 2) : 2;
                     if (tmp.version >= 14) {
                         s_settings.version = 14;
                         migrate = 0;
@@ -1371,7 +1371,7 @@ static void load_settings(void)
         s_settings.indent_idx = 1;
         s_settings.gap_idx = 0;
         s_settings.version = 14;
-        s_settings.affinity_idx = 0;
+        s_settings.affinity_idx = 2;
         save_settings();
     }
 

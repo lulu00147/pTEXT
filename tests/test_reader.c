@@ -1183,7 +1183,7 @@ int main(void)
     assert(settings->font_idx == 5);
     assert(settings->indent_idx == 0);
     assert(settings->gap_idx == 2);
-    assert(settings->affinity_idx == 0);
+    assert(settings->affinity_idx == 2);
 
     Settings affinity_settings = {4, 2, 1, 1, 14, 1};
     write_file("../.prog/settings.bin", (const char *)&affinity_settings,
