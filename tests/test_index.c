@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <limits.h>
 
 #include "reader.h"
 
@@ -181,6 +182,28 @@ int main(void)
 
     records[0].page_no = 1;
     len = build(buf, sizeof(buf), 1, records, hash, size, mtime, 0);
+
+    TestRecord big_records[1025];
+    uint8_t big_buf[sizeof(TestHeader) + sizeof(big_records)];
+    for (int i = 0; i < 1025; i++) {
+        big_records[i].off = (int64_t)i * 1000;
+        big_records[i].page_no = i + 1;
+        big_records[i].reserved = 0;
+    }
+    size_t big_len = build(big_buf, sizeof(big_buf), 1024, big_records,
+                           hash, 2 * 1024 * 1024, mtime, 0);
+    expect_ok(big_buf, big_len, 500000, hash, 2 * 1024 * 1024, mtime,
+              500000, 501, 501);
+    big_len = build(big_buf, sizeof(big_buf), 1025, big_records,
+                    hash, 2 * 1024 * 1024, mtime, 0);
+    expect_bad(big_buf, big_len, 0, hash, 2 * 1024 * 1024, mtime);
+
+    big_records[0].off = INT64_MAX - 1;
+    big_records[0].page_no = 1;
+    big_len = build(big_buf, sizeof(big_buf), 1, big_records,
+                    hash, INT64_MAX, mtime, 0);
+    expect_ok(big_buf, big_len, INT64_MAX - 1, hash, INT64_MAX, mtime,
+              INT64_MAX - 1, 1, 1);
 
     int64_t off = -1;
     int32_t page = -1;
