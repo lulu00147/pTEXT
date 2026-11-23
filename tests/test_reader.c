@@ -1329,6 +1329,31 @@ int main(void)
     assert(rd_get_page()->count > 0);
     rd_close();
 
+    static const uint32_t break_chars[] = {
+        '(', '[', '{', ')', ']', '}', ',', '.', ':', ';', '!', '?',
+        0x00AB, 0x2018, 0x2019, 0x201C, 0x201D, 0x2014, 0x2026,
+        0x3001, 0x3002, 0x3008, 0x3009, 0x300A, 0x300B, 0x300C, 0x300D,
+        0x300E, 0x300F, 0x3010, 0x3011, 0x3014, 0x3015, 0x3016, 0x3017,
+        0x3018, 0x3019, 0x301A, 0x301B, 0xFF01, 0xFF08, 0xFF09, 0xFF0C,
+        0xFF0E, 0xFF1A, 0xFF1B, 0xFF1F, 0xFF3B, 0xFF3D, 0xFF5B, 0xFF5D,
+    };
+    for (size_t i = 0; i < sizeof(break_chars) / sizeof(break_chars[0]); i++) {
+        (void)rd_test_line_break_allowed('A', break_chars[i]);
+        (void)rd_test_line_break_allowed(break_chars[i], 'A');
+    }
+    static const uint32_t combining[] = {
+        0x0300, 0x036F, 0x1AB0, 0x1AFF, 0x1DC0, 0x1DFF,
+        0x20D0, 0x20FF, 0xFE20, 0xFE2F, 0xFE00, 0xFE0F,
+        0xE0100, 0xE01EF,
+    };
+    for (size_t i = 0; i < sizeof(combining) / sizeof(combining[0]); i++) {
+        assert(rd_test_line_break_allowed('A', combining[i]) == 0);
+        assert(rd_test_line_break_allowed(combining[i], 'A') == 1);
+    }
+    assert(rd_test_line_break_allowed(0, 0) == 1);
+    assert(rd_test_line_break_allowed(0, 'A') == 1);
+    assert(rd_test_line_break_allowed('A', 0) == 1);
+
     write_file("cleanup.txt", "keep", 4);
     write_file("cleanup.txt.name", "keep-name", 9);
     write_file("../.prog/cleanup.txt.bin", "p", 1);
