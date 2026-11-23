@@ -8,6 +8,7 @@
 #include "ui_util.h"
 
 #include <stdio.h>
+#include <string.h>
 #include <time.h>
 #ifdef PTEXT_MT
 #include <pthread.h>
@@ -50,6 +51,11 @@ static void *draw_body_thread(void *arg)
     }
     return NULL;
 }
+
+#define PAGE_SEEN_SLOTS 1024
+static uint32_t s_page_seen_key[PAGE_SEEN_SLOTS];
+static uint32_t s_page_seen_gen[PAGE_SEEN_SLOTS];
+static uint32_t s_page_gen;
 #endif
 
 void ui_draw_reading(void)
@@ -120,8 +126,22 @@ void ui_draw_reading(void)
         draw_i++;
     }
     int32_t preload_ok = 1;
+    s_page_gen++;
+    if (s_page_gen == 0) {
+        memset(s_page_seen_gen, 0, sizeof(s_page_seen_gen));
+        s_page_gen = 1;
+    }
     for (int32_t i = 0; i < item_count; i++) {
-        preload_ok &= r_preload_text(items[i].line->text, items[i].line->len);
+        const Line *line = items[i].line;
+        for (int32_t j = 0; j < line->len; j++) {
+            uint32_t cp = line->text[j];
+            uint32_t slot = (cp * 2654435761u) & (PAGE_SEEN_SLOTS - 1);
+            if (s_page_seen_gen[slot] == s_page_gen &&
+                s_page_seen_key[slot] == cp) continue;
+            s_page_seen_gen[slot] = s_page_gen;
+            s_page_seen_key[slot] = cp;
+            preload_ok &= r_preload_cp(cp);
+        }
     }
     r_prepare_parallel();
     if (preload_ok) {

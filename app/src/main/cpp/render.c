@@ -493,24 +493,17 @@ void r_prepare_parallel(void)
     if (s_font_ok) ensure_blend_lut(s_fg_color);
 }
 
-static int gc_is_cached(uint32_t cp)
-{
-    if (cp == ' ' || cp == '\t' || cp == 0x3000) return 1;
-    uint32_t h = (cp * 2654435761u) & GC_MASK;
-    for (int32_t i = 0; i < GC_ASSOC; i++) {
-        const G *g = &s_gc[(h + i) & GC_MASK];
-        if (g->cp == cp && g->sz == s_fsz && g->w && g->cached) return 1;
-    }
-    return 0;
-}
-
 int r_preload_text(const uint32_t *s, int32_t n)
 {
     if (!s_locked || !s_font_ok || !s) return 0;
     for (int32_t i = 0; i < n; i++) (void)GC_GET(s[i]);
-    for (int32_t i = 0; i < n; i++) {
-        if (!gc_is_cached(s[i])) return 0;
-    }
+    return 1;
+}
+
+int r_preload_cp(uint32_t cp)
+{
+    if (!s_locked || !s_font_ok || !cp) return 0;
+    (void)GC_GET(cp);
     return 1;
 }
 

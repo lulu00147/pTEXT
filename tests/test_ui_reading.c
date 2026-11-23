@@ -84,6 +84,12 @@ int32_t r_preload_text(const uint32_t *s, int32_t n)
     atomic_fetch_add(&preload_calls, 1);
     return kPreloadOk && n >= 0;
 }
+int32_t r_preload_cp(uint32_t cp)
+{
+    (void)cp;
+    atomic_fetch_add(&preload_calls, 1);
+    return kPreloadOk;
+}
 
 int64_t rd_get_file_len(void) { return kFileLen; }
 Page *rd_get_page(void) { return &kPage; }
