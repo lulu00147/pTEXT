@@ -173,6 +173,24 @@ PKR 的小核组核数更多，因此多线程小核反而更快；PJA 的大核
 - 暗色主题为纯黑背景；夜间正文使用灰色，减少亮像素。
 - 阅读页仅在输入、翻页或分钟变化时重绘，不做持续动画。
 
+## 测试
+
+```sh
+cd tests
+sh run_all.sh      # 单元、ASan/UBSan/LSan、libFuzzer
+sh run_mcdc.sh     # 行、分支、MC/DC 门禁
+```
+
+当前 1,065,822 个 host 用例通过。`reader.c`、`ui_reading.c`、`utf8.h`、`glyph_blit.h`、`glyph_blit8.h` 的行、分支和 MC/DC 均为 100%。
+
+Android 生命周期单独验证：
+
+```sh
+ANDROID_SERIAL=<serial> sh tests/android_lifecycle.sh
+```
+
+退出应用后重新进入必须回到文件列表；该路径不由 host 测试覆盖。
+
 ## 范围
 
 - 仅 Android 16+ / arm64-v8a。
