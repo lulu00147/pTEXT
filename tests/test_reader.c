@@ -1271,6 +1271,14 @@ int main(void)
     assert(rd_read_bookmarks("empty.txt", empty_bm, 0) == 0);
     assert(rd_read_bookmarks("empty.txt", NULL, 1) == 0);
     assert(rd_open_file("missing-file.txt") != 0);
+    int64_t no_idx_off = -1;
+    int32_t no_idx_page = -1;
+    assert(rd_test_idx_lookup(0, &no_idx_off, &no_idx_page) == 0);
+    rd_prefetch_step();
+
+    write_file("basename.txt", "x", 1);
+    assert(rd_delete_file("basename.txt") == 0);
+    assert(access("basename.txt", F_OK) != 0);
 
     char nodir[512];
     char nodir_files[600];

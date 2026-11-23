@@ -274,6 +274,16 @@ int main(void)
     (void)rd_read_bookmarks("legacy.txt", legacy_raw, 1);
     fail_ftell = 0;
 
+    fail_fseek_at = 1;
+    fseek_calls = 0;
+    (void)rd_read_bookmarks("legacy.txt", legacy_raw, 1);
+    fail_fseek_at = 0;
+
+    uint8_t many_raw[(MAX_BOOKMARKS + 1) * sizeof(Bookmark)];
+    memset(many_raw, 0, sizeof(many_raw));
+    write_file("../.bm/legacy-many.txt.bin", many_raw, sizeof(many_raw));
+    (void)rd_read_bookmarks("legacy-many.txt", legacy_raw, 1);
+
     fail_fstat = 1;
     write_file("only.txt", "x", 1);
     (void)rd_open_file("only.txt");

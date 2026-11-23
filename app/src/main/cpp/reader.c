@@ -536,7 +536,7 @@ int32_t rd_open_file(const char *path)
     }
 
     rd_goto_offset(open_offset);
-    s_page_no = open_page_no > 0 ? open_page_no : 1;
+    s_page_no = open_page_no;
     return 0;
 }
 
@@ -1298,7 +1298,7 @@ void rd_jump_to_offset(int64_t offset)
     page_start = off;
 
     rd_goto_offset(page_start);
-    s_page_no = page_no > 0 ? page_no : 1;
+    s_page_no = page_no;
 }
 
 void rd_next_page(void)
@@ -1514,7 +1514,6 @@ static int32_t bookmark_preview(const uint8_t *data, int64_t len,
 
             char enc[4];
             int32_t elen = enc_utf8_encode(cp, enc);
-            if (elen <= 0) break;
             if (n + elen > cap - 1) break;
             memcpy(out + n, enc, (size_t)elen);
             n += elen;
