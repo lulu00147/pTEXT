@@ -1,132 +1,83 @@
 # Tests
 
-## Encoding
+测试按职责分文件，目录保持扁平；脚本从 `tests/` 运行。
 
-Windows，Visual Studio x64 开发环境：
+## 入口
+
+| 命令 | 用途 |
+|---|---|
+| `sh run_all.sh` | Linux/WSL 全量：单元、ASan/UBSan、libFuzzer |
+| `sh run_reader_tests.sh` | Reader、索引、字形、UI、持久化 |
+| `sh run_sanitizers.sh` | ASan/UBSan/LSan；含故障与崩溃测试 |
+| `sh run_libfuzzer.sh` | 编码、reader、索引解析、索引文件 fuzz |
+| `sh run_mcdc.sh` | MC/DC 门禁，需 clang 19 |
+| `sh run_tsan.sh` | 三线程 UI 的 TSan |
+| `sh run_mutation_smoke.sh` | 受控变异，测试必须杀死变异 |
+| `run_tests.bat` | Windows x64 编码测试 |
+| `run_asan_vs.bat` | Windows MSVC ASan |
+
+## 单元测试
+
+| 文件 | 覆盖 |
+|---|---|
+| `test_reader.c` | 空文件、长行、多页、缩进/行距、书签、BOM、CRLF、编码、名称 sidecar、删除、设置迁移、预取、索引生命周期 |
+| `test_index.c` | 索引头/记录解析、校验和、单调性、截断、多余数据、1024/1025 记录、`INT64_MAX` 边界 |
+| `test_index_fault.c` | `.idx.tmp` 的 open/write/短写/fsync/close/rename 失败；旧索引不被破坏 |
+| `test_index_crash.c` | 临时写入后、fsync 后、rename 后杀进程；验证原子性 |
+| `test_glyph_blit.c` | 4-bit 字形裁剪、空位图、非法参数、随机差分 |
+| `test_glyph_blit8.c` | 8-bit 字形正常/背景/裁剪/随机/空参数 |
+| `test_persist.c` | 临时文件 + fsync + rename 正常路径 |
+| `test_persist_fault.c` | 持久化写入故障注入 |
+| `test_ui_settings.c` | 设置面板几何、命中、边界、文本适配 |
+| `test_ui_lists.c` | 文件/书签列表滚动、命中、导入区、空列表、小窗口 |
+| `test_ui_reading.c` | 阅读页页眉/页脚/正文/书签星号/空内容；单线程与 `PTEXT_MT` |
+| `test_utf8_gbk.c` | UTF-8、GBK、GB18030、截断和非法序列 |
+| `test_reader_io_fault.c` | reader 的 fopen/open/mmap/fread/fseek 等 I/O 故障 |
+
+编码固定用例与随机用例合计 1,065,822 cases。
+
+## 索引生命周期
+
+`test_reader.c` 覆盖：
+
+- 小文件不生成 `.idx`
+- 删除 `.idx` 后自动重建
+- 设置变化、文件大小变化使旧索引失效
+- 删除书籍清理 `.prog` 和 `.idx`
+- 索引可用时跳转，损坏时回退
+
+`test_index_fault.c` 和 `test_index_crash.c` 额外覆盖写入故障与进程中断后的原子性。
+
+## Fuzz
+
+`run_libfuzzer.sh` 启用 ASan/UBSan/LSan：
+
+| 目标 | 次数 |
+|---|---:|
+| encoding | 50,000 |
+| reader/bookmarks | 5,000 |
+| index parser | 100,000 |
+| index file（真实 `.idx` 加载） | 5,000 |
+
+## 覆盖说明
+
+- `test_index.c` 覆盖索引解析器的全部分支。
+- 行覆盖率、MC/DC 以 `run_mcdc.sh` 的实际输出为准；不再在本文维护手写百分比表。
+- 测试是 host 测试，不覆盖 Android 生命周期、JNI、`ANativeWindow` 或 SurfaceFlinger。
+- `render_host.c` 是确定性渲染桩。
+
+## Windows
+
+编码测试：
 
 ```bat
 run_tests.bat
 ```
 
-覆盖 65,536 组 GBK 双字节、1,000,000 组随机 UTF-8、fuzz 种子、UTF-8 往返，以及 UTF-8 截断/非法序列、GBK/GB18030 边界和编码失败分支。共 1,065,822 cases。
-
-## Reader / Persist
-
-Linux 或 WSL：
-
-```sh
-sh run_reader_tests.sh
-```
-
-覆盖空文件、长行、多页、缩进、行距、书签读写/扫描/跳转/首行预览、BOM、CRLF、GBK、名称 sidecar、legacy 书签、删除 sidecar、损坏 settings 迁移、预取翻页，并检查 50 次 open/close 后 fd 与 mmap 数量不增长。
-
-新增 `test_ui_settings.c`，覆盖设置面板几何、行命中、按钮边界、绘制分支、`ui_fit_text` 和 UTF-8 转换。
-
-新增 `test_ui_lists.c`，覆盖文件列表/书签列表的滚动、命中、导入区、空列表、错误提示和 200×160 小窗口分支。reader 测试还覆盖 1×1 窗口下的分页布局下限。
-
-新增 `test_ui_reading.c`，覆盖阅读页页眉/页脚、正文、书签星号、空白正文、页码 0 和无文件路径；同时用 `PTEXT_MT` 编译覆盖实际三线程正文路径。
-
-新增 `test_persist_fault.c`，用链接器 wrap 注入 `EINTR`、EIO、短写、`fsync`、`rename`、`close` 失败。
-
-字形测试覆盖远端/近端裁剪、左侧完全离屏、空位图和非法参数，并加入 5,000 轮随机差分测试。
-
-当前 host 可测模块行覆盖率（gcov）：
-
-```text
-reader.c       100.0%
-encoding.c     100.0%
-persist.c     100.0% (normal + fault injection)
-glyph_blit.h  100.0%
-ui_reading.c  100.0% (single-thread and MT)
-ui_settings.c 100.0%
-ui_lists.c    100.0%
-ui_util.c     100.0%
-```
-
-`render_host.c` 是确定性渲染桩。测试不是 Android UI 测试。
-
-## Sanitizer / Fuzz
-
-Linux 或 WSL：
-
-```sh
-sh run_sanitizers.sh
-```
-
-启用 ASan、UBSan、LSan，运行 reader、glyph blit、persist、encoding、settings，以及 5,000 轮随机 reader/书签输入。不覆盖 Android 生命周期、JNI、ANativeWindow 或 SurfaceFlinger。
-
-## MC/DC
-
-Linux 或 WSL，需 clang 19：
-
-```sh
-sh run_mcdc.sh
-```
-
-使用 `-fcoverage-mcdc` 统计布尔决策，并执行阈值门禁：
-
-```text
-reader.c      = 100%
-encoding.c    = 100%
-persist.c     = 100%
-UI/glyph      = 100%
-```
-
-```text
-glyph_blit.h  100.0%
-ui_lists.c    100.0%
-ui_reading.c  100.0%
-ui_settings.c 100.0%
-ui_util.c     100.0%
-persist.c      100.0%
-encoding.c     100.0%
-reader.c       100.0%
-```
-
-## ThreadSanitizer
-
-Linux 或 WSL，需 clang：
-
-```sh
-sh run_tsan.sh
-```
-
-编译实际 `PTEXT_MT` 三线程 UI 路径，注入线程创建失败，并在 TSan 下运行。
-
-## Mutation Smoke
-
-Linux 或 WSL：
-
-```sh
-sh run_mutation_smoke.sh
-```
-
-对关键守卫做受控变异，测试必须失败：
-
-- 删除字形左侧裁剪守卫
-- 删除字形右侧裁剪守卫
-- 恢复设置行边界 bug
-- 修改 UTF-8 编码边界
-- 修改 persist 零写处理
-
-任意变异存活则脚本失败。当前 5/5 被测试杀死。
-
-## Windows ASan
-
-Visual Studio x64 Native Tools 命令提示符：
+ASan：
 
 ```bat
 run_asan_vs.bat
 ```
 
-使用 MSVC `/fsanitize=address` 运行 glyph blit 和 encoding。Windows ASan 不支持 LSan，且不覆盖 POSIX reader/persist 路径。
-
-## libFuzzer
-
-Linux 或 WSL，需 clang：
-
-```sh
-sh run_libfuzzer.sh
-```
-
-coverage-guided fuzz：encoding 50,000 次，reader/书签 5,000 次，启用 ASan/UBSan/LSan。
+Windows ASan 不支持 LSan，也不覆盖 POSIX reader/persist 路径。
