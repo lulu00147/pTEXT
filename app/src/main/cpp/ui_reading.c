@@ -145,8 +145,8 @@ void ui_draw_reading(void)
     }
     r_prepare_parallel();
     if (preload_ok) {
-        int32_t split1 = item_count / 4;
-        int32_t split2 = split1 + (item_count - split1) / 2;
+        int32_t split1 = item_count / 3;
+        int32_t split2 = split1 * 2;
         BodyJob job0 = {items, 0, split1, &pl};
         BodyJob job1 = {items, split1, split2, &pl};
         BodyJob job2 = {items, split2, item_count, &pl};
