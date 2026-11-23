@@ -141,6 +141,15 @@ int main(void)
     assert(idx_file != NULL);
     fclose(idx_file);
 
+    assert(unlink("../.idx/idx-large.txt.bin") == 0);
+    assert(access("../.idx/idx-large.txt.bin", F_OK) != 0);
+    assert(rd_open_file("idx-large.txt") == 0);
+    for (int i = 0; i < 5 && rd_can_next(); i++) rd_next_page();
+    rd_close();
+    FILE *rebuilt_idx = fopen("../.idx/idx-large.txt.bin", "rb");
+    assert(rebuilt_idx != NULL);
+    fclose(rebuilt_idx);
+
     assert(rd_open_file("idx-large.txt") == 0);
     assert(rd_get_page_no() >= index_page);
     int64_t index_off = 0;
@@ -149,6 +158,12 @@ int main(void)
     assert(rd_test_idx_lookup(rd_get_file_len() - 1, &index_off, &index_no) > 0);
     assert(index_off >= 0 && index_off < rd_get_file_len());
     assert(index_no > 0);
+
+    rd_set_indent_idx((saved_settings.indent_idx + 1) % 3);
+    rd_reset_page_cache();
+    assert(rd_test_idx_lookup(rd_get_file_len() - 1, &index_off, &index_no) == 0);
+    rd_set_indent_idx(saved_settings.indent_idx);
+    rd_set_gap_idx(saved_settings.gap_idx);
     rd_reset_page_cache();
     assert(rd_test_idx_lookup(0, &index_off, &index_no) == 0);
     rd_close();
@@ -164,8 +179,19 @@ int main(void)
     write_file("../.idx/idx-large.txt.bin", junk, sizeof(junk));
     assert(rd_open_file("idx-large.txt") == 0);
     rd_close();
-    (void)unlink("../.prog/idx-large.txt.bin");
-    (void)unlink("../.idx/idx-large.txt.bin");
+
+    FILE *changed = fopen("idx-large.txt", "ab");
+    assert(changed != NULL);
+    assert(fputc('x', changed) != EOF);
+    fclose(changed);
+    assert(rd_open_file("idx-large.txt") == 0);
+    rd_reset_page_cache();
+    assert(rd_test_idx_lookup(rd_get_file_len() - 1, &index_off, &index_no) == 0);
+    rd_close();
+
+    assert(rd_delete_file("idx-large.txt") == 0);
+    assert(access("../.prog/idx-large.txt.bin", F_OK) != 0);
+    assert(access("../.idx/idx-large.txt.bin", F_OK) != 0);
 
     const char *long_path = "long.txt";
     char *text = malloc(40001);
@@ -195,6 +221,7 @@ int main(void)
     }
     assert(pages > 1);
     rd_close();
+    assert(access("../.idx/long.txt.bin", F_OK) != 0);
     assert(unlink("../.prog/long.txt.bin") == 0);
 
     assert(rd_open_file(long_path) == 0);
