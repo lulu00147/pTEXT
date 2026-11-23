@@ -13,6 +13,7 @@
 | `sh run_mcdc.sh` | MC/DC 门禁，需 clang 19 |
 | `sh run_tsan.sh` | 三线程 UI 的 TSan |
 | `sh run_mutation_smoke.sh` | 受控变异，测试必须杀死变异 |
+| `sh android_lifecycle.sh` | 真机/模拟器：退出后重新进入必须回到 MainActivity |
 | `run_tests.bat` | Windows x64 编码测试 |
 | `run_asan_vs.bat` | Windows MSVC ASan |
 
@@ -67,6 +68,7 @@
 - 行覆盖率、MC/DC 以 `run_mcdc.sh` 的实际输出为准；不再在本文维护手写百分比表。
 - 测试是 host 测试，不覆盖 Android 生命周期、JNI、`ANativeWindow` 或 SurfaceFlinger。
 - `render_host.c` 是确定性渲染桩。
+- `android_lifecycle.sh` 专门覆盖 host 测试无法覆盖的 Activity 退出/重入路径。
 
 ## 待补：reader 剩余分支
 

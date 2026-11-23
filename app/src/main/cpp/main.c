@@ -727,7 +727,7 @@ void android_main(struct android_app *app)
     app->onAppCmd = handle_cmd;
     app->onInputEvent = handle_input;
 
-    while (1) {
+    while (!app->destroyRequested) {
         int32_t events;
         struct android_poll_source *source;
         int32_t timeout = (app->window && s_need_redraw) ? 0 : -1;
@@ -836,4 +836,7 @@ void android_main(struct android_app *app)
             }
         }
     }
+
+    rd_close();
+    r_deinit();
 }
