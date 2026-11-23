@@ -8,7 +8,7 @@
 #include "ui_settings.h"
 #include "ui_util.h"
 
-static Settings kSettings = {3, 1, 0, 0, 14};
+static Settings kSettings = {3, 1, 0, 0, 14, 0};
 static int32_t kWidth = 600;
 static int32_t kHeight = 800;
 
@@ -35,7 +35,7 @@ int main(void)
 {
     int32_t l, t, r, b;
     ui_get_settings_rect(&l, &t, &r, &b);
-    assert(l == 120 && t == 280 && r == 480 && b == 520);
+    assert(l == 120 && t == 255 && r == 480 && b == 545);
 
     assert(ui_settings_row_at(t + 49) == -1);
     assert(ui_settings_row_at(t + 50) == 0);
@@ -46,6 +46,8 @@ int main(void)
     assert(ui_settings_row_at(t + 199) == 2);
     assert(ui_settings_row_at(t + 200) == 3);
     assert(ui_settings_row_at(t + 239) == 3);
+    assert(ui_settings_row_at(t + 250) == 4);
+    assert(ui_settings_row_at(t + 289) == 4);
 
     assert(ui_settings_contains(l, t));
     assert(ui_settings_contains(r, b));

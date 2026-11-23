@@ -11,7 +11,7 @@
 #include <stdio.h>
 
 #define SETTINGS_W      ui_px(360)
-#define SETTINGS_H      ui_px(240)
+#define SETTINGS_H      ui_px(290)
 #define SETTINGS_ROW_H  ui_px(50)
 
 void ui_get_settings_rect(int32_t *l, int32_t *t, int32_t *r, int32_t *b)
@@ -66,6 +66,7 @@ void ui_draw_settings(void)
     int32_t indent_idx = clamp_i32(s->indent_idx, 0, 2);
     int32_t gap_idx = clamp_i32(s->gap_idx, 0, 2);
     int32_t theme = clamp_i32(s->theme, 0, 1);
+    int32_t affinity_idx = clamp_i32(s->affinity_idx, 0, 1);
     int32_t y = t + ui_px(50);
     char buf[64];
 
@@ -88,5 +89,10 @@ void ui_draw_settings(void)
     snprintf(buf, sizeof(buf), "主题: %s", theme ? "日间" : "夜间");
     n = ui_utf8_to_utf32(utxt, 127, buf);
     r_draw_text(l + ui_px(30), y, utxt, n);
-    draw_toggle_buttons(r, y, '-', '+');
+    draw_toggle_buttons(r, y, '-', '+'); y += SETTINGS_ROW_H;
+
+    snprintf(buf, sizeof(buf), "捆绑: %s", affinity_idx ? "小核" : "大核");
+    n = ui_utf8_to_utf32(utxt, 127, buf);
+    r_draw_text(l + ui_px(30), y, utxt, n);
+    draw_toggle_buttons(r, y, 0x5927, 0x5C0F);
 }

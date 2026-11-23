@@ -93,6 +93,7 @@ int32_t r_preload_cp(uint32_t cp)
 void r_fast_begin(void) {}
 int r_fast_prepare(void) { return 1; }
 void r_fast_end(void) {}
+void affinity_bind_current(void) {}
 
 int64_t rd_get_file_len(void) { return kFileLen; }
 Page *rd_get_page(void) { return &kPage; }

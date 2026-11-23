@@ -254,7 +254,7 @@ void rd_reset_page_cache(void)
     s_idx_dirty = 0;
 }
 
-static Settings s_settings = {3, 1, 0, 0, 14};
+static Settings s_settings = {3, 1, 0, 0, 14, 0};
 
 typedef struct {
     int64_t off;
@@ -1349,13 +1349,15 @@ static void load_settings(void)
                 memset(&tmp, 0, sizeof(tmp));
                 size_t want = (size_t)fsize < sizeof(tmp) ? (size_t)fsize : sizeof(tmp);
                 size_t rn = fread(&tmp, 1, want, f);
-                if (rn >= 12) {
+                if (rn >= 20) {
                     s_settings.font_idx = clamp_i32(tmp.font_idx, 0, 6);
                     s_settings.indent_idx = clamp_i32(tmp.indent_idx, 0, 2);
                     s_settings.gap_idx = clamp_i32(tmp.gap_idx, 0, 2);
-                    if (rn >= 16) s_settings.theme = clamp_i32(tmp.theme, 0, 1);
-                    if (rn >= sizeof(Settings) && tmp.version >= 14) {
-                        s_settings.version = tmp.version;
+                    s_settings.theme = clamp_i32(tmp.theme, 0, 1);
+                    s_settings.affinity_idx = rn >= sizeof(Settings)
+                        ? clamp_i32(tmp.affinity_idx, 0, 1) : 0;
+                    if (tmp.version >= 14) {
+                        s_settings.version = 14;
                         migrate = 0;
                     }
                 }
@@ -1369,6 +1371,7 @@ static void load_settings(void)
         s_settings.indent_idx = 1;
         s_settings.gap_idx = 0;
         s_settings.version = 14;
+        s_settings.affinity_idx = 0;
         save_settings();
     }
 
@@ -1395,6 +1398,12 @@ void rd_set_gap_idx(int32_t i)
 {
     s_settings.gap_idx = clamp_i32(i, 0, 2);
     rd_reset_page_cache();
+    save_settings();
+}
+
+void rd_set_affinity_idx(int32_t i)
+{
+    s_settings.affinity_idx = clamp_i32(i, 0, 1);
     save_settings();
 }
 

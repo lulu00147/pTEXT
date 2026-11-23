@@ -6,6 +6,7 @@
 #include "render.h"
 #endif
 #include "ui_util.h"
+#include "affinity.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -45,6 +46,7 @@ static void draw_body_item(const BodyItem *it, const PageLayout *pl)
 
 static void *draw_body_thread(void *arg)
 {
+    affinity_bind_current();
     const BodyJob *job = (const BodyJob *)arg;
     for (int32_t i = job->start; i < job->end; i++) {
         draw_body_item(&job->items[i], job->pl);

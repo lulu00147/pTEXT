@@ -1173,6 +1173,23 @@ int main(void)
     assert(settings->gap_idx == 1);
     assert(settings->theme == 1);
     assert(settings->version == 14);
+    assert(settings->affinity_idx == 0);
+
+    int32_t old_settings20[5] = {5, 0, 2, 0, 14};
+    write_file("../.prog/settings.bin", (const char *)old_settings20,
+               sizeof(old_settings20));
+    rd_init(dir);
+    settings = rd_get_settings();
+    assert(settings->font_idx == 5);
+    assert(settings->indent_idx == 0);
+    assert(settings->gap_idx == 2);
+    assert(settings->affinity_idx == 0);
+
+    Settings affinity_settings = {4, 2, 1, 1, 14, 1};
+    write_file("../.prog/settings.bin", (const char *)&affinity_settings,
+               sizeof(affinity_settings));
+    rd_init(dir);
+    assert(rd_get_settings()->affinity_idx == 1);
 
     static const unsigned char bad_settings[16] = {0};
     write_file("../.prog/settings.bin", (const char *)bad_settings, sizeof(bad_settings));
@@ -1220,6 +1237,10 @@ int main(void)
     rd_set_theme(99);
     assert(rd_get_settings()->theme == 1);
     rd_set_theme(0);
+    rd_set_affinity_idx(99);
+    assert(rd_get_settings()->affinity_idx == 1);
+    rd_set_affinity_idx(-1);
+    assert(rd_get_settings()->affinity_idx == 0);
 
     rd_set_gap_idx(0);
     int32_t line_h0 = rd_get_line_h();

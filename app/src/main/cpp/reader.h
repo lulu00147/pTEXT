@@ -5,7 +5,7 @@
 
 typedef struct { char path[1024]; char name[256]; int32_t bookmarks; } FileItem;
 typedef struct { int64_t offset; char preview[48]; } Bookmark;
-typedef struct { int32_t font_idx; int32_t indent_idx; int32_t gap_idx; int32_t theme; int32_t version; /* 新字段追加到末尾以保持二进制兼容 */ } Settings;
+typedef struct { int32_t font_idx; int32_t indent_idx; int32_t gap_idx; int32_t theme; int32_t version; int32_t affinity_idx; /* 新字段追加到末尾以保持二进制兼容 */ } Settings;
 
 void rd_init(const char *data_path);
 void rd_scan_dir(void);
@@ -42,6 +42,7 @@ Settings* rd_get_settings(void);
 void rd_set_font_idx(int32_t i);
 void rd_set_indent_idx(int32_t i);
 void rd_set_gap_idx(int32_t i);
+void rd_set_affinity_idx(int32_t i);
 int32_t rd_get_line_h(void);
 int32_t rd_get_indent_w(void);
 void rd_toggle_bookmark(void);
