@@ -1355,7 +1355,7 @@ static void load_settings(void)
                     s_settings.gap_idx = clamp_i32(tmp.gap_idx, 0, 2);
                     s_settings.theme = clamp_i32(tmp.theme, 0, 1);
                     s_settings.affinity_idx = rn >= sizeof(Settings)
-                        ? clamp_i32(tmp.affinity_idx, 0, 1) : 0;
+                        ? clamp_i32(tmp.affinity_idx, 0, 2) : 0;
                     if (tmp.version >= 14) {
                         s_settings.version = 14;
                         migrate = 0;
@@ -1403,7 +1403,7 @@ void rd_set_gap_idx(int32_t i)
 
 void rd_set_affinity_idx(int32_t i)
 {
-    s_settings.affinity_idx = clamp_i32(i, 0, 1);
+    s_settings.affinity_idx = clamp_i32(i, 0, 2);
     save_settings();
 }
 

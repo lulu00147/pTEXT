@@ -59,6 +59,11 @@ int main(void)
     assert(ui_settings_button_at(r - 98) == 0);
     assert(ui_settings_button_at(r - 97) == 1);
     assert(ui_settings_button_at(r) == 1);
+    assert(ui_settings_affinity_button_at(r - 196) == -1);
+    assert(ui_settings_affinity_button_at(r - 195) == 0);
+    assert(ui_settings_affinity_button_at(r - 130) == 1);
+    assert(ui_settings_affinity_button_at(r - 65) == 2);
+    assert(ui_settings_affinity_button_at(r) == 2);
 
     uint32_t text[4] = {'A', 'B', 'C', 0};
     assert(ui_fit_text(text, 3, 25) == 2);
@@ -85,11 +90,13 @@ int main(void)
     kSettings.indent_idx = -5;
     kSettings.gap_idx = 9;
     kSettings.theme = 7;
+    kSettings.affinity_idx = 9;
     ui_draw_settings();
     kSettings.font_idx = 3;
     kSettings.indent_idx = 1;
     kSettings.gap_idx = 0;
     kSettings.theme = 0;
+    kSettings.affinity_idx = 0;
     ui_draw_settings();
 
     kWidth = 200;

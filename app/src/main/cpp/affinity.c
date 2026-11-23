@@ -8,6 +8,7 @@
 
 static cpu_set_t s_big;
 static cpu_set_t s_little;
+static cpu_set_t s_allowed;
 static int s_ready;
 static int s_mode;
 
@@ -38,6 +39,7 @@ static void detect(void)
         CPU_ZERO(&allowed);
         CPU_SET(0, &allowed);
     }
+    s_allowed = allowed;
 
     long max_khz = 0, min_khz = LONG_MAX;
     int any_freq = 0;
@@ -81,13 +83,17 @@ static void bind_mask(const cpu_set_t *mask)
 
 void affinity_set_mode(int mode)
 {
-    s_mode = mode ? 1 : 0;
+    s_mode = mode < 0 ? 0 : (mode > 2 ? 2 : mode);
     if (!s_ready) detect();
-    bind_mask(s_mode ? &s_little : &s_big);
+    const cpu_set_t *mask = s_mode == 0 ? &s_big
+                         : s_mode == 1 ? &s_little : &s_allowed;
+    bind_mask(mask);
 }
 
 void affinity_bind_current(void)
 {
     if (!s_ready) detect();
-    bind_mask(s_mode ? &s_little : &s_big);
+    const cpu_set_t *mask = s_mode == 0 ? &s_big
+                         : s_mode == 1 ? &s_little : &s_allowed;
+    bind_mask(mask);
 }

@@ -1238,7 +1238,7 @@ int main(void)
     assert(rd_get_settings()->theme == 1);
     rd_set_theme(0);
     rd_set_affinity_idx(99);
-    assert(rd_get_settings()->affinity_idx == 1);
+    assert(rd_get_settings()->affinity_idx == 2);
     rd_set_affinity_idx(-1);
     assert(rd_get_settings()->affinity_idx == 0);
 

@@ -271,7 +271,7 @@ static void handle_touch_reading(int32_t x, int32_t y)
         int32_t font_idx = clamp_i32(s->font_idx, 0, 6);
         int32_t indent_idx = clamp_i32(s->indent_idx, 0, 2);
         int32_t gap_idx = clamp_i32(s->gap_idx, 0, 2);
-        int32_t affinity_idx = clamp_i32(s->affinity_idx, 0, 1);
+        int32_t affinity_idx = clamp_i32(s->affinity_idx, 0, 2);
         int32_t row = ui_settings_row_at(y);
         int32_t left = ui_settings_button_at(x) == 0;
         int32_t need_rebuild = 0;
@@ -291,9 +291,12 @@ static void handle_touch_reading(int32_t x, int32_t y)
             rd_set_theme(left ? 0 : 1);
             s_need_redraw = 1;
         } else if (row == 4) {
-            rd_set_affinity_idx(left ? 0 : 1);
-            affinity_set_mode(rd_get_settings()->affinity_idx);
-            s_need_redraw = 1;
+            int32_t affinity_button = ui_settings_affinity_button_at(x);
+            if (affinity_button >= 0) {
+                rd_set_affinity_idx(affinity_button);
+                affinity_set_mode(rd_get_settings()->affinity_idx);
+                s_need_redraw = 1;
+            }
         }
         if (need_rebuild) {
             rd_reset_prefetch();

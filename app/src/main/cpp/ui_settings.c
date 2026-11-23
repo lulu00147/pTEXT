@@ -44,12 +44,35 @@ int32_t ui_settings_button_at(int32_t x)
     return x < r - ui_px(97) ? 0 : 1;
 }
 
+int32_t ui_settings_affinity_button_at(int32_t x)
+{
+    int32_t l, t, r, b;
+    ui_get_settings_rect(&l, &t, &r, &b);
+    int32_t start = r - ui_px(195);
+    if (x < start) return -1;
+    int32_t idx = (x - start) / ui_px(65);
+    if (idx < 0) idx = 0;
+    if (idx > 2) idx = 2;
+    return idx;
+}
+
 static void draw_toggle_buttons(int32_t r, int32_t y, uint32_t left, uint32_t right)
 {
     uint32_t lbtn[3] = {'[', left, ']'};
     uint32_t rbtn[3] = {'[', right, ']'};
     r_draw_text(r - ui_px(130), y, lbtn, 3);
     r_draw_text(r - ui_px(65), y, rbtn, 3);
+}
+
+static void draw_affinity_buttons(int32_t r, int32_t y)
+{
+    uint32_t big[3] = {'[', 0x5927, ']'};
+    uint32_t little[3] = {'[', 0x5C0F, ']'};
+    uint32_t none[3] = {'[', 0x4E0D, ']'};
+    int32_t start = r - ui_px(195);
+    r_draw_text(start, y, big, 3);
+    r_draw_text(start + ui_px(65), y, little, 3);
+    r_draw_text(start + ui_px(130), y, none, 3);
 }
 
 void ui_draw_settings(void)
@@ -66,7 +89,7 @@ void ui_draw_settings(void)
     int32_t indent_idx = clamp_i32(s->indent_idx, 0, 2);
     int32_t gap_idx = clamp_i32(s->gap_idx, 0, 2);
     int32_t theme = clamp_i32(s->theme, 0, 1);
-    int32_t affinity_idx = clamp_i32(s->affinity_idx, 0, 1);
+    int32_t affinity_idx = clamp_i32(s->affinity_idx, 0, 2);
     int32_t y = t + ui_px(50);
     char buf[64];
 
@@ -91,8 +114,9 @@ void ui_draw_settings(void)
     r_draw_text(l + ui_px(30), y, utxt, n);
     draw_toggle_buttons(r, y, '-', '+'); y += SETTINGS_ROW_H;
 
-    snprintf(buf, sizeof(buf), "捆绑: %s", affinity_idx ? "小核" : "大核");
+    const char *affinity[] = {"大核", "小核", "不捆绑"};
+    snprintf(buf, sizeof(buf), "捆绑: %s", affinity[affinity_idx]);
     n = ui_utf8_to_utf32(utxt, 127, buf);
     r_draw_text(l + ui_px(30), y, utxt, n);
-    draw_toggle_buttons(r, y, 0x5927, 0x5C0F);
+    draw_affinity_buttons(r, y);
 }
