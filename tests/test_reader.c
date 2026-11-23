@@ -1273,6 +1273,18 @@ int main(void)
     assert(rd_read_bookmarks("empty.txt", NULL, 1) == 0);
     assert(rd_test_bookmark_preview_null() == 0);
     assert(rd_test_bookmark_preview_bad_decode() == 0);
+    assert(rd_test_page_needs_checkpoint(64) == 0);
+    assert(rd_test_page_needs_checkpoint(65) == 0);
+    assert(rd_test_has_break(0) == 0);
+    assert(rd_test_has_break(1) == 1);
+    rd_test_apply_break(0);
+    rd_test_apply_break(1);
+    assert(rd_test_prev_safety_limit(2) < rd_test_prev_safety_limit(1));
+    rd_test_layout_break();
+    assert(rd_open_file(long_path) == 0);
+    rd_test_set_page_no(64);
+    rd_jump_to_offset(rd_get_file_len() / 2);
+    rd_close();
     rd_test_idx_save_guard();
     rd_test_cleanup_sidecars(".");
     assert(rd_test_bookmark_count("missing.bin") == 0);
@@ -1285,6 +1297,11 @@ int main(void)
     write_file("basename.txt", "x", 1);
     assert(rd_delete_file("basename.txt") == 0);
     assert(access("basename.txt", F_OK) != 0);
+
+    assert(mkdir("deldir", 0755) == 0);
+    write_file("deldir/del.txt", "x", 1);
+    assert(rd_delete_file("deldir/del.txt") == 0);
+    assert(rmdir("deldir") == 0);
 
     write_file("delside.txt", "x", 1);
     assert(mkdir("../.prog/delside.txt.bin", 0755) == 0);
@@ -1358,6 +1375,8 @@ int main(void)
         0x20D0, 0x20FF, 0xFE20, 0xFE2F, 0xFE00, 0xFE0F,
         0xE0100, 0xE01EF,
     };
+    assert(rd_test_line_break_allowed('A', 0x1DBF) == 1);
+    assert(rd_test_line_break_allowed('A', 0xFE10) == 1);
     for (size_t i = 0; i < sizeof(combining) / sizeof(combining[0]); i++) {
         assert(rd_test_line_break_allowed('A', combining[i]) == 0);
         assert(rd_test_line_break_allowed(combining[i], 'A') == 1);

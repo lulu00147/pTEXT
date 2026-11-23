@@ -70,47 +70,19 @@
 - `render_host.c` 是确定性渲染桩。
 - `android_lifecycle.sh` 专门覆盖 host 测试无法覆盖的 Activity 退出/重入路径。
 
-## 待补：reader 剩余分支
+## reader 覆盖
 
-当前 `reader.c` 为约 99.5% 分支覆盖、98.9% MC/DC，剩余约 4 个分支。`run_mcdc.sh` 仍会在 reader 门禁失败。
+`reader.c` 已达到 100% 行、分支、函数和 MC/DC，`run_mcdc.sh` reader 门禁通过。
 
-已 100% 的文件：
+全部目标文件：
 
 ```text
 glyph_blit.h
 glyph_blit8.h
 ui_reading.c
 utf8.h
+reader.c
 ```
-
-剩余分支位置：
-
-| 行 | 场景 |
-|---|---|
-| 72, 74, 77 | legacy 书签 `fseek`/`ftell`/超大计数 |
-| 119 | `bookmark_count` 空路径 |
-| 179, 182 | sidecar 目录 `snprintf`/`opendir` 失败 |
-| 189, 197, 202 | sidecar 名称后缀、目标路径长度、路径拼接 |
-| 210, 224, 229 | name sidecar 目录失败、路径长度、unlink |
-| 248 | `name_sidecar_path` 失败 |
-| 435, 515, 528 | `sidecar_path` 失败 |
-| 548 | `open_page_no` 下界 |
-| 598 | `page_max_lines` 下界 |
-| 676, 679 | `idx_save` 提前返回 |
-| 761 | `idx_parse` 的 `prefix_count == NULL` |
-| 767, 768 | `idx_lookup` 的前置条件 |
-| 771, 773, 774 | 索引路径、`fopen`、`fseek` 失败 |
-| 779, 784 | 索引大小、`fread` 失败 |
-| 964 | `last_break_len > 0` |
-| 1240 | `save_prog` 路径失败 |
-| 1304 | 跳转 checkpoint 边界 |
-| 1309 | `page_no` 下界 |
-| 1357 | 多 checkpoint 反向分页 |
-| 1404, 1411 | settings 路径失败 |
-| 1506 | `bookmark_preview` 空 data/decode |
-| 1525 | UTF-8 编码长度为 0 |
-
-补测时优先扩展 `test_reader_io_fault.c` 的故障序列，再补超长路径和内部 checkpoint 状态测试。
 
 
 ## Windows

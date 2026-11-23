@@ -913,6 +913,23 @@ static int32_t line_break_allowed(uint32_t left, uint32_t right)
     return 1;
 }
 
+static int32_t has_break_candidate(int32_t length)
+{
+    return length > 0;
+}
+
+static void apply_break(Line *line, LineCursor *cur, int64_t prev,
+                        int64_t break_off, int32_t break_len, int32_t break_x)
+{
+    if (break_len > 0) {
+        cur->off = break_off;
+        line->len = break_len;
+        cur->x = break_x;
+    } else {
+        cur->off = prev;
+    }
+}
+
 static void layout_line(Line *line, LineCursor *cur)
 {
     line->len = 0;
@@ -951,13 +968,7 @@ static void layout_line(Line *line, LineCursor *cur)
                 line->justify = 1;
                 break;
             }
-            if (last_break_len > 0) {
-                cur->off = last_break_off;
-                line->len = last_break_len;
-                cur->x = last_break_x;
-            } else {
-                cur->off = prev;
-            }
+            apply_break(line, cur, prev, last_break_off, last_break_len, last_break_x);
             line->justify = 1;
             break;
         }
@@ -1272,6 +1283,11 @@ void rd_goto_offset(int64_t offset)
     }
 }
 
+static void maybe_page_checkpoint(int64_t off, int32_t page_no)
+{
+    if (page_no % PAGE_CKPT_STEP == 0) page_checkpoint_add(off, page_no);
+}
+
 void rd_jump_to_offset(int64_t offset)
 {
     if (!s_mmap_data || s_mmap_len <= 0) return;
@@ -1298,7 +1314,7 @@ void rd_jump_to_offset(int64_t offset)
         if (probe.next_offset <= off || probe.next_offset > offset) break;
         off = probe.next_offset;
         page_no++;
-        if (page_no % PAGE_CKPT_STEP == 0) page_checkpoint_add(off, page_no);
+        maybe_page_checkpoint(off, page_no);
     }
     page_start = off;
 
@@ -1332,6 +1348,11 @@ void rd_next_page(void)
     }
 }
 
+static int32_t prev_safety_limit(int32_t ckpt_count)
+{
+    return ckpt_count > 1 ? PAGE_CKPT_STEP + 2 : 100000;
+}
+
 void rd_prev_page(void)
 {
     if (!rd_can_prev()) return;
@@ -1351,7 +1372,7 @@ void rd_prev_page(void)
 #ifdef PTEXT_HOST_TEST
         if (s_test_prev_probe >= 0) probe = s_test_prev_probe;
 #endif
-        int32_t safety_limit = s_page_ckpt_count > 1 ? PAGE_CKPT_STEP + 2 : 100000;
+        int32_t safety_limit = prev_safety_limit(s_page_ckpt_count);
 #ifdef PTEXT_HOST_TEST
         if (s_test_prev_safety >= 0) safety_limit = s_test_prev_safety;
 #endif
@@ -1688,6 +1709,46 @@ int32_t rd_test_bookmark_preview_bad_decode(void)
     static const uint8_t data[] = {'A'};
     static char out[8];
     return bookmark_preview(data, 1, NULL, 0, out, sizeof(out));
+}
+
+int32_t rd_test_page_needs_checkpoint(int32_t page_no)
+{
+    maybe_page_checkpoint(0, page_no);
+    return 0;
+}
+
+int32_t rd_test_has_break(int32_t length)
+{
+    return has_break_candidate(length);
+}
+
+void rd_test_apply_break(int32_t hit)
+{
+    Line line;
+    LineCursor cur;
+    memset(&line, 0, sizeof(line));
+    memset(&cur, 0, sizeof(cur));
+    apply_break(&line, &cur, 0, 0, hit ? 1 : 0, 0);
+}
+
+int32_t rd_test_prev_safety_limit(int32_t ckpt_count)
+{
+    return prev_safety_limit(ckpt_count);
+}
+
+void rd_test_layout_break(void)
+{
+    static const char data[] =
+        "aaaa bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+    Line line;
+    LineCursor cur;
+    memset(&cur, 0, sizeof(cur));
+    s_mmap_data = (char *)data;
+    s_mmap_len = (int64_t)(sizeof(data) - 1);
+    s_decode = enc_decode_utf8;
+    snprintf(s_cur_name, sizeof(s_cur_name), "%s", "layout.txt");
+    cur.max_x = 80;
+    layout_line(&line, &cur);
 }
 #endif
 
