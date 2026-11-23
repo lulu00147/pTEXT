@@ -74,6 +74,8 @@ $CC $FLAGS test_reader_io_fault.c render_host.c \
     ../app/src/main/cpp/reader.c ../app/src/main/cpp/encoding.c \
     ../app/src/main/cpp/persist.c -Wl,--wrap=fseek -Wl,--wrap=fread \
     -Wl,--wrap=snprintf -Wl,--wrap=open -Wl,--wrap=mmap \
+    -Wl,--wrap=ftell -Wl,--wrap=fstat -Wl,--wrap=opendir \
+    -Wl,--wrap=fopen -Wl,--wrap=access \
     -o "$OUT/test_reader_io_fault"
 "$OUT/test_reader_io_fault"
 

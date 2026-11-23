@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdarg.h>
@@ -11,6 +12,48 @@
 #include <unistd.h>
 
 #include "reader.h"
+
+static int fail_ftell;
+static int fail_fstat;
+static int fail_opendir;
+static int fail_fopen;
+static int fail_access;
+
+int __real_ftell(FILE *stream);
+int __real_fstat(int fd, struct stat *st);
+DIR *__real_opendir(const char *path);
+FILE *__real_fopen(const char *path, const char *mode);
+int __real_access(const char *path, int mode);
+
+long __wrap_ftell(FILE *stream)
+{
+    if (fail_ftell) return -1;
+    return __real_ftell(stream);
+}
+
+int __wrap_fstat(int fd, struct stat *st)
+{
+    if (fail_fstat) return -1;
+    return __real_fstat(fd, st);
+}
+
+DIR *__wrap_opendir(const char *path)
+{
+    if (fail_opendir) return NULL;
+    return __real_opendir(path);
+}
+
+FILE *__wrap_fopen(const char *path, const char *mode)
+{
+    if (fail_fopen) return NULL;
+    return __real_fopen(path, mode);
+}
+
+int __wrap_access(const char *path, int mode)
+{
+    if (fail_access) return -1;
+    return __real_access(path, mode);
+}
 
 static int fseek_calls;
 static int fread_calls;
@@ -222,6 +265,33 @@ int main(void)
     snprintf_forced = -1;
     rd_scan_dir();
     unlink("only.part");
+
+    write_file("legacy.txt", "x", 1);
+    Bookmark legacy_raw[1];
+    memset(legacy_raw, 0, sizeof(legacy_raw));
+    write_file("../.bm/legacy.txt.bin", legacy_raw, sizeof(legacy_raw));
+    fail_ftell = 1;
+    (void)rd_read_bookmarks("legacy.txt", legacy_raw, 1);
+    fail_ftell = 0;
+
+    fail_fstat = 1;
+    write_file("only.txt", "x", 1);
+    (void)rd_open_file("only.txt");
+    fail_fstat = 0;
+    rd_close();
+
+    write_file("../.prog/orphan.bin", "x", 1);
+    fail_access = 1;
+    rd_scan_dir();
+    fail_access = 0;
+
+    fail_opendir = 1;
+    rd_scan_dir();
+    fail_opendir = 0;
+
+    fail_fopen = 1;
+    (void)rd_read_bookmarks("only.txt", legacy_raw, 1);
+    fail_fopen = 0;
 
     write_file("only.txt", "x", 1);
     snprintf_calls = 0;

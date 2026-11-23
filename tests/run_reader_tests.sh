@@ -63,7 +63,9 @@ $cc -std=c11 -O2 -D_GNU_SOURCE -DPTEXT_HOST_TEST -I../app/src/main/cpp -I. \
     test_reader_io_fault.c render_host.c ../app/src/main/cpp/reader.c \
     ../app/src/main/cpp/encoding.c ../app/src/main/cpp/persist.c \
     -Wl,--wrap=fseek -Wl,--wrap=fread -Wl,--wrap=snprintf \
-    -Wl,--wrap=open -Wl,--wrap=mmap -o test_reader_io_fault
+    -Wl,--wrap=open -Wl,--wrap=mmap -Wl,--wrap=ftell -Wl,--wrap=fstat \
+    -Wl,--wrap=opendir -Wl,--wrap=fopen -Wl,--wrap=access \
+    -o test_reader_io_fault
 ./test_reader_io_fault
 $cc -std=c11 -O2 -D_GNU_SOURCE -I../app/src/main/cpp -I. \
     test_utf8_gbk.c ../app/src/main/cpp/encoding.c -o test_utf8_gbk
