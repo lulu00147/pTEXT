@@ -1286,6 +1286,23 @@ int main(void)
     assert(rd_delete_file("basename.txt") == 0);
     assert(access("basename.txt", F_OK) != 0);
 
+    write_file("delside.txt", "x", 1);
+    assert(mkdir("../.prog/delside.txt.bin", 0755) == 0);
+    assert(mkdir("../.bm/delside.txt.bin", 0755) == 0);
+    assert(mkdir("../.idx/delside.txt.bin", 0755) == 0);
+    assert(rd_delete_file("delside.txt") == -2);
+    assert(rmdir("../.prog/delside.txt.bin") == 0);
+    assert(rmdir("../.bm/delside.txt.bin") == 0);
+    assert(rmdir("../.idx/delside.txt.bin") == 0);
+
+    const char *break_text = "aaaa bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+    write_file("break.txt", break_text, (uint32_t)strlen(break_text));
+    render_host_set_size(80, 800);
+    assert(rd_open_file("break.txt") == 0);
+    assert(rd_get_page()->count > 0);
+    rd_close();
+    render_host_set_size(600, 800);
+
     char nodir[512];
     char nodir_files[600];
     snprintf(nodir, sizeof(nodir), "%s/nodir", dir);

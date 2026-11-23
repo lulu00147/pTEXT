@@ -298,6 +298,7 @@ int main(void)
     (void)rd_test_bookmark_count("../.bm/legacy-many.txt.bin");
     write_file("legacy-big.bin", many_raw, sizeof(many_raw));
     (void)rd_test_bm_legacy_count("legacy-big.bin");
+    (void)rd_test_bm_legacy_count("missing-legacy.bin");
     fail_opendir = 1;
     rd_test_cleanup_sidecars(".");
     fail_opendir = 0;
@@ -324,6 +325,9 @@ int main(void)
     write_file("../.idx/idx.txt.bin", "x", 1);
     (void)rd_test_idx_lookup(300000, &idx_off, &idx_page);
     fail_fseek_at = 1;
+    fseek_calls = 0;
+    (void)rd_test_idx_lookup(300000, &idx_off, &idx_page);
+    fail_fseek_at = 2;
     fseek_calls = 0;
     (void)rd_test_idx_lookup(300000, &idx_off, &idx_page);
     fail_fseek_at = 0;

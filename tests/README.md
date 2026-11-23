@@ -72,7 +72,7 @@
 
 ## 待补：reader 剩余分支
 
-当前 `reader.c` 为约 99.1% 分支覆盖、97.1% MC/DC，剩余约 7 个分支。`run_mcdc.sh` 仍会在 reader 门禁失败。
+当前 `reader.c` 为约 99.5% 分支覆盖、98.9% MC/DC，剩余约 4 个分支。`run_mcdc.sh` 仍会在 reader 门禁失败。
 
 已 100% 的文件：
 
