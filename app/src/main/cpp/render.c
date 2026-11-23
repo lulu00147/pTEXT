@@ -101,10 +101,16 @@ static int32_t s_font_ok = 0;
 static uint8_t s_glyph_tmp[GLYPH_MAX * GLYPH_MAX];  /* 字形光栅化复用缓冲区 */
 
 /* 主题色：0=暗色(黑底白字), 1=亮色(白底黑字) */
+#define COLOR_BLACK      0x0000u
+#define COLOR_WHITE      0xFFFFu
+#define COLOR_NIGHT_TEXT 0xAD55u
+#define BYTE_BLACK       0x00u
+#define BYTE_WHITE       0xFFu
+
 static int32_t s_theme = 0;
-static uint16_t s_fg_color = 0xFFFF;
-static uint16_t s_bg_color = 0x0000;
-static uint8_t  s_bg_byte  = 0x00;   /* memset 用的字节值 */
+static uint16_t s_fg_color = COLOR_WHITE;
+static uint16_t s_bg_color = COLOR_BLACK;
+static uint8_t  s_bg_byte  = BYTE_BLACK;   /* memset 用的字节值 */
 static uint16_t s_blend_lut[256];
 static uint16_t s_lut_fg;
 static uint16_t s_lut_bg;
@@ -746,13 +752,13 @@ void r_set_theme(int32_t theme)
 {
     s_theme = theme ? 1 : 0;
     if (s_theme) {
-        s_fg_color = 0x0000;   /* 黑字 */
-        s_bg_color = 0xFFFF;
-        s_bg_byte  = 0xFF;
+        s_fg_color = COLOR_BLACK;   /* 黑字 */
+        s_bg_color = COLOR_WHITE;
+        s_bg_byte  = BYTE_WHITE;
     } else {
-        s_fg_color = 0xAD55;   /* #A9A9A9，对齐 Legado 夜间正文 */
-        s_bg_color = 0x0000;
-        s_bg_byte  = 0x00;
+        s_fg_color = COLOR_NIGHT_TEXT;   /* #A9A9A9，对齐 Legado 夜间正文 */
+        s_bg_color = COLOR_BLACK;
+        s_bg_byte  = BYTE_BLACK;
     }
     s_lut_valid = 0;
 }

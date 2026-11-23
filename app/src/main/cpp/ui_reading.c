@@ -16,6 +16,7 @@
 #define UI_LEN(arr) (sizeof(arr)/sizeof(uint32_t) - 1)
 #define HEADER_MARGIN_X ui_px(14)
 #define FOOTER_MARGIN_X ui_px(13)
+#define COLOR_HEADER_TEXT 0x630Cu
 
 #ifdef PTEXT_MT
 typedef struct {
@@ -59,7 +60,7 @@ void ui_draw_reading(void)
     float hs = (float)ui_px(15);
     float hts = (float)ui_px(14);
     float fs = (float)ui_px(14);
-    const uint16_t hf_color = 0x630C;
+    const uint16_t hf_color = COLOR_HEADER_TEXT;
     const char *book = rd_get_book_name();
     uint32_t title[128];
     int32_t tn = ui_utf8_to_utf32(title, 127, book ? book : "");

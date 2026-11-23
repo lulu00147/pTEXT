@@ -219,6 +219,18 @@ static void trigger_vsync_prefetch(void)
     }
 }
 
+enum {
+    GRID_TOP_LEFT = 1,
+    GRID_TOP_CENTER,
+    GRID_TOP_RIGHT,
+    GRID_MID_LEFT,
+    GRID_CENTER,
+    GRID_MID_RIGHT,
+    GRID_BOTTOM_LEFT,
+    GRID_BOTTOM_CENTER,
+    GRID_BOTTOM_RIGHT
+};
+
 static int32_t reading_cell(int32_t x, int32_t y)
 {
     int32_t w = r_w();
@@ -235,9 +247,11 @@ static int32_t reading_cell(int32_t x, int32_t y)
 
 static void reading_grid_action(int32_t cell)
 {
-    if (cell == 1 || cell == 2 || cell == 4 || cell == 7) {
+    if (cell == GRID_TOP_LEFT || cell == GRID_TOP_CENTER ||
+        cell == GRID_MID_LEFT || cell == GRID_BOTTOM_LEFT) {
         if (rd_can_prev()) rd_prev_page();
-    } else if (cell == 3 || cell == 6 || cell == 8 || cell == 9) {
+    } else if (cell == GRID_TOP_RIGHT || cell == GRID_MID_RIGHT ||
+               cell == GRID_BOTTOM_CENTER || cell == GRID_BOTTOM_RIGHT) {
         if (rd_can_next()) rd_next_page();
     } else {
         s_state = ST_SETTINGS;
@@ -503,7 +517,7 @@ static int32_t handle_input(struct android_app *app, AInputEvent *event)
         int32_t y = (int32_t)AMotionEvent_getY(event, 0);
 
         if (s_center_down_ns > 0 && !s_center_long_fired &&
-            ((masked == AMOTION_EVENT_ACTION_MOVE && reading_cell(x, y) != 5) ||
+            ((masked == AMOTION_EVENT_ACTION_MOVE && reading_cell(x, y) != GRID_CENTER) ||
              masked == AMOTION_EVENT_ACTION_CANCEL)) {
             s_center_down_ns = 0;
         }
@@ -526,7 +540,7 @@ static int32_t handle_input(struct android_app *app, AInputEvent *event)
                         ? AMotionEvent_getEventTime(event) : 0;
                     s_file_hold_fired = 0;
                 }
-            } else if (s_state == ST_READING && reading_cell(x, y) == 5) {
+            } else if (s_state == ST_READING && reading_cell(x, y) == GRID_CENTER) {
                 s_center_down_ns = AMotionEvent_getEventTime(event);
                 s_center_long_fired = 0;
             }
@@ -683,7 +697,7 @@ static int32_t handle_input(struct android_app *app, AInputEvent *event)
                         }
                     }
                 }
-            } else if (s_state == ST_READING && reading_cell(x, y) == 5) {
+            } else if (s_state == ST_READING && reading_cell(x, y) == GRID_CENTER) {
                 rd_toggle_bookmark();
                 s_center_down_ns = 0;
                 s_need_redraw = 1;
@@ -716,18 +730,14 @@ void android_main(struct android_app *app)
             timeout = sec * 1000;
         }
         if (s_center_down_ns > 0 && !s_center_long_fired) {
-            struct timespec ts;
-            clock_gettime(CLOCK_MONOTONIC, &ts);
-            int64_t now_ns = (int64_t)ts.tv_sec * 1000000000LL + ts.tv_nsec;
+            int64_t now_ns = monotonic_ns();
             int64_t elapsed_ms = (now_ns - s_center_down_ns) / 1000000LL;
             int32_t wait_ms = (int32_t)(3000 - elapsed_ms);
             timeout = wait_ms > 0 ? wait_ms : 1;
         }
         if (s_file_hold_start_ns > 0 && !s_file_hold_fired &&
             s_state == ST_FILELIST) {
-            struct timespec ts;
-            clock_gettime(CLOCK_MONOTONIC, &ts);
-            int64_t now_ns = (int64_t)ts.tv_sec * 1000000000LL + ts.tv_nsec;
+            int64_t now_ns = monotonic_ns();
             int64_t elapsed_ms = (now_ns - s_file_hold_start_ns) / 1000000LL;
             int32_t wait_ms = (int32_t)(3000 - elapsed_ms);
             if (wait_ms < 1) wait_ms = 1;
@@ -739,9 +749,7 @@ void android_main(struct android_app *app)
         }
 
         if (s_center_down_ns > 0 && !s_center_long_fired) {
-            struct timespec ts;
-            clock_gettime(CLOCK_MONOTONIC, &ts);
-            int64_t now_ns = (int64_t)ts.tv_sec * 1000000000LL + ts.tv_nsec;
+            int64_t now_ns = monotonic_ns();
             if (now_ns - s_center_down_ns >= 3000000000LL) {
                 s_center_long_fired = 1;
                 s_center_down_ns = 0;
@@ -752,9 +760,7 @@ void android_main(struct android_app *app)
 
         if (s_file_hold_start_ns > 0 && !s_file_hold_fired &&
             s_state == ST_FILELIST) {
-            struct timespec ts;
-            clock_gettime(CLOCK_MONOTONIC, &ts);
-            int64_t now_ns = (int64_t)ts.tv_sec * 1000000000LL + ts.tv_nsec;
+            int64_t now_ns = monotonic_ns();
             if (now_ns - s_file_hold_start_ns >= 3000000000LL) {
                 s_file_hold_fired = 1;
                 s_file_hold_start_ns = 0;

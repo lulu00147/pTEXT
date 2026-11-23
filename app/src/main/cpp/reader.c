@@ -24,6 +24,14 @@
 #define BM_MAGIC 0x314D4250u
 #define BM_VERSION 1u
 
+#define DIR_PROGRESS  ".prog"
+#define DIR_BOOKMARKS ".bm"
+#define DIR_INDEX     ".idx"
+#define DIR_FILES     "files"
+#define SIDECAR_SUFFIX ".bin"
+#define NAME_SUFFIX   ".name"
+#define SETTINGS_NAME "settings"
+
 static Bookmark s_bms[MAX_BOOKMARKS];
 static int32_t s_bm_count;
 
@@ -155,13 +163,13 @@ static int32_t s_file_limit;
 
 static int32_t sidecar_path(char *out, size_t cap, const char *dir, const char *name)
 {
-    int n = snprintf(out, cap, "%s/%s/%s.bin", s_data_path, dir, name);
+    int n = snprintf(out, cap, "%s/%s/%s%s", s_data_path, dir, name, SIDECAR_SUFFIX);
     return n > 0 && (size_t)n < cap;
 }
 
 static int32_t name_sidecar_path(char *out, size_t cap, const char *path)
 {
-    int n = snprintf(out, cap, "%s.name", path);
+    int n = snprintf(out, cap, "%s%s", path, NAME_SUFFIX);
     return n > 0 && (size_t)n < cap;
 }
 
@@ -305,13 +313,13 @@ void rd_init(const char *path)
     mkdir(s_data_path, 0755);
 
     char sub[1024];
-    snprintf(sub, sizeof(sub), "%s/.prog", s_data_path);
+    snprintf(sub, sizeof(sub), "%s/%s", s_data_path, DIR_PROGRESS);
     mkdir(sub, 0755);
-    snprintf(sub, sizeof(sub), "%s/.bm", s_data_path);
+    snprintf(sub, sizeof(sub), "%s/%s", s_data_path, DIR_BOOKMARKS);
     mkdir(sub, 0755);
-    snprintf(sub, sizeof(sub), "%s/.idx", s_data_path);
+    snprintf(sub, sizeof(sub), "%s/%s", s_data_path, DIR_INDEX);
     mkdir(sub, 0755);
-    snprintf(sub, sizeof(sub), "%s/files", s_data_path);
+    snprintf(sub, sizeof(sub), "%s/%s", s_data_path, DIR_FILES);
     mkdir(sub, 0755);
 
     rd_reset_page_cache();
@@ -330,7 +338,7 @@ void rd_scan_dir(void)
     s_file_count = 0;
     s_file_limit = 0;
     char dpath[1024];
-    snprintf(dpath, sizeof(dpath), "%s/files", s_data_path);
+    snprintf(dpath, sizeof(dpath), "%s/%s", s_data_path, DIR_FILES);
 
     DIR *d = opendir(dpath);
     if (!d) return;
@@ -356,7 +364,7 @@ void rd_scan_dir(void)
         f->bookmarks = 0;
 
         char bm_path[1024];
-        if (sidecar_path(bm_path, sizeof(bm_path), ".bm", ent->d_name)) {
+        if (sidecar_path(bm_path, sizeof(bm_path), DIR_BOOKMARKS, ent->d_name)) {
             f->bookmarks = bookmark_count(bm_path);
         }
 
@@ -435,7 +443,7 @@ int32_t rd_open_file(const char *path)
 
     int64_t saved_offset = start_offset;
     char ppath[1024];
-    if (sidecar_path(ppath, sizeof(ppath), ".prog", s_cur_name)) {
+    if (sidecar_path(ppath, sizeof(ppath), DIR_PROGRESS, s_cur_name)) {
         FILE *f = fopen(ppath, "rb");
         if (f) {
             int64_t values[3];
@@ -447,7 +455,8 @@ int32_t rd_open_file(const char *path)
     if (saved_offset < start_offset) saved_offset = start_offset;
     if (saved_offset >= len) saved_offset = len - 1;
 
-    s_bm_count = 0;    if (sidecar_path(ppath, sizeof(ppath), ".bm", s_cur_name))
+    s_bm_count = 0;
+    if (sidecar_path(ppath, sizeof(ppath), DIR_BOOKMARKS, s_cur_name))
         s_bm_count = load_bookmarks(ppath, s_bms, MAX_BOOKMARKS);
     for (int32_t i = 0; i < s_bm_count; i++) {
         if (s_bms[i].offset < 0) s_bms[i].offset = 0;
@@ -598,7 +607,7 @@ static void idx_save(void)
         s_page_ckpt_count < 2) return;
 
     char path[1024];
-    if (!sidecar_path(path, sizeof(path), ".idx", s_cur_name)) return;
+    if (!sidecar_path(path, sizeof(path), DIR_INDEX, s_cur_name)) return;
 
     IdxHeader h;
     memset(&h, 0, sizeof(h));
@@ -690,7 +699,7 @@ static int32_t idx_lookup(int64_t target, int64_t *off, int32_t *page_no)
         target < IDX_MIN_TARGET || s_page_ckpt_count > 0) return 0;
 
     char path[1024];
-    if (!sidecar_path(path, sizeof(path), ".idx", s_cur_name)) return 0;
+    if (!sidecar_path(path, sizeof(path), DIR_INDEX, s_cur_name)) return 0;
     FILE *f = fopen(path, "rb");
     if (!f) return 0;
     if (fseek(f, 0, SEEK_END) != 0) {
@@ -1158,7 +1167,7 @@ static void paginate_step(void)
 static void save_prog(int64_t offset)
 {
     char ppath[1024];
-    if (!sidecar_path(ppath, sizeof(ppath), ".prog", s_cur_name)) return;
+    if (!sidecar_path(ppath, sizeof(ppath), DIR_PROGRESS, s_cur_name)) return;
     int64_t values[3] = {offset, -1, s_page_no};
     if (s_hist_count > 1) values[1] = s_page_hist[s_hist_count - 2];
     persist_write_atomic(ppath, values, sizeof(values));
@@ -1322,14 +1331,14 @@ Settings* rd_get_settings(void)
 static void save_settings(void)
 {
     char spath[1024];
-    if (!sidecar_path(spath, sizeof(spath), ".prog", "settings")) return;
+    if (!sidecar_path(spath, sizeof(spath), DIR_PROGRESS, SETTINGS_NAME)) return;
     persist_write_atomic(spath, &s_settings, sizeof(s_settings));
 }
 
 static void load_settings(void)
 {
     char spath[1024];
-    if (!sidecar_path(spath, sizeof(spath), ".prog", "settings")) return;
+    if (!sidecar_path(spath, sizeof(spath), DIR_PROGRESS, SETTINGS_NAME)) return;
     FILE *f = fopen(spath, "rb");
     int32_t migrate = 1;
     if (f) {
@@ -1517,7 +1526,7 @@ void rd_toggle_bookmark(void)
     }
 
     char path[1024];
-    if (!sidecar_path(path, sizeof(path), ".bm", s_cur_name)) return;
+    if (!sidecar_path(path, sizeof(path), DIR_BOOKMARKS, s_cur_name)) return;
     save_bookmarks(path);
 }
 
@@ -1546,17 +1555,17 @@ int32_t rd_delete_file(const char *path)
     } else {
         side_error = 1;
     }
-    if (sidecar_path(side, sizeof(side), ".prog", base)) {
+    if (sidecar_path(side, sizeof(side), DIR_PROGRESS, base)) {
         if (unlink(side) != 0 && errno != ENOENT) side_error = 1;
     } else {
         side_error = 1;
     }
-    if (sidecar_path(side, sizeof(side), ".bm", base)) {
+    if (sidecar_path(side, sizeof(side), DIR_BOOKMARKS, base)) {
         if (unlink(side) != 0 && errno != ENOENT) side_error = 1;
     } else {
         side_error = 1;
     }
-    if (sidecar_path(side, sizeof(side), ".idx", base)) {
+    if (sidecar_path(side, sizeof(side), DIR_INDEX, base)) {
         if (unlink(side) != 0 && errno != ENOENT) side_error = 1;
     } else {
         side_error = 1;
@@ -1573,7 +1582,7 @@ int32_t rd_read_bookmarks(const char *path, Bookmark *out, int32_t cap)
     base = base ? base + 1 : path;
 
     char bm_path[1024];
-    if (!sidecar_path(bm_path, sizeof(bm_path), ".bm", base)) return 0;
+    if (!sidecar_path(bm_path, sizeof(bm_path), DIR_BOOKMARKS, base)) return 0;
 
     int32_t count = load_bookmarks(bm_path, out, cap);
     if (count > 0) refresh_bookmark_previews(path, out, count);
