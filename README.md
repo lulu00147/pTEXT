@@ -45,13 +45,14 @@ KEY_PASSWORD=...
 | `main.c` | 事件循环、输入状态机、JNI |
 | `ui_lists.c` | 文件列表、书签列表、删除确认 |
 | `ui_reading.c` | 阅读页页眉、页脚、正文绘制 |
-| `ui_settings.c` | 字号、缩进、行距、主题 |
+| `ui_settings.c` | 字号、缩进、行距、主题、捆绑 |
 | `ui_util.c` | dp 缩放、UTF-8 转换、前缀截断 |
 | `clamp.h` | 整数夹紧 |
-| `reader.c` | mmap、分页、历史、书签、设置、检查点 |
+| `reader.c` | mmap、分页、历史、书签、设置、检查点、孤儿清理 |
 | `encoding.c` | UTF-8、GBK、GB18030 |
-| `persist.c` | 临时文件 + fsync + rename |
+| `persist.c` | 临时文件 + fsync + rename + 父目录 fsync |
 | `render.c` | 系统字体、RGB565、8-bit 灰度字形缓存、256 项 RGB565 LUT |
+| `affinity.c` | CPU 大小核识别与线程绑定 |
 | `nolog.c` | `__android_log_print` 空实现 |
 | `MainActivity.java` | NativeActivity 壳、SAF 导入、常亮 |
 
@@ -77,6 +78,8 @@ flowchart TD
   READER --> PERSIST["persist.c"]
   READER --> RENDER
   RENDER --> STB["stb_truetype.h"]
+  MAIN --> AFF["affinity.c"]
+  UIR --> AFF
   MAIN -. JNI .-> JAVA["MainActivity.java"]
   JAVA -. sRescan .-> MAIN
 ```
@@ -98,7 +101,7 @@ files/<name>.txt.name   原始显示名
 .prog/settings.bin      设置
 ```
 
-`rd_scan_dir` 只读书签头和文件大小；完整 checksum 在打开书签列表时校验。书签兼容旧裸 `Bookmark` 文件。`.idx` 仅对超过 1 MiB 的文件生成，删除后会自动重建。
+`rd_scan_dir` 只读书签头和文件大小；完整 checksum 在打开书签列表时校验。书签兼容旧裸 `Bookmark` 文件。`.idx` 仅对超过 1 MiB 的文件生成，删除后会自动重建。扫描时清理无对应 TXT 的 `.prog/.bm/.idx/.name` 孤儿，保留 `settings.bin`。
 
 ## 操作
 
@@ -110,14 +113,41 @@ files/<name>.txt.name   原始显示名
 - 设置第 5 行“捆绑”：大核/小核/不捆绑（默认）。
 - 前台常亮；5 分钟无触摸后释放常亮。
 
+## 优化
+
+| 方法 | 单线程 | 多线程 |
+|---|:---:|:---:|
+| 8-bit 灰度字形缓存 | ✓ | ✓ |
+| 256 项 RGB565 LUT | ✓ | ✓ |
+| 背景/普通 blit 分离 | ✓ | ✓ |
+| 相邻 alpha 双像素 32-bit 写入 | ✓ | ✓ |
+| 页级 codepoint 去重 | — | ✓ |
+| 单遍字形预加载 | — | ✓ |
+| 页级 `G*` 开放寻址指针表 | — | ✓ |
+| 主线程 + 2 worker 三路正文 | — | ✓ |
+| 按字重切分正文 | — | ✓ |
+| 64-bit LRU | ✓ | ✓ |
+| 字形 advance 直接映射缓存 | ✓ | ✓ |
+| mmap + 按需分页 | ✓ | ✓ |
+| `.idx` 持久分页索引 | ✓ | ✓ |
+| Choreographer 预排版 | ✓ | ✓ |
+| 原子写入 + 父目录 fsync | ✓ | ✓ |
+| 孤儿 sidecar 清理 | ✓ | ✓ |
+| 静态内存池，无绘制期堆分配 | ✓ | ✓ |
+| CPU 大核/小核/不捆绑 | ✓ | ✓ |
+| CJK 禁则/断行 | ✓ | ✓ |
+| LTO 与固定 RGB565 输出 | ✓ | ✓ |
+
+单线程路径不执行 preload、去重、fast 指针表和三路正文；多线程路径在 preload 失败时回退单线程正文。
+
 ## 性能
 
 真实小说《樱树抽芽时，想你.txt》485,562 B，连续 100 页，每项五轮平均。数值为自动翻页测试的整页绘制时间。
 
 | 设备 | 单线程大核 | 单线程小核 | 单线程不捆绑 | 多线程大核 | 多线程小核 | 多线程不捆绑 |
 |---|---:|---:|---:|---:|---:|---:|
-| PKR110 / Android 17 | 2.47 ms/页 | 3.46 ms/页 | 3.44 ms/页 | 2.27 ms/页 | 2.17 ms/页 | 2.13 ms/页 |
-| PJA110 / Android 16 | 3.80 ms/页 | 10.51 ms/页 | 3.76 ms/页 | 2.98 ms/页 | 7.46 ms/页 | 3.06 ms/页 |
+| PKR110 / Android 17 | 2.39 ms/页 | 3.14 ms/页 | 3.09 ms/页 | 2.21 ms/页 | 2.08 ms/页 | 2.05 ms/页 |
+| PJA110 / Android 16 | 3.70 ms/页 | 9.67 ms/页 | 3.72 ms/页 | 2.89 ms/页 | 7.05 ms/页 | 3.05 ms/页 |
 
 “捆绑”按 CPU 最大频率的中位阈值划分大小核，默认不捆绑；不捆绑恢复全部允许 CPU。主线程和正文绘制线程使用同一绑定。
 
