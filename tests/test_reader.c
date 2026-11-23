@@ -189,10 +189,11 @@ int main(void)
     assert(rd_test_idx_lookup(rd_get_file_len() - 1, &index_off, &index_no) == 0);
     rd_close();
 
+    assert(rd_open_file("idx-large.txt") == 0);
+    rd_close();
     assert(rd_delete_file("idx-large.txt") == 0);
     assert(access("../.prog/idx-large.txt.bin", F_OK) != 0);
     assert(access("../.idx/idx-large.txt.bin", F_OK) != 0);
-
     const char *long_path = "long.txt";
     char *text = malloc(40001);
     assert(text != NULL);

@@ -284,6 +284,18 @@ int main(void)
     write_file("../.bm/legacy-many.txt.bin", many_raw, sizeof(many_raw));
     (void)rd_read_bookmarks("legacy-many.txt", legacy_raw, 1);
 
+    write_file("legacy-scan.txt", "x", 1);
+    write_file("../.bm/legacy-scan.txt.bin", legacy_raw, sizeof(legacy_raw));
+    fail_fseek_at = 1;
+    fseek_calls = 0;
+    rd_scan_dir();
+    fail_fseek_at = 0;
+    fail_ftell = 1;
+    rd_scan_dir();
+    fail_ftell = 0;
+    write_file("legacy-many.txt", "x", 1);
+    rd_scan_dir();
+
     fail_fstat = 1;
     write_file("only.txt", "x", 1);
     (void)rd_open_file("only.txt");
