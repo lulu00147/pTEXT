@@ -173,6 +173,72 @@ static int32_t name_sidecar_path(char *out, size_t cap, const char *path)
     return n > 0 && (size_t)n < cap;
 }
 
+static void cleanup_sidecar_dir(const char *files, const char *dir, int skip_settings)
+{
+    char dpath[1024];
+    if (snprintf(dpath, sizeof(dpath), "%s/%s", s_data_path, dir) >=
+        (int)sizeof(dpath)) return;
+    DIR *d = opendir(dpath);
+    if (!d) return;
+
+    size_t suffix_len = strlen(SIDECAR_SUFFIX);
+    struct dirent *ent;
+    while ((ent = readdir(d)) != NULL) {
+        size_t n = strlen(ent->d_name);
+        if (n <= suffix_len ||
+            strcasecmp(ent->d_name + n - suffix_len, SIDECAR_SUFFIX) != 0) {
+            continue;
+        }
+        if (skip_settings && strcmp(ent->d_name, "settings.bin") == 0) continue;
+
+        char target[1024];
+        int tn = snprintf(target, sizeof(target), "%s/%.*s", files,
+                          (int)(n - suffix_len), ent->d_name);
+        if (tn <= 0 || (size_t)tn >= sizeof(target)) continue;
+        if (access(target, F_OK) == 0) continue;
+
+        char path[1400];
+        int pn = snprintf(path, sizeof(path), "%s/%s", dpath, ent->d_name);
+        if (pn > 0 && (size_t)pn < sizeof(path)) (void)unlink(path);
+    }
+    closedir(d);
+}
+
+static void cleanup_name_sidecars(const char *files)
+{
+    DIR *d = opendir(files);
+    if (!d) return;
+
+    size_t suffix_len = strlen(NAME_SUFFIX);
+    struct dirent *ent;
+    while ((ent = readdir(d)) != NULL) {
+        size_t n = strlen(ent->d_name);
+        if (n <= suffix_len ||
+            strcasecmp(ent->d_name + n - suffix_len, NAME_SUFFIX) != 0) {
+            continue;
+        }
+
+        char target[1024];
+        int tn = snprintf(target, sizeof(target), "%s/%.*s", files,
+                          (int)(n - suffix_len), ent->d_name);
+        if (tn <= 0 || (size_t)tn >= sizeof(target)) continue;
+        if (access(target, F_OK) == 0) continue;
+
+        char path[1400];
+        int pn = snprintf(path, sizeof(path), "%s/%s", files, ent->d_name);
+        if (pn > 0 && (size_t)pn < sizeof(path)) (void)unlink(path);
+    }
+    closedir(d);
+}
+
+static void cleanup_orphans(const char *files)
+{
+    cleanup_sidecar_dir(files, DIR_PROGRESS, 1);
+    cleanup_sidecar_dir(files, DIR_BOOKMARKS, 0);
+    cleanup_sidecar_dir(files, DIR_INDEX, 0);
+    cleanup_name_sidecars(files);
+}
+
 static int32_t read_name_sidecar(const char *path, char *out, size_t cap)
 {
     if (cap == 0) return 0;
@@ -278,7 +344,9 @@ static void paginate_full(int64_t offset, Page *target);
 static int32_t page_for_offset(int64_t target, int64_t *page_start);
 static void idx_save(void);
 static int32_t idx_lookup(int64_t target, int64_t *off, int32_t *page_no);
-static int32_t bookmark_preview(int64_t offset, char *out, int32_t cap);
+static int32_t bookmark_preview(const uint8_t *data, int64_t len,
+                                TextDecodeFn decode, int64_t offset,
+                                char *out, int32_t cap);
 static void refresh_bookmark_previews(const char *path, Bookmark *bms,
                                       int32_t count);
 static void hist_reset(int64_t start);
@@ -376,6 +444,7 @@ void rd_scan_dir(void)
     }
     closedir(d);
     qsort(s_files, (size_t)s_file_count, sizeof(FileItem), cmp_file_name);
+    cleanup_orphans(dpath);
 }
 
 FileItem* rd_get_files(int32_t *count)
@@ -1028,7 +1097,8 @@ int32_t rd_test_name_sidecar_path(char *out, size_t cap, const char *path)
 
 int32_t rd_test_bookmark_preview(int64_t offset, char *out, int32_t cap)
 {
-    return bookmark_preview(offset, out, cap);
+    return bookmark_preview((const uint8_t *)s_mmap_data, s_mmap_len,
+                            s_decode, offset, out, cap);
 }
 
 int32_t rd_test_page_max_lines(void)
@@ -1427,33 +1497,35 @@ void rd_set_theme(int32_t t)
     save_settings();
 }
 
-static int32_t bookmark_preview(int64_t offset, char *out, int32_t cap)
+static int32_t bookmark_preview(const uint8_t *data, int64_t len,
+                                TextDecodeFn decode, int64_t offset,
+                                char *out, int32_t cap)
 {
     if (!out || cap <= 0) return 0;
     out[0] = '\0';
-    if (!s_mmap_data || s_mmap_len <= 0) return 0;
+    if (!data || !decode || len <= 0) return 0;
 
     int64_t off = offset;
     if (off < 0) off = 0;
-    if (off >= s_mmap_len) return 0;
+    if (off >= len) return 0;
 
-    while (off < s_mmap_len) {
+    while (off < len) {
         int32_t n = 0;
         int32_t has_text = 0;
 
-        while (off < s_mmap_len) {
-            uint32_t cp = s_decode((const uint8_t *)s_mmap_data, s_mmap_len, &off);
+        while (off < len) {
+            uint32_t cp = decode(data, len, &off);
             if (cp == 0 || cp == '\n' || cp == '\r') break;
             int32_t is_space = cp == ' ' || cp == '\t' || cp == 0x3000;
             if (is_space && !has_text) continue;
             if (!is_space) has_text = 1;
 
             char enc[4];
-            int32_t len = enc_utf8_encode(cp, enc);
-            if (len <= 0) break;
-            if (n + len > cap - 1) break;
-            memcpy(out + n, enc, (size_t)len);
-            n += len;
+            int32_t elen = enc_utf8_encode(cp, enc);
+            if (elen <= 0) break;
+            if (n + elen > cap - 1) break;
+            memcpy(out + n, enc, (size_t)elen);
+            n += elen;
         }
 
         if (has_text && n > 0) {
@@ -1493,24 +1565,14 @@ static void refresh_bookmark_previews(const char *path, Bookmark *bms, int32_t c
         decode = enc_utf8_prefix_ok(data, len) ? enc_decode_utf8 : enc_decode_gbk;
     }
 
-    char *old_map = s_mmap_data;
-    int64_t old_len = s_mmap_len;
-    TextDecodeFn old_decode = s_decode;
-
-    s_mmap_data = (char *)map;
-    s_mmap_len = len;
-    s_decode = decode;
-
     for (int32_t i = 0; i < count; i++) {
         int64_t off = bms[i].offset;
         if (off < start) off = start;
         if (off >= len) off = len - 1;
-        bookmark_preview(off, bms[i].preview, (int32_t)sizeof(bms[i].preview));
+        bookmark_preview(data, len, decode, off, bms[i].preview,
+                         (int32_t)sizeof(bms[i].preview));
     }
 
-    s_mmap_data = old_map;
-    s_mmap_len = old_len;
-    s_decode = old_decode;
     munmap(map, (size_t)len);
 }
 
@@ -1531,7 +1593,9 @@ void rd_toggle_bookmark(void)
     } else if (s_bm_count < MAX_BOOKMARKS) {
         Bookmark *b = &s_bms[s_bm_count++];
         b->offset = s_page_curr->start_offset;
-        bookmark_preview(b->offset, b->preview, (int32_t)sizeof(b->preview));
+        bookmark_preview((const uint8_t *)s_mmap_data, s_mmap_len, s_decode,
+                         b->offset, b->preview,
+                         (int32_t)sizeof(b->preview));
     }
 
     char path[1024];

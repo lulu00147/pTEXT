@@ -1312,6 +1312,28 @@ int main(void)
     rd_close();
     render_host_set_size(600, 800);
 
+    write_file("cleanup.txt", "keep", 4);
+    write_file("cleanup.txt.name", "keep-name", 9);
+    write_file("../.prog/cleanup.txt.bin", "p", 1);
+    write_file("../.bm/cleanup.txt.bin", "b", 1);
+    write_file("../.idx/cleanup.txt.bin", "i", 1);
+    write_file("../.prog/orphan.bin", "p", 1);
+    write_file("../.bm/orphan.bin", "b", 1);
+    write_file("../.idx/orphan.bin", "i", 1);
+    write_file("orphan.txt.name", "orphan", 6);
+    write_file("../.prog/settings.bin", "settings", 8);
+    rd_scan_dir();
+    assert(access("cleanup.txt", F_OK) == 0);
+    assert(access("cleanup.txt.name", F_OK) == 0);
+    assert(access("../.prog/cleanup.txt.bin", F_OK) == 0);
+    assert(access("../.bm/cleanup.txt.bin", F_OK) == 0);
+    assert(access("../.idx/cleanup.txt.bin", F_OK) == 0);
+    assert(access("../.prog/settings.bin", F_OK) == 0);
+    assert(access("../.prog/orphan.bin", F_OK) != 0);
+    assert(access("../.bm/orphan.bin", F_OK) != 0);
+    assert(access("../.idx/orphan.bin", F_OK) != 0);
+    assert(access("orphan.txt.name", F_OK) != 0);
+
     assert(chdir("/") == 0);
     char cleanup[512];
     snprintf(cleanup, sizeof(cleanup), "rm -rf '%s'", dir);
