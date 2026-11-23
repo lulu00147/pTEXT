@@ -68,7 +68,21 @@ static inline void glyph_blit8_bg(uint16_t *dst, int32_t dst_stride,
     for (int32_t row = y0; row < y1; row++) {
         uint16_t *drow = &dst[row * dst_stride];
         const uint8_t *srow = &g->bmp[(row - sy) * g->w];
-        for (int32_t col = x0; col < x1; col++) {
+        int32_t col = x0;
+        for (; col + 1 < x1; col += 2) {
+            uint8_t a0 = srow[col - sx];
+            uint8_t a1 = srow[col - sx + 1];
+            if (a0 && a1) {
+                uint16_t p0 = lut[a0];
+                uint16_t p1 = lut[a1];
+                uint32_t packed = (uint32_t)p0 | ((uint32_t)p1 << 16);
+                memcpy(&drow[col], &packed, sizeof(packed));
+            } else {
+                if (a0) drow[col] = lut[a0];
+                if (a1) drow[col + 1] = lut[a1];
+            }
+        }
+        if (col < x1) {
             uint8_t a = srow[col - sx];
             if (a) drow[col] = lut[a];
         }
