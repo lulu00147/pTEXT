@@ -67,9 +67,12 @@ $cc -std=c11 -O2 -D_GNU_SOURCE -DPTEXT_HOST_TEST -I../app/src/main/cpp -I. \
     -Wl,--wrap=opendir -Wl,--wrap=fopen -Wl,--wrap=access \
     -o test_reader_io_fault
 ./test_reader_io_fault
+$cc -std=c11 -O2 -D_GNU_SOURCE -DPTEXT_HOST_TEST -I../app/src/main/cpp -I. \
+    test_affinity.c ../app/src/main/cpp/affinity.c -o test_affinity
+./test_affinity
 $cc -std=c11 -O2 -D_GNU_SOURCE -I../app/src/main/cpp -I. \
     test_utf8_gbk.c ../app/src/main/cpp/encoding.c -o test_utf8_gbk
 ./test_utf8_gbk
 rm -f test_reader test_glyph_blit test_glyph_blit8 test_index test_index_fault test_index_crash test_persist test_persist_dir test_persist_fault \
       test_ui_settings test_ui_lists test_ui_reading test_ui_reading_mt \
-      test_reader_io_fault test_utf8_gbk
+      test_reader_io_fault test_utf8_gbk test_affinity

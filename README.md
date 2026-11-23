@@ -189,7 +189,7 @@ Android 生命周期单独验证：
 ANDROID_SERIAL=<serial> sh tests/android_lifecycle.sh
 ```
 
-退出应用后重新进入必须回到文件列表；该路径不由 host 测试覆盖。
+覆盖返回退出重入、Home 恢复、旋转和进程重建；退出应用后重新进入必须回到文件列表。
 
 ## 范围
 

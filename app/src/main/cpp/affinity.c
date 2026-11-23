@@ -97,3 +97,8 @@ void affinity_bind_current(void)
                          : s_mode == 1 ? &s_little : &s_allowed;
     bind_mask(mask);
 }
+
+#ifdef PTEXT_HOST_TEST
+int affinity_test_mode(void) { return s_mode; }
+int affinity_test_ready(void) { return s_ready; }
+#endif
