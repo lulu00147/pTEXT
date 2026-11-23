@@ -22,6 +22,9 @@ $CC $FLAGS test_utf8_gbk.c ../app/src/main/cpp/encoding.c -o "$OUT/test_utf8"
 $CC $FLAGS test_glyph_blit.c -o "$OUT/test_glyph"
 "$OUT/test_glyph"
 
+$CC $FLAGS test_glyph_blit8.c -o "$OUT/test_glyph8"
+"$OUT/test_glyph8"
+
 $CC $FLAGS test_persist.c ../app/src/main/cpp/persist.c -o "$OUT/test_persist"
 "$OUT/test_persist"
 
@@ -58,7 +61,7 @@ $CC $FLAGS test_reader_io_fault.c render_host.c \
 REPORT="$OUT/mcdc.txt"
 "$LLVMCOV" report \
     -object "$OUT/test_reader" -object "$OUT/test_utf8" \
-    -object "$OUT/test_glyph" -object "$OUT/test_persist" \
+    -object "$OUT/test_glyph" -object "$OUT/test_glyph8" -object "$OUT/test_persist" \
     -object "$OUT/test_persist_fault" -object "$OUT/test_ui_settings" \
     -object "$OUT/test_ui_lists" -object "$OUT/test_ui_reading" \
     -object "$OUT/test_ui_reading_mt" -object "$OUT/test_reader_io_fault" \
@@ -80,6 +83,7 @@ check_mcdc app/src/main/cpp/reader.c 100
 check_mcdc app/src/main/cpp/encoding.c 100
 check_mcdc app/src/main/cpp/persist.c 100
 check_mcdc app/src/main/cpp/glyph_blit.h 100
+check_mcdc app/src/main/cpp/glyph_blit8.h 100
 check_mcdc app/src/main/cpp/ui_lists.c 100
 check_mcdc app/src/main/cpp/ui_reading.c 100
 check_mcdc app/src/main/cpp/ui_settings.c 100
