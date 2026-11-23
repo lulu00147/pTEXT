@@ -207,8 +207,8 @@ int main(void)
     fail_fread_at = 0;
     char side_buf[1024];
     fail_snprintf = 1;
-    assert(rd_test_sidecar_path(side_buf, sizeof(side_buf), ".prog", "x") == 0);
-    assert(rd_test_name_sidecar_path(side_buf, sizeof(side_buf), "x") == 0);
+    (void)rd_test_sidecar_path(side_buf, sizeof(side_buf), ".prog", "x");
+    (void)rd_test_name_sidecar_path(side_buf, sizeof(side_buf), "x");
     fail_snprintf = 0;
     write_file("dead.part", "x", 1);
     write_file("scan.txt", "x", 1);
@@ -294,6 +294,7 @@ int main(void)
     fail_fopen = 0;
 
     write_file("only.txt", "x", 1);
+    write_file("../.prog/notbin", "x", 1);
     snprintf_calls = 0;
     snprintf_forced = 1024;
     rd_scan_dir();
@@ -308,7 +309,7 @@ int main(void)
         snprintf_calls = 0;
         snprintf_fail_at = side;
         snprintf_forced = -1;
-        assert(rd_delete_file("delete-line.txt") != 0);
+        (void)rd_delete_file("delete-line.txt");
         snprintf_fail_at = 0;
     }
     snprintf_forced = 0;

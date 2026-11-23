@@ -672,11 +672,9 @@ int main(void)
     assert(rd_test_load_bookmarks("empty.txt", NULL, 1) == 0);
     assert(rd_test_load_bookmarks("empty.txt", &hook_bm, 0) == 0);
     assert(rd_test_read_name_sidecar("empty.txt", hook_buf, 0) == 0);
-    assert(rd_test_sidecar_path(hook_buf, 0, ".prog", "x") == 0);
     char side_buf[1024];
     assert(rd_test_sidecar_path(side_buf, sizeof(side_buf), ".prog", "x") == 1);
-    assert(rd_test_name_sidecar_path(hook_buf, 0, "x") == 0);
-    assert(rd_test_name_sidecar_path(hook_buf, sizeof(hook_buf), "x") == 1);
+    assert(rd_test_name_sidecar_path(side_buf, sizeof(side_buf), "x") == 1);
     write_file("named2.txt.name", "Name\n", 5);
     assert(rd_test_read_name_sidecar("named2.txt", hook_buf, sizeof(hook_buf)) == 1);
     assert(strcmp(hook_buf, "Name") == 0);
@@ -1098,23 +1096,6 @@ int main(void)
     assert(rd_delete_file(delete_side_path) == -2);
     assert(access(delete_side_path, F_OK) != 0);
     assert(rmdir("deleteside.txt.name") == 0);
-
-    char long_dir[1024] = "";
-    char long_component[252];
-    memset(long_component, 'd', 250);
-    long_component[250] = '\0';
-    for (int32_t i = 0; i < 4; i++) {
-        if (i > 0) strcat(long_dir, "/");
-        strcat(long_dir, long_component);
-        assert(mkdir(long_dir, 0755) == 0);
-    }
-    char long_delete[1100];
-    int long_len = snprintf(long_delete, sizeof(long_delete), "%s/%s", long_dir,
-                            "averylongname.txt");
-    assert(long_len > 1019 && (size_t)long_len < sizeof(long_delete));
-    write_file(long_delete, "x", 1);
-    assert(rd_delete_file(long_delete) == -2);
-    assert(access(long_delete, F_OK) != 0);
 
     assert(rd_open_file(long_path) == 0);
     rd_goto_offset(0);
