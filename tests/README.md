@@ -58,15 +58,15 @@
 
 | 目标 | 次数 |
 |---|---:|
-| encoding | 50,000 |
-| glyph blit8 差分 | 20,000 |
-| glyph blit 4-bit 差分 | 20,000 |
-| UI lists/settings/reading | 5,000 |
-| persist | 5,000 |
-| affinity | 1,000 |
-| reader/bookmarks | 5,000 |
+| encoding | 100,000 |
+| glyph blit8 差分 | 50,000 |
+| glyph blit 4-bit 差分 | 50,000 |
+| UI lists/settings/reading | 20,000 |
+| persist | 20,000 |
+| affinity | 5,000 |
+| reader/bookmarks | 20,000 |
 | index parser | 100,000 |
-| index file（真实 `.idx` 加载） | 1,000 |
+| index file（真实 `.idx` 加载） | 5,000 |
 
 ## 覆盖说明
 

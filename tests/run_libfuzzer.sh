@@ -43,19 +43,19 @@ export UBSAN_OPTIONS="halt_on_error=1:print_stacktrace=1"
 prepare_corpus
 $clang $flags $inc fuzz_encoding.c ../app/src/main/cpp/encoding.c \
     -o /tmp/ptext_fuzz_encoding
-/tmp/ptext_fuzz_encoding -runs=50000 -max_len=4096 "$corpus" \
+/tmp/ptext_fuzz_encoding -runs=100000 -max_len=4096 "$corpus" \
     > /tmp/ptext_fuzz_encoding.log 2>&1
 tail -20 /tmp/ptext_fuzz_encoding.log
 
 prepare_corpus
 $clang $flags $inc fuzz_glyph_blit8.c -o /tmp/ptext_fuzz_glyph8
-/tmp/ptext_fuzz_glyph8 -runs=20000 -max_len=1024 "$corpus" \
+/tmp/ptext_fuzz_glyph8 -runs=50000 -max_len=1024 "$corpus" \
     > /tmp/ptext_fuzz_glyph8.log 2>&1
 tail -20 /tmp/ptext_fuzz_glyph8.log
 
 prepare_corpus
 $clang $flags $inc fuzz_glyph_blit.c -o /tmp/ptext_fuzz_glyph
-/tmp/ptext_fuzz_glyph -runs=20000 -max_len=1024 "$corpus" \
+/tmp/ptext_fuzz_glyph -runs=50000 -max_len=1024 "$corpus" \
     > /tmp/ptext_fuzz_glyph.log 2>&1
 tail -20 /tmp/ptext_fuzz_glyph.log
 
@@ -64,21 +64,21 @@ $clang $flags -DPTEXT_HOST_TEST $inc fuzz_ui.c \
     ../app/src/main/cpp/ui_lists.c ../app/src/main/cpp/ui_settings.c \
     ../app/src/main/cpp/ui_reading.c ../app/src/main/cpp/ui_util.c \
     ../app/src/main/cpp/encoding.c -o /tmp/ptext_fuzz_ui
-/tmp/ptext_fuzz_ui -runs=5000 -max_len=2048 "$corpus" \
+/tmp/ptext_fuzz_ui -runs=20000 -max_len=2048 "$corpus" \
     > /tmp/ptext_fuzz_ui.log 2>&1
 tail -20 /tmp/ptext_fuzz_ui.log
 
 prepare_corpus
 $clang $flags $inc fuzz_persist.c ../app/src/main/cpp/persist.c \
     -o /tmp/ptext_fuzz_persist
-/tmp/ptext_fuzz_persist -runs=5000 -max_len=4096 "$corpus" \
+/tmp/ptext_fuzz_persist -runs=20000 -max_len=4096 "$corpus" \
     > /tmp/ptext_fuzz_persist.log 2>&1
 tail -20 /tmp/ptext_fuzz_persist.log
 
 prepare_corpus
 $clang $flags $inc fuzz_affinity.c ../app/src/main/cpp/affinity.c \
     -o /tmp/ptext_fuzz_affinity
-/tmp/ptext_fuzz_affinity -runs=1000 -max_len=8 "$corpus" \
+/tmp/ptext_fuzz_affinity -runs=5000 -max_len=8 "$corpus" \
     > /tmp/ptext_fuzz_affinity.log 2>&1
 tail -20 /tmp/ptext_fuzz_affinity.log
 
@@ -86,7 +86,7 @@ prepare_corpus
 $clang $flags -DPTEXT_HOST_TEST $inc fuzz_reader_libfuzzer.c render_host.c \
     ../app/src/main/cpp/reader.c ../app/src/main/cpp/encoding.c \
     ../app/src/main/cpp/persist.c -o /tmp/ptext_fuzz_reader
-/tmp/ptext_fuzz_reader -runs=5000 -max_len=4096 "$corpus" \
+/tmp/ptext_fuzz_reader -runs=20000 -max_len=4096 "$corpus" \
     > /tmp/ptext_fuzz_reader.log 2>&1
 tail -20 /tmp/ptext_fuzz_reader.log
 
@@ -94,7 +94,7 @@ prepare_corpus
 $clang $flags -DPTEXT_HOST_TEST $inc fuzz_index_file_libfuzzer.c render_host.c \
     ../app/src/main/cpp/reader.c ../app/src/main/cpp/encoding.c \
     ../app/src/main/cpp/persist.c -o /tmp/ptext_fuzz_index_file
-/tmp/ptext_fuzz_index_file -runs=1000 -max_len=20000 "$corpus" \
+/tmp/ptext_fuzz_index_file -runs=5000 -max_len=20000 "$corpus" \
     > /tmp/ptext_fuzz_index_file.log 2>&1
 tail -20 /tmp/ptext_fuzz_index_file.log
 
