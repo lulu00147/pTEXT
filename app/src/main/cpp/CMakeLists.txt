@@ -10,7 +10,7 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ffast-math -funsafe-math-optimizations -fno
 set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -flto -Wl,--gc-sections -Wl,--strip-all -Wl,--as-needed")
 
 add_library(ptext SHARED
-    main.c render.c reader.c encoding.c persist.c ui_util.c ui_reading.c ui_settings.c ui_lists.c nolog.c affinity.c
+    main.c render.c reader.c encoding.c persist.c ui_util.c ui_reading.c ui_settings.c ui_lists.c nolog.c affinity.c autotest.c
     ${ANDROID_NDK}/sources/android/native_app_glue/android_native_app_glue.c
 )
 target_include_directories(ptext PRIVATE ${ANDROID_NDK}/sources/android/native_app_glue)
