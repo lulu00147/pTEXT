@@ -410,7 +410,7 @@ static void motion_down(AInputEvent *event, int32_t x, int32_t y)
     }
 }
 
-static void motion_move(int32_t x, int32_t y)
+static void motion_move(int32_t y)
 {
     if (s_state == ST_BMARKS && s_bm_touch_active) {
         int32_t dy = y - s_bm_down_y;
@@ -445,7 +445,6 @@ static void motion_move(int32_t x, int32_t y)
             }
         }
     }
-    (void)x;
 }
 
 static void motion_cancel(void)
@@ -591,7 +590,7 @@ static int32_t handle_input(struct android_app *app, AInputEvent *event)
         motion_down(event, x, y);
         return 1;
     case AMOTION_EVENT_ACTION_MOVE:
-        motion_move(x, y);
+        motion_move(y);
         return 1;
     case AMOTION_EVENT_ACTION_CANCEL:
         motion_cancel();

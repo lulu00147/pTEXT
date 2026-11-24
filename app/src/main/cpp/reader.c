@@ -661,7 +661,7 @@ static void idx_save(void)
     uint32_t checksum = 2166136261u;
     uint8_t *p = s_idx_buf + sizeof(h);
     for (int32_t i = 0; i < s_page_ckpt_count; i++) {
-        IdxRecord r;
+        IdxRecord r = {0};
         r.off = s_page_ckpt_off[i];
         r.page_no = s_page_ckpt_no[i];
         r.reserved = 0;
