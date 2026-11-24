@@ -79,9 +79,8 @@ int32_t rd_test_idx_parse(const uint8_t *buf, size_t len,
 int32_t rd_test_is_para_start(int64_t off);
 int32_t rd_test_load_bookmarks(const char *path, Bookmark *out, int32_t cap);
 int32_t rd_test_read_name_sidecar(const char *path, char *out, size_t cap);
-int32_t rd_test_sidecar_path(char *out, size_t cap, const char *dir,
-                             const char *name);
-int32_t rd_test_name_sidecar_path(char *out, size_t cap, const char *path);
+void rd_test_sidecar_path(char *out, size_t cap, const char *dir, const char *name);
+void rd_test_name_sidecar_path(char *out, size_t cap, const char *path);
 int32_t rd_test_bookmark_preview(int64_t offset, char *out, int32_t cap);
 int32_t rd_test_page_max_lines(void);
 int32_t rd_test_page_max_x(void);
@@ -103,7 +102,7 @@ void rd_test_cleanup_sidecars(const char *files);
 void rd_test_idx_save_guard(void);
 int32_t rd_test_bookmark_preview_null(void);
 int32_t rd_test_bookmark_preview_bad_decode(void);
-int32_t rd_test_page_needs_checkpoint(int32_t page_no);
+void rd_test_page_checkpoint(int32_t page_no);
 int32_t rd_test_has_break(int32_t length);
 void rd_test_apply_break(int32_t hit);
 int32_t rd_test_prev_safety_limit(int32_t ckpt_count);

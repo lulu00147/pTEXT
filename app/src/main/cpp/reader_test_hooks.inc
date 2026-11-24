@@ -1,3 +1,26 @@
+#include <string.h>
+
+static int32_t s_test_bad_paginate;
+static int64_t s_test_prev_probe = -1;
+static int32_t s_test_prev_safety = -1;
+
+int64_t reader_test_paginate_next(int64_t start, int64_t next)
+{
+    if (s_test_bad_paginate == 1) return start;
+    if (s_test_bad_paginate == 2) return start + 1000000;
+    return next;
+}
+
+int64_t reader_test_prev_probe(int64_t probe)
+{
+    return s_test_prev_probe >= 0 ? s_test_prev_probe : probe;
+}
+
+int32_t reader_test_prev_safety(int32_t limit)
+{
+    return s_test_prev_safety >= 0 ? s_test_prev_safety : limit;
+}
+
 void rd_test_paginate_full(int64_t offset)
 {
     paginate_full(offset, s_page_curr);
@@ -43,17 +66,15 @@ int32_t rd_test_read_name_sidecar(const char *path, char *out, size_t cap)
     return read_name_sidecar(path, out, cap);
 }
 
-int32_t rd_test_sidecar_path(char *out, size_t cap, const char *dir,
-                             const char *name)
+void rd_test_sidecar_path(char *out, size_t cap, const char *dir,
+                          const char *name)
 {
     sidecar_path(out, cap, dir, name);
-    return 1;
 }
 
-int32_t rd_test_name_sidecar_path(char *out, size_t cap, const char *path)
+void rd_test_name_sidecar_path(char *out, size_t cap, const char *path)
 {
     name_sidecar_path(out, cap, path);
-    return 1;
 }
 
 int32_t rd_test_bookmark_preview(int64_t offset, char *out, int32_t cap)
@@ -205,10 +226,9 @@ int32_t rd_test_bookmark_preview_bad_decode(void)
     return bookmark_preview(data, 1, NULL, 0, out, sizeof(out));
 }
 
-int32_t rd_test_page_needs_checkpoint(int32_t page_no)
+void rd_test_page_checkpoint(int32_t page_no)
 {
     maybe_page_checkpoint(0, page_no);
-    return 0;
 }
 
 int32_t rd_test_has_break(int32_t length)

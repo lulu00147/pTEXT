@@ -350,7 +350,7 @@ static void handle_cmd(struct android_app *app, int32_t cmd)
     }
 }
 
-static int32_t handle_back_key(struct android_app *app)
+static void handle_back_key(struct android_app *app)
 {
     switch (s_state) {
     case ST_SETTINGS:
@@ -370,10 +370,9 @@ static int32_t handle_back_key(struct android_app *app)
         break;
     default:
         ANativeActivity_finish(app->activity);
-        return 1;
+        return;
     }
     s_need_redraw = 1;
-    return 1;
 }
 
 static void motion_center_cancel(int32_t masked, int32_t x, int32_t y)
@@ -573,7 +572,8 @@ static int32_t handle_input(struct android_app *app, AInputEvent *event)
     if (AInputEvent_getType(event) == AINPUT_EVENT_TYPE_KEY) {
         if (AKeyEvent_getKeyCode(event) == AKEYCODE_BACK &&
             AKeyEvent_getAction(event) == AKEY_EVENT_ACTION_UP) {
-            return handle_back_key(app);
+            handle_back_key(app);
+            return 1;
         }
         return 0;
     }

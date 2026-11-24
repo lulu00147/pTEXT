@@ -674,8 +674,10 @@ int main(void)
     assert(rd_test_load_bookmarks("empty.txt", &hook_bm, 0) == 0);
     assert(rd_test_read_name_sidecar("empty.txt", hook_buf, 0) == 0);
     char side_buf[1024];
-    assert(rd_test_sidecar_path(side_buf, sizeof(side_buf), ".prog", "x") == 1);
-    assert(rd_test_name_sidecar_path(side_buf, sizeof(side_buf), "x") == 1);
+    rd_test_sidecar_path(side_buf, sizeof(side_buf), ".prog", "x");
+    assert(side_buf[0] != '\0');
+    rd_test_name_sidecar_path(side_buf, sizeof(side_buf), "x");
+    assert(side_buf[0] != '\0');
     write_file("named2.txt.name", "Name\n", 5);
     assert(rd_test_read_name_sidecar("named2.txt", hook_buf, sizeof(hook_buf)) == 1);
     assert(strcmp(hook_buf, "Name") == 0);
@@ -1273,8 +1275,8 @@ int main(void)
     assert(rd_read_bookmarks("empty.txt", NULL, 1) == 0);
     assert(rd_test_bookmark_preview_null() == 0);
     assert(rd_test_bookmark_preview_bad_decode() == 0);
-    assert(rd_test_page_needs_checkpoint(64) == 0);
-    assert(rd_test_page_needs_checkpoint(65) == 0);
+    rd_test_page_checkpoint(64);
+    rd_test_page_checkpoint(65);
     assert(rd_test_has_break(0) == 0);
     assert(rd_test_has_break(1) == 1);
     rd_test_apply_break(0);

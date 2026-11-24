@@ -327,9 +327,9 @@ static void hist_push(int64_t start);
 static void paginate_init(int64_t offset);
 static void paginate_step(void);
 #ifdef PTEXT_HOST_TEST
-static int32_t s_test_bad_paginate;
-static int64_t s_test_prev_probe = -1;
-static int32_t s_test_prev_safety = -1;
+int64_t reader_test_paginate_next(int64_t start, int64_t next);
+int64_t reader_test_prev_probe(int64_t probe);
+int32_t reader_test_prev_safety(int32_t limit);
 #endif
 
 static int32_t is_para_start(int64_t off)
@@ -640,6 +640,20 @@ static uint32_t idx_layout_hash(void)
     return h;
 }
 
+static uint32_t idx_checksum_record(uint32_t hash, int64_t off, int32_t page)
+{
+    uint8_t bytes[16];
+    uint32_t zero = 0;
+    memcpy(bytes, &off, sizeof(off));
+    memcpy(bytes + sizeof(off), &page, sizeof(page));
+    memcpy(bytes + sizeof(off) + sizeof(page), &zero, sizeof(zero));
+    for (size_t i = 0; i < sizeof(bytes); i++) {
+        hash ^= bytes[i];
+        hash *= 16777619u;
+    }
+    return hash;
+}
+
 static void idx_save(void)
 {
     if (!s_idx_dirty || !s_mmap_data || s_mmap_len < IDX_MIN_FILE ||
@@ -666,11 +680,7 @@ static void idx_save(void)
         r.page_no = s_page_ckpt_no[i];
         r.reserved = 0;
         memcpy(p + (size_t)i * sizeof(r), &r, sizeof(r));
-        const uint8_t *rp = (const uint8_t *)&r;
-        for (size_t j = 0; j < sizeof(r); j++) {
-            checksum ^= rp[j];
-            checksum *= 16777619u;
-        }
+        checksum = idx_checksum_record(checksum, r.off, r.page_no);
     }
     h.checksum = checksum;
     memcpy(s_idx_buf, &h, sizeof(h));
@@ -976,9 +986,7 @@ static void paginate_full(int64_t offset, Page *target)
     target->start_offset = offset;
     target->next_offset = cur.off;
 #ifdef PTEXT_HOST_TEST
-    if (s_test_bad_paginate == 1) target->next_offset = target->start_offset;
-    if (s_test_bad_paginate == 2)
-        target->next_offset = target->start_offset + 1000000;
+    target->next_offset = reader_test_paginate_next(offset, target->next_offset);
 #endif
 }
 
@@ -1148,11 +1156,11 @@ void rd_prev_page(void)
 
         (void)page_checkpoint_find(s_page_curr->start_offset - 1, &probe);
 #ifdef PTEXT_HOST_TEST
-        if (s_test_prev_probe >= 0) probe = s_test_prev_probe;
+        probe = reader_test_prev_probe(probe);
 #endif
         int32_t safety_limit = prev_safety_limit(s_page_ckpt_count);
 #ifdef PTEXT_HOST_TEST
-        if (s_test_prev_safety >= 0) safety_limit = s_test_prev_safety;
+        safety_limit = reader_test_prev_safety(safety_limit);
 #endif
         int32_t safety = 0;
         while (probe < s_page_curr->start_offset && safety <= safety_limit) {
