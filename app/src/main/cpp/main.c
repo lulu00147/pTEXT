@@ -259,10 +259,7 @@ static void update_ui_scale(struct android_app *app)
     r_set_ui_scale((float)density / 160.0f);
 }
 
-static void handle_cmd(struct android_app *app, int32_t cmd)
-{
-    switch (cmd) {
-case APP_CMD_INIT_WINDOW:
+static void handle_init_window(struct android_app *app)
 {
     JNIEnv *env = NULL;
     (*app->activity->vm)->AttachCurrentThread(app->activity->vm, &env, NULL);
@@ -274,9 +271,7 @@ case APP_CMD_INIT_WINDOW:
             s_main_activity_class_global = (*env)->NewGlobalRef(env, clazz);
             (*env)->DeleteLocalRef(env, clazz);
         }
-        if (!s_main_activity_class_global) {
-            (*env)->ExceptionClear(env);
-        }
+        if (!s_main_activity_class_global) (*env)->ExceptionClear(env);
     }
     update_ui_scale(app);
     r_init(app->window);
@@ -289,69 +284,69 @@ case APP_CMD_INIT_WINDOW:
         s_need_redraw = 1;
     }
 #endif
-    if (rd_get_file_len() > 0)
-        rd_goto_offset(rd_get_page()->start_offset);
+    if (rd_get_file_len() > 0) rd_goto_offset(rd_get_page()->start_offset);
     s_need_redraw = 1;
     s_choreographer = AChoreographer_getInstance();
-    break;
 }
-        case APP_CMD_TERM_WINDOW:
-            rd_save_progress();
-            /* 释放全局引用 */
-            JNIEnv *env = NULL;
-            (*app->activity->vm)->AttachCurrentThread(app->activity->vm, &env, NULL);
-            release_jni_refs(env);
-            r_deinit(); break;
-        case APP_CMD_GAINED_FOCUS:
-        case APP_CMD_START:
-        case APP_CMD_RESUME:
-            s_need_redraw = 1;
-            break;
-        case APP_CMD_WINDOW_REDRAW_NEEDED:
-            if (s_need_redraw ||
-                (s_last_draw_ns > 0 &&
-                 monotonic_ns() - s_last_draw_ns < 20000000LL)) {
-                break;
-            }
-            s_need_redraw = 1;
-            break;
-        case APP_CMD_WINDOW_RESIZED:
-            if (app->window) {
-                /* 仅更新尺寸，不重新加载字体和 mmap */
-                int32_t new_w = ANativeWindow_getWidth(app->window);
-                int32_t new_h = ANativeWindow_getHeight(app->window);
-                if (new_w > 0 && new_h > 0 && (new_w != r_w() || new_h != r_h())) {
-                    r_update_window(app->window);
-                    rd_reset_prefetch();
-                    rd_reset_page_cache();
-                    if (rd_get_file_len() > 0)
-                        rd_goto_offset(rd_get_page()->start_offset);
-                    s_need_redraw = 1;
-                }
-            } break;
-        case APP_CMD_CONFIG_CHANGED:
-            if (app->window) {
-                update_ui_scale(app);
-                Settings *cfg = rd_get_settings();
-                r_set_font_size((18.0f + clamp_i32(cfg->font_idx, 0, 6) * 2.0f) *
-                                r_ui_scale());
-                rd_reset_page_cache();
-                if (rd_get_file_len() > 0)
-                    rd_goto_offset(rd_get_page()->start_offset);
-                s_need_redraw = 1;
-            }
-            break;
-        case APP_CMD_LOST_FOCUS:
-            /* 失去焦点时暂停预排版以省电 */
-            rd_reset_prefetch();
-            break;
-        case APP_CMD_PAUSE:
-            rd_save_progress();
-            break;
-        case APP_CMD_SAVE_STATE:
-            /* 系统可能杀进程，保存阅读进度 */
-            rd_save_progress();
-            break;
+
+static void handle_term_window(struct android_app *app)
+{
+    rd_save_progress();
+    JNIEnv *env = NULL;
+    (*app->activity->vm)->AttachCurrentThread(app->activity->vm, &env, NULL);
+    release_jni_refs(env);
+    r_deinit();
+}
+
+static void handle_window_redraw(void)
+{
+    if (s_need_redraw ||
+        (s_last_draw_ns > 0 && monotonic_ns() - s_last_draw_ns < 20000000LL))
+        return;
+    s_need_redraw = 1;
+}
+
+static void handle_window_resized(struct android_app *app)
+{
+    if (!app->window) return;
+    int32_t new_w = ANativeWindow_getWidth(app->window);
+    int32_t new_h = ANativeWindow_getHeight(app->window);
+    if (new_w <= 0 || new_h <= 0 || (new_w == r_w() && new_h == r_h())) return;
+
+    /* 仅更新尺寸，不重新加载字体和 mmap */
+    r_update_window(app->window);
+    rd_reset_prefetch();
+    rd_reset_page_cache();
+    if (rd_get_file_len() > 0) rd_goto_offset(rd_get_page()->start_offset);
+    s_need_redraw = 1;
+}
+
+static void handle_config_changed(struct android_app *app)
+{
+    if (!app->window) return;
+    update_ui_scale(app);
+    Settings *cfg = rd_get_settings();
+    r_set_font_size((18.0f + clamp_i32(cfg->font_idx, 0, 6) * 2.0f) * r_ui_scale());
+    rd_reset_page_cache();
+    if (rd_get_file_len() > 0) rd_goto_offset(rd_get_page()->start_offset);
+    s_need_redraw = 1;
+}
+
+static void handle_cmd(struct android_app *app, int32_t cmd)
+{
+    switch (cmd) {
+    case APP_CMD_INIT_WINDOW:      handle_init_window(app); break;
+    case APP_CMD_TERM_WINDOW:      handle_term_window(app); break;
+    case APP_CMD_GAINED_FOCUS:
+    case APP_CMD_START:
+    case APP_CMD_RESUME:           s_need_redraw = 1; break;
+    case APP_CMD_WINDOW_REDRAW_NEEDED: handle_window_redraw(); break;
+    case APP_CMD_WINDOW_RESIZED:   handle_window_resized(app); break;
+    case APP_CMD_CONFIG_CHANGED:   handle_config_changed(app); break;
+    case APP_CMD_LOST_FOCUS:       rd_reset_prefetch(); break;
+    case APP_CMD_PAUSE:
+    case APP_CMD_SAVE_STATE:       rd_save_progress(); break;
+    default:                       break;
     }
 }
 
