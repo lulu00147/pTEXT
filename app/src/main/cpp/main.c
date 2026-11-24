@@ -456,6 +456,104 @@ static void motion_cancel(void)
     s_file_hold_idx = -1;
 }
 
+static void motion_up_bookmarks(int32_t y)
+{
+    int32_t was_dragging = s_bm_dragging;
+    s_bm_touch_active = 0;
+    s_bm_dragging = 0;
+    if (!was_dragging) {
+        int32_t idx = ui_bm_index_at(y, s_bm_scroll);
+        if (idx >= 0 && idx < s_bm_view_count) {
+            int64_t offset = s_bm_view[idx].offset;
+            if (rd_open_file(s_bm_path) == 0) {
+                rd_jump_to_offset(offset);
+                s_file_error = 0;
+                s_state = ST_READING;
+            } else {
+                s_file_error = 1;
+                s_state = ST_FILELIST;
+            }
+        }
+    }
+    s_need_redraw = 1;
+}
+
+static void motion_up_delete(int32_t x, int32_t y)
+{
+    int32_t count;
+    FileItem *files = rd_get_files(&count);
+    int32_t l, t, r, b;
+    ui_get_delete_rect(&l, &t, &r, &b);
+    int32_t button_y = b - ui_px(76);
+    if (x >= l && x <= r && y >= button_y && y <= b - ui_px(20) &&
+        s_delete_idx >= 0 && s_delete_idx < count) {
+        if (x < (l + r) / 2) {
+            s_state = ST_FILELIST;
+        } else {
+            int32_t result = rd_delete_file(files[s_delete_idx].path);
+            s_file_error = result == 0 ? 0 : (result == -2 ? 3 : 2);
+            s_state = ST_FILELIST;
+        }
+        s_delete_idx = -1;
+    } else if (x < l || x > r || y < t || y > b) {
+        s_state = ST_FILELIST;
+        s_delete_idx = -1;
+    }
+    s_need_redraw = 1;
+}
+
+static void motion_up_filelist(int32_t x, int32_t y)
+{
+    int32_t was_dragging = s_file_dragging;
+    s_file_touch_active = 0;
+    s_file_dragging = 0;
+    s_file_hold_start_ns = 0;
+    s_file_hold_idx = -1;
+    if (was_dragging) return;
+
+    int32_t count;
+    FileItem *files = rd_get_files(&count);
+    if (ui_file_import_hit(y)) {
+        s_file_error = 0;
+        pickFile();
+        return;
+    }
+    int32_t fidx = ui_file_index_at(y, s_file_scroll);
+    if (fidx < 0 || fidx >= count) return;
+
+    int32_t mark_left = ui_file_mark_left();
+    if (files[fidx].bookmarks > 0 && x >= mark_left - ui_px(10)) {
+        int32_t n = rd_read_bookmarks(files[fidx].path, s_bm_view, MAX_BOOKMARKS);
+        if (n > 0) {
+            snprintf(s_bm_path, sizeof(s_bm_path), "%s", files[fidx].path);
+            s_bm_view_count = n;
+            s_bm_scroll = 0;
+            s_state = ST_BMARKS;
+            s_need_redraw = 1;
+            return;
+        }
+    }
+    if (rd_open_file(files[fidx].path) == 0) {
+        s_file_error = 0;
+        s_state = ST_READING;
+    } else {
+        s_file_error = 1;
+    }
+    s_need_redraw = 1;
+}
+
+static void motion_up_reading(int32_t x, int32_t y)
+{
+    if (reading_cell(x, y) == GRID_CENTER) {
+        rd_toggle_bookmark();
+        s_center_down_ns = 0;
+        s_need_redraw = 1;
+        return;
+    }
+    s_center_down_ns = 0;
+    handle_touch_reading(x, y);
+}
+
 static void motion_up(int32_t x, int32_t y)
 {
     if (s_center_long_fired) {
@@ -471,99 +569,13 @@ static void motion_up(int32_t x, int32_t y)
         return;
     }
 
-    if (s_state == ST_BMARKS) {
-        int32_t was_dragging = s_bm_dragging;
-        s_bm_touch_active = 0;
-        s_bm_dragging = 0;
-        if (!was_dragging) {
-            int32_t idx = ui_bm_index_at(y, s_bm_scroll);
-            if (idx >= 0 && idx < s_bm_view_count) {
-                int64_t offset = s_bm_view[idx].offset;
-                if (rd_open_file(s_bm_path) == 0) {
-                    rd_jump_to_offset(offset);
-                    s_file_error = 0;
-                    s_state = ST_READING;
-                } else {
-                    s_file_error = 1;
-                    s_state = ST_FILELIST;
-                }
-            }
-        }
-        s_need_redraw = 1;
-        return;
-    }
-
-    if (s_state == ST_DELETE) {
-        int32_t count;
-        FileItem *files = rd_get_files(&count);
-        int32_t l, t, r, b;
-        ui_get_delete_rect(&l, &t, &r, &b);
-        int32_t button_y = b - ui_px(76);
-        if (x >= l && x <= r && y >= button_y && y <= b - ui_px(20) &&
-            s_delete_idx >= 0 && s_delete_idx < count) {
-            if (x < (l + r) / 2) {
-                s_state = ST_FILELIST;
-                s_delete_idx = -1;
-            } else {
-                int32_t result = rd_delete_file(files[s_delete_idx].path);
-                s_file_error = result == 0 ? 0 : (result == -2 ? 3 : 2);
-                s_delete_idx = -1;
-                s_state = ST_FILELIST;
-            }
-        } else if (x < l || x > r || y < t || y > b) {
-            s_state = ST_FILELIST;
-            s_delete_idx = -1;
-        }
-        s_need_redraw = 1;
-        return;
-    }
-
-    if (s_state == ST_FILELIST) {
-        int32_t was_dragging = s_file_dragging;
-        s_file_touch_active = 0;
-        s_file_dragging = 0;
-        s_file_hold_start_ns = 0;
-        s_file_hold_idx = -1;
-        if (!was_dragging) {
-            int32_t count;
-            FileItem *files = rd_get_files(&count);
-            if (ui_file_import_hit(y)) {
-                s_file_error = 0;
-                pickFile();
-            } else {
-                int32_t fidx = ui_file_index_at(y, s_file_scroll);
-                if (fidx >= 0 && fidx < count) {
-                    int32_t mark_left = ui_file_mark_left();
-                    if (files[fidx].bookmarks > 0 && x >= mark_left - ui_px(10)) {
-                        int32_t n = rd_read_bookmarks(files[fidx].path,
-                                                      s_bm_view, MAX_BOOKMARKS);
-                        if (n > 0) {
-                            snprintf(s_bm_path, sizeof(s_bm_path), "%s",
-                                     files[fidx].path);
-                            s_bm_view_count = n;
-                            s_bm_scroll = 0;
-                            s_state = ST_BMARKS;
-                            s_need_redraw = 1;
-                            return;
-                        }
-                    }
-                    if (rd_open_file(files[fidx].path) == 0) {
-                        s_file_error = 0;
-                        s_state = ST_READING;
-                    } else {
-                        s_file_error = 1;
-                    }
-                    s_need_redraw = 1;
-                }
-            }
-        }
-    } else if (s_state == ST_READING && reading_cell(x, y) == GRID_CENTER) {
-        rd_toggle_bookmark();
-        s_center_down_ns = 0;
-        s_need_redraw = 1;
-    } else if (s_state == ST_READING || s_state == ST_SETTINGS) {
-        s_center_down_ns = 0;
-        handle_touch_reading(x, y);
+    switch (s_state) {
+    case ST_BMARKS:   motion_up_bookmarks(y); break;
+    case ST_DELETE:   motion_up_delete(x, y); break;
+    case ST_FILELIST: motion_up_filelist(x, y); break;
+    case ST_READING:
+    case ST_SETTINGS: motion_up_reading(x, y); break;
+    default: break;
     }
 }
 
