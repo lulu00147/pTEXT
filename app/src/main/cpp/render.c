@@ -35,7 +35,11 @@ static inline int32_t safe_ifloor(float x) {
     return (int32_t)x;
 }
 static inline int32_t safe_iceil(float x) {
-    return safe_ifloor(x + 0.99999f);
+    if (x != x) return 0;
+    if (x >= 2147483647.0f) return 2147483647;
+    if (x <= -2147483648.0f) return -2147483648;
+    int32_t i = (int32_t)x;
+    return x > (float)i ? i + 1 : i;
 }
 
 #define STBTT_STATIC

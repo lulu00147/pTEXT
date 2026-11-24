@@ -81,21 +81,21 @@ static void bind_mask(const cpu_set_t *mask)
     if (mask) (void)sched_setaffinity(0, sizeof(*mask), mask);
 }
 
+static const cpu_set_t *current_mask(void)
+{
+    if (!s_ready) detect();
+    return s_mode == 0 ? &s_big : s_mode == 1 ? &s_little : &s_allowed;
+}
+
 void affinity_set_mode(int mode)
 {
     s_mode = mode < 0 ? 0 : (mode > 2 ? 2 : mode);
-    if (!s_ready) detect();
-    const cpu_set_t *mask = s_mode == 0 ? &s_big
-                         : s_mode == 1 ? &s_little : &s_allowed;
-    bind_mask(mask);
+    bind_mask(current_mask());
 }
 
 void affinity_bind_current(void)
 {
-    if (!s_ready) detect();
-    const cpu_set_t *mask = s_mode == 0 ? &s_big
-                         : s_mode == 1 ? &s_little : &s_allowed;
-    bind_mask(mask);
+    bind_mask(current_mask());
 }
 
 #ifdef PTEXT_HOST_TEST

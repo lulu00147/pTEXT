@@ -316,10 +316,19 @@ static jmethodID s_pick_file_mid = NULL;
 static jmethodID s_take_rescan_mid = NULL;
 static jmethodID s_reset_screen_mid = NULL;
 
-static void ensure_jni(void) {
-    if (!s_jvm && s_app) {
-        s_jvm = s_app->activity->vm;
-    }
+static void ensure_jni(void)
+{
+    if (!s_jvm && s_app) s_jvm = s_app->activity->vm;
+}
+
+static void release_jni_refs(JNIEnv *env)
+{
+    if (!env || !s_main_activity_class_global) return;
+    (*env)->DeleteGlobalRef(env, s_main_activity_class_global);
+    s_main_activity_class_global = NULL;
+    s_pick_file_mid = NULL;
+    s_take_rescan_mid = NULL;
+    s_reset_screen_mid = NULL;
 }
 
 void pickFile(void) {
@@ -393,13 +402,7 @@ case APP_CMD_INIT_WINDOW:
     JNIEnv *env = NULL;
     (*app->activity->vm)->AttachCurrentThread(app->activity->vm, &env, NULL);
     if (env) {
-        if (s_main_activity_class_global) {
-            (*env)->DeleteGlobalRef(env, s_main_activity_class_global);
-            s_main_activity_class_global = NULL;
-            s_pick_file_mid = NULL;
-            s_take_rescan_mid = NULL;
-            s_reset_screen_mid = NULL;
-        }
+        release_jni_refs(env);
         /* activity->clazz 是 Activity 实例，不是 jclass；先取对象类。 */
         jclass clazz = (*env)->GetObjectClass(env, app->activity->clazz);
         if (clazz) {
@@ -427,17 +430,9 @@ case APP_CMD_INIT_WINDOW:
         case APP_CMD_TERM_WINDOW:
             rd_save_progress();
             /* 释放全局引用 */
-            if (s_main_activity_class_global) {
-                JNIEnv *env = NULL;
-                (*app->activity->vm)->AttachCurrentThread(app->activity->vm, &env, NULL);
-                if (env) {
-                    (*env)->DeleteGlobalRef(env, s_main_activity_class_global);
-                    s_main_activity_class_global = NULL;
-                    s_pick_file_mid = NULL;
-                    s_take_rescan_mid = NULL;
-                    s_reset_screen_mid = NULL;
-                }
-            }
+            JNIEnv *env = NULL;
+            (*app->activity->vm)->AttachCurrentThread(app->activity->vm, &env, NULL);
+            release_jni_refs(env);
             r_deinit(); break;
         case APP_CMD_GAINED_FOCUS:
         case APP_CMD_START:
@@ -492,30 +487,38 @@ case APP_CMD_INIT_WINDOW:
     }
 }
 
+static int32_t handle_back_key(struct android_app *app)
+{
+    switch (s_state) {
+    case ST_SETTINGS:
+        s_state = ST_READING;
+        break;
+    case ST_BMARKS:
+        s_state = ST_FILELIST;
+        break;
+    case ST_DELETE:
+        s_state = ST_FILELIST;
+        s_delete_idx = -1;
+        break;
+    case ST_READING:
+        s_state = ST_FILELIST;
+        rd_close();
+        rd_scan_dir();
+        break;
+    default:
+        ANativeActivity_finish(app->activity);
+        return 1;
+    }
+    s_need_redraw = 1;
+    return 1;
+}
+
 static int32_t handle_input(struct android_app *app, AInputEvent *event)
 {
     if (AInputEvent_getType(event) == AINPUT_EVENT_TYPE_KEY) {
         if (AKeyEvent_getKeyCode(event) == AKEYCODE_BACK &&
             AKeyEvent_getAction(event) == AKEY_EVENT_ACTION_UP) {
-            if (s_state == ST_SETTINGS) {
-                s_state = ST_READING;
-                s_need_redraw = 1;
-            } else if (s_state == ST_BMARKS) {
-                s_state = ST_FILELIST;
-                s_need_redraw = 1;
-            } else if (s_state == ST_DELETE) {
-                s_state = ST_FILELIST;
-                s_delete_idx = -1;
-                s_need_redraw = 1;
-            } else if (s_state == ST_READING) {
-                s_state = ST_FILELIST;
-                rd_close();
-                rd_scan_dir();
-                s_need_redraw = 1;
-            } else {
-                ANativeActivity_finish(app->activity);
-            }
-            return 1;
+            return handle_back_key(app);
         }
         return 0;
     }

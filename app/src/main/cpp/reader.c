@@ -169,21 +169,18 @@ static void name_sidecar_path(char *out, size_t cap, const char *path)
     snprintf(out, cap, "%s%s", path, NAME_SUFFIX);
 }
 
-static void cleanup_sidecar_dir(const char *files, const char *dir, int skip_settings)
+static void cleanup_sidecar_root(const char *root, const char *suffix,
+                                 const char *files, int skip_settings)
 {
-    char dpath[1024];
-    snprintf(dpath, sizeof(dpath), "%s/%s", s_data_path, dir);
-    DIR *d = opendir(dpath);
+    DIR *d = opendir(root);
     if (!d) return;
 
-    size_t suffix_len = strlen(SIDECAR_SUFFIX);
+    size_t suffix_len = strlen(suffix);
     struct dirent *ent;
     while ((ent = readdir(d)) != NULL) {
         size_t n = strlen(ent->d_name);
-        if (n <= suffix_len ||
-            strcasecmp(ent->d_name + n - suffix_len, SIDECAR_SUFFIX) != 0) {
+        if (n <= suffix_len || strcasecmp(ent->d_name + n - suffix_len, suffix) != 0)
             continue;
-        }
         if (skip_settings && strcmp(ent->d_name, "settings.bin") == 0) continue;
 
         char target[1024];
@@ -192,33 +189,7 @@ static void cleanup_sidecar_dir(const char *files, const char *dir, int skip_set
         if (access(target, F_OK) == 0) continue;
 
         char path[1400];
-        snprintf(path, sizeof(path), "%s/%s", dpath, ent->d_name);
-        (void)unlink(path);
-    }
-    closedir(d);
-}
-
-static void cleanup_name_sidecars(const char *files)
-{
-    DIR *d = opendir(files);
-    if (!d) return;
-
-    size_t suffix_len = strlen(NAME_SUFFIX);
-    struct dirent *ent;
-    while ((ent = readdir(d)) != NULL) {
-        size_t n = strlen(ent->d_name);
-        if (n <= suffix_len ||
-            strcasecmp(ent->d_name + n - suffix_len, NAME_SUFFIX) != 0) {
-            continue;
-        }
-
-        char target[1024];
-        snprintf(target, sizeof(target), "%s/%.*s", files,
-                 (int)(n - suffix_len), ent->d_name);
-        if (access(target, F_OK) == 0) continue;
-
-        char path[1400];
-        snprintf(path, sizeof(path), "%s/%s", files, ent->d_name);
+        snprintf(path, sizeof(path), "%s/%s", root, ent->d_name);
         (void)unlink(path);
     }
     closedir(d);
@@ -226,10 +197,19 @@ static void cleanup_name_sidecars(const char *files)
 
 static void cleanup_orphans(const char *files)
 {
-    cleanup_sidecar_dir(files, DIR_PROGRESS, 1);
-    cleanup_sidecar_dir(files, DIR_BOOKMARKS, 0);
-    cleanup_sidecar_dir(files, DIR_INDEX, 0);
-    cleanup_name_sidecars(files);
+    char progress[1024];
+    snprintf(progress, sizeof(progress), "%s/%s", s_data_path, DIR_PROGRESS);
+    cleanup_sidecar_root(progress, SIDECAR_SUFFIX, files, 1);
+
+    char bookmarks[1024];
+    snprintf(bookmarks, sizeof(bookmarks), "%s/%s", s_data_path, DIR_BOOKMARKS);
+    cleanup_sidecar_root(bookmarks, SIDECAR_SUFFIX, files, 0);
+
+    char index[1024];
+    snprintf(index, sizeof(index), "%s/%s", s_data_path, DIR_INDEX);
+    cleanup_sidecar_root(index, SIDECAR_SUFFIX, files, 0);
+
+    cleanup_sidecar_root(files, NAME_SUFFIX, files, 0);
 }
 
 static int32_t read_name_sidecar(const char *path, char *out, size_t cap)
@@ -824,74 +804,37 @@ static int32_t page_for_offset(int64_t target, int64_t *page_start)
 }
 
 /* CJK 禁则：优先在合法字符边界换行，避免标点落到行首或开引号落到行尾。 */
+static const uint32_t kNoBreakBefore[] = {
+    '.', ',', ':', ';', '!', '?', ')', ']', '}',
+    0x00BB, 0x2019, 0x201D, 0x2014, 0x2026,
+    0x3001, 0x3002, 0x3009, 0x300B, 0x300D, 0x300F,
+    0x3011, 0x3015, 0x3017, 0x3019, 0x301B,
+    0xFF01, 0xFF09, 0xFF0C, 0xFF0E, 0xFF1A, 0xFF1B, 0xFF1F,
+    0xFF3D, 0xFF5D,
+};
+
+static const uint32_t kNoBreakAfter[] = {
+    '(', '[', '{', 0x00AB, 0x2018, 0x201C,
+    0x3008, 0x300A, 0x300C, 0x300E, 0x3010, 0x3014, 0x3016, 0x3018,
+    0x301A, 0xFF08, 0xFF3B, 0xFF5B,
+};
+
+static int32_t in_cp_set(const uint32_t *set, size_t n, uint32_t cp)
+{
+    for (size_t i = 0; i < n; i++) {
+        if (set[i] == cp) return 1;
+    }
+    return 0;
+}
+
 static int32_t no_break_before(uint32_t cp)
 {
-    switch (cp) {
-    case '.':
-    case ',':
-    case ':':
-    case ';':
-    case '!':
-    case '?':
-    case ')':
-    case ']':
-    case '}':
-    case 0x00BB:  /* » */
-    case 0x2019:  /* ’ */
-    case 0x201D:  /* ” */
-    case 0x2014:  /* — */
-    case 0x2026:  /* … */
-    case 0x3001:  /* 、 */
-    case 0x3002:  /* 。 */
-    case 0x3009:  /* 〉 */
-    case 0x300B:  /* 》 */
-    case 0x300D:  /* 」 */
-    case 0x300F:  /* 』 */
-    case 0x3011:  /* 】 */
-    case 0x3015:  /* 〕 */
-    case 0x3017:  /* 〗 */
-    case 0x3019:  /* 〙 */
-    case 0x301B:  /* 〛 */
-    case 0xFF01:  /* ！ */
-    case 0xFF09:  /* ） */
-    case 0xFF0C:  /* ， */
-    case 0xFF0E:  /* ． */
-    case 0xFF1A:  /* ： */
-    case 0xFF1B:  /* ； */
-    case 0xFF1F:  /* ？ */
-    case 0xFF3D:  /* ］ */
-    case 0xFF5D:  /* ｝ */
-        return 1;
-    default:
-        return 0;
-    }
+    return in_cp_set(kNoBreakBefore, sizeof(kNoBreakBefore) / sizeof(uint32_t), cp);
 }
 
 static int32_t no_break_after(uint32_t cp)
 {
-    switch (cp) {
-    case '(':
-    case '[':
-    case '{':
-    case 0x00AB:  /* « */
-    case 0x2018:  /* ‘ */
-    case 0x201C:  /* “ */
-    case 0x3008:  /* 〈 */
-    case 0x300A:  /* 《 */
-    case 0x300C:  /* 「 */
-    case 0x300E:  /* 『 */
-    case 0x3010:  /* 【 */
-    case 0x3014:  /* 〔 */
-    case 0x3016:  /* 〖 */
-    case 0x3018:  /* 〘 */
-    case 0x301A:  /* 〚 */
-    case 0xFF08:  /* （ */
-    case 0xFF3B:  /* ［ */
-    case 0xFF5B:  /* ｛ */
-        return 1;
-    default:
-        return 0;
-    }
+    return in_cp_set(kNoBreakAfter, sizeof(kNoBreakAfter) / sizeof(uint32_t), cp);
 }
 
 static int32_t is_combining_mark(uint32_t cp)
@@ -1628,6 +1571,13 @@ int32_t rd_page_bookmarked(void)
     return 0;
 }
 
+static void unlink_sidecar(const char *dir, const char *base, int *error)
+{
+    char path[1024];
+    sidecar_path(path, sizeof(path), dir, base);
+    if (unlink(path) != 0 && errno != ENOENT) *error = 1;
+}
+
 int32_t rd_delete_file(const char *path)
 {
     if (!path) return -1;
@@ -1638,16 +1588,15 @@ int32_t rd_delete_file(const char *path)
         rd_scan_dir();
         return -1;
     }
+
     int32_t side_error = 0;
-    char side[1024];
-    name_sidecar_path(side, sizeof(side), path);
-    if (unlink(side) != 0 && errno != ENOENT) side_error = 1;
-    sidecar_path(side, sizeof(side), DIR_PROGRESS, base);
-    if (unlink(side) != 0 && errno != ENOENT) side_error = 1;
-    sidecar_path(side, sizeof(side), DIR_BOOKMARKS, base);
-    if (unlink(side) != 0 && errno != ENOENT) side_error = 1;
-    sidecar_path(side, sizeof(side), DIR_INDEX, base);
-    if (unlink(side) != 0 && errno != ENOENT) side_error = 1;
+    char named[1024];
+    name_sidecar_path(named, sizeof(named), path);
+    if (unlink(named) != 0 && errno != ENOENT) side_error = 1;
+
+    static const char *const dirs[] = {DIR_PROGRESS, DIR_BOOKMARKS, DIR_INDEX};
+    for (size_t i = 0; i < sizeof(dirs) / sizeof(dirs[0]); i++)
+        unlink_sidecar(dirs[i], base, &side_error);
 
     rd_scan_dir();
     return side_error ? -2 : 0;
@@ -1684,8 +1633,7 @@ int32_t rd_test_bm_legacy_count(const char *path)
 
 void rd_test_cleanup_sidecars(const char *files)
 {
-    cleanup_sidecar_dir(files, DIR_PROGRESS, 1);
-    cleanup_name_sidecars(files);
+    cleanup_orphans(files);
 }
 
 void rd_test_idx_save_guard(void)
