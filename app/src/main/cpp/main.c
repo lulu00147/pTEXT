@@ -376,6 +376,199 @@ static int32_t handle_back_key(struct android_app *app)
     return 1;
 }
 
+static void motion_center_cancel(int32_t masked, int32_t x, int32_t y)
+{
+    if (s_center_down_ns > 0 && !s_center_long_fired &&
+        ((masked == AMOTION_EVENT_ACTION_MOVE && reading_cell(x, y) != GRID_CENTER) ||
+         masked == AMOTION_EVENT_ACTION_CANCEL)) {
+        s_center_down_ns = 0;
+    }
+}
+
+static void motion_down(AInputEvent *event, int32_t x, int32_t y)
+{
+    reset_screen_on();
+    if (s_state == ST_BMARKS) {
+        s_bm_touch_active = 1;
+        s_bm_dragging = 0;
+        s_bm_down_y = y;
+        s_bm_down_scroll = s_bm_scroll;
+    } else if (s_state == ST_FILELIST) {
+        if (!ui_file_import_hit(y)) {
+            s_file_touch_active = 1;
+            s_file_dragging = 0;
+            s_file_down_y = y;
+            s_file_down_scroll = s_file_scroll;
+            s_file_hold_idx = ui_file_index_at(y, s_file_scroll);
+            s_file_hold_start_ns = s_file_hold_idx >= 0
+                ? AMotionEvent_getEventTime(event) : 0;
+            s_file_hold_fired = 0;
+        }
+    } else if (s_state == ST_READING && reading_cell(x, y) == GRID_CENTER) {
+        s_center_down_ns = AMotionEvent_getEventTime(event);
+        s_center_long_fired = 0;
+    }
+}
+
+static void motion_move(int32_t x, int32_t y)
+{
+    if (s_state == ST_BMARKS && s_bm_touch_active) {
+        int32_t dy = y - s_bm_down_y;
+        if (!s_bm_dragging && (dy > ui_px(8) || dy < -ui_px(8))) s_bm_dragging = 1;
+        if (s_bm_dragging) {
+            int32_t max_scroll = ui_bm_max_scroll(s_bm_view_count);
+            int32_t v = s_bm_down_scroll - dy;
+            if (v < 0) v = 0;
+            if (v > max_scroll) v = max_scroll;
+            if (v != s_bm_scroll) {
+                s_bm_scroll = v;
+                s_need_redraw = 1;
+            }
+        }
+    } else if (s_state == ST_FILELIST && s_file_touch_active) {
+        int32_t dy = y - s_file_down_y;
+        if (!s_file_dragging && (dy > ui_px(8) || dy < -ui_px(8))) {
+            s_file_dragging = 1;
+            s_file_hold_start_ns = 0;
+            s_file_hold_idx = -1;
+        }
+        if (s_file_dragging) {
+            int32_t count;
+            rd_get_files(&count);
+            int32_t max_scroll = ui_file_max_scroll(count);
+            int32_t v = s_file_down_scroll - dy;
+            if (v < 0) v = 0;
+            if (v > max_scroll) v = max_scroll;
+            if (v != s_file_scroll) {
+                s_file_scroll = v;
+                s_need_redraw = 1;
+            }
+        }
+    }
+    (void)x;
+}
+
+static void motion_cancel(void)
+{
+    s_bm_touch_active = 0;
+    s_bm_dragging = 0;
+    s_file_touch_active = 0;
+    s_file_dragging = 0;
+    s_file_hold_start_ns = 0;
+    s_file_hold_idx = -1;
+}
+
+static void motion_up(int32_t x, int32_t y)
+{
+    if (s_center_long_fired) {
+        s_center_down_ns = 0;
+        s_center_long_fired = 0;
+        s_need_redraw = 1;
+        return;
+    }
+    if (s_file_hold_fired) {
+        s_file_hold_start_ns = 0;
+        s_file_hold_fired = 0;
+        s_need_redraw = 1;
+        return;
+    }
+
+    if (s_state == ST_BMARKS) {
+        int32_t was_dragging = s_bm_dragging;
+        s_bm_touch_active = 0;
+        s_bm_dragging = 0;
+        if (!was_dragging) {
+            int32_t idx = ui_bm_index_at(y, s_bm_scroll);
+            if (idx >= 0 && idx < s_bm_view_count) {
+                int64_t offset = s_bm_view[idx].offset;
+                if (rd_open_file(s_bm_path) == 0) {
+                    rd_jump_to_offset(offset);
+                    s_file_error = 0;
+                    s_state = ST_READING;
+                } else {
+                    s_file_error = 1;
+                    s_state = ST_FILELIST;
+                }
+            }
+        }
+        s_need_redraw = 1;
+        return;
+    }
+
+    if (s_state == ST_DELETE) {
+        int32_t count;
+        FileItem *files = rd_get_files(&count);
+        int32_t l, t, r, b;
+        ui_get_delete_rect(&l, &t, &r, &b);
+        int32_t button_y = b - ui_px(76);
+        if (x >= l && x <= r && y >= button_y && y <= b - ui_px(20) &&
+            s_delete_idx >= 0 && s_delete_idx < count) {
+            if (x < (l + r) / 2) {
+                s_state = ST_FILELIST;
+                s_delete_idx = -1;
+            } else {
+                int32_t result = rd_delete_file(files[s_delete_idx].path);
+                s_file_error = result == 0 ? 0 : (result == -2 ? 3 : 2);
+                s_delete_idx = -1;
+                s_state = ST_FILELIST;
+            }
+        } else if (x < l || x > r || y < t || y > b) {
+            s_state = ST_FILELIST;
+            s_delete_idx = -1;
+        }
+        s_need_redraw = 1;
+        return;
+    }
+
+    if (s_state == ST_FILELIST) {
+        int32_t was_dragging = s_file_dragging;
+        s_file_touch_active = 0;
+        s_file_dragging = 0;
+        s_file_hold_start_ns = 0;
+        s_file_hold_idx = -1;
+        if (!was_dragging) {
+            int32_t count;
+            FileItem *files = rd_get_files(&count);
+            if (ui_file_import_hit(y)) {
+                s_file_error = 0;
+                pickFile();
+            } else {
+                int32_t fidx = ui_file_index_at(y, s_file_scroll);
+                if (fidx >= 0 && fidx < count) {
+                    int32_t mark_left = ui_file_mark_left();
+                    if (files[fidx].bookmarks > 0 && x >= mark_left - ui_px(10)) {
+                        int32_t n = rd_read_bookmarks(files[fidx].path,
+                                                      s_bm_view, MAX_BOOKMARKS);
+                        if (n > 0) {
+                            snprintf(s_bm_path, sizeof(s_bm_path), "%s",
+                                     files[fidx].path);
+                            s_bm_view_count = n;
+                            s_bm_scroll = 0;
+                            s_state = ST_BMARKS;
+                            s_need_redraw = 1;
+                            return;
+                        }
+                    }
+                    if (rd_open_file(files[fidx].path) == 0) {
+                        s_file_error = 0;
+                        s_state = ST_READING;
+                    } else {
+                        s_file_error = 1;
+                    }
+                    s_need_redraw = 1;
+                }
+            }
+        }
+    } else if (s_state == ST_READING && reading_cell(x, y) == GRID_CENTER) {
+        rd_toggle_bookmark();
+        s_center_down_ns = 0;
+        s_need_redraw = 1;
+    } else if (s_state == ST_READING || s_state == ST_SETTINGS) {
+        s_center_down_ns = 0;
+        handle_touch_reading(x, y);
+    }
+}
+
 static int32_t handle_input(struct android_app *app, AInputEvent *event)
 {
     if (AInputEvent_getType(event) == AINPUT_EVENT_TYPE_KEY) {
@@ -386,205 +579,29 @@ static int32_t handle_input(struct android_app *app, AInputEvent *event)
         return 0;
     }
 
-    if (AInputEvent_getType(event) == AINPUT_EVENT_TYPE_MOTION) {
-        int32_t action = AMotionEvent_getAction(event);
-        int32_t masked = action & AMOTION_EVENT_ACTION_MASK;
-        int32_t x = (int32_t)AMotionEvent_getX(event, 0);
-        int32_t y = (int32_t)AMotionEvent_getY(event, 0);
+    if (AInputEvent_getType(event) != AINPUT_EVENT_TYPE_MOTION) return 0;
 
-        if (s_center_down_ns > 0 && !s_center_long_fired &&
-            ((masked == AMOTION_EVENT_ACTION_MOVE && reading_cell(x, y) != GRID_CENTER) ||
-             masked == AMOTION_EVENT_ACTION_CANCEL)) {
-            s_center_down_ns = 0;
-        }
+    int32_t masked = AMotionEvent_getAction(event) & AMOTION_EVENT_ACTION_MASK;
+    int32_t x = (int32_t)AMotionEvent_getX(event, 0);
+    int32_t y = (int32_t)AMotionEvent_getY(event, 0);
+    motion_center_cancel(masked, x, y);
 
-        if (masked == AMOTION_EVENT_ACTION_DOWN) {
-            reset_screen_on();
-            if (s_state == ST_BMARKS) {
-                s_bm_touch_active = 1;
-                s_bm_dragging = 0;
-                s_bm_down_y = y;
-                s_bm_down_scroll = s_bm_scroll;
-            } else if (s_state == ST_FILELIST) {
-                if (!ui_file_import_hit(y)) {
-                    s_file_touch_active = 1;
-                    s_file_dragging = 0;
-                    s_file_down_y = y;
-                    s_file_down_scroll = s_file_scroll;
-                    s_file_hold_idx = ui_file_index_at(y, s_file_scroll);
-                    s_file_hold_start_ns = s_file_hold_idx >= 0
-                        ? AMotionEvent_getEventTime(event) : 0;
-                    s_file_hold_fired = 0;
-                }
-            } else if (s_state == ST_READING && reading_cell(x, y) == GRID_CENTER) {
-                s_center_down_ns = AMotionEvent_getEventTime(event);
-                s_center_long_fired = 0;
-            }
-            return 1;
-        }
-
-        if (masked == AMOTION_EVENT_ACTION_MOVE) {
-            if (s_state == ST_BMARKS && s_bm_touch_active) {
-                int32_t dy = y - s_bm_down_y;
-                if (!s_bm_dragging && (dy > ui_px(8) || dy < -ui_px(8))) {
-                    s_bm_dragging = 1;
-                }
-                if (s_bm_dragging) {
-                    int32_t max_scroll = ui_bm_max_scroll(s_bm_view_count);
-                    int32_t v = s_bm_down_scroll - dy;
-                    if (v < 0) v = 0;
-                    if (v > max_scroll) v = max_scroll;
-                    if (v != s_bm_scroll) {
-                        s_bm_scroll = v;
-                        s_need_redraw = 1;
-                    }
-                }
-            } else if (s_state == ST_FILELIST && s_file_touch_active) {
-                int32_t dy = y - s_file_down_y;
-                if (!s_file_dragging && (dy > ui_px(8) || dy < -ui_px(8))) {
-                    s_file_dragging = 1;
-                    s_file_hold_start_ns = 0;
-                    s_file_hold_idx = -1;
-                }
-                if (s_file_dragging) {
-                    int32_t count;
-                    rd_get_files(&count);
-                    int32_t max_scroll = ui_file_max_scroll(count);
-                    int32_t v = s_file_down_scroll - dy;
-                    if (v < 0) v = 0;
-                    if (v > max_scroll) v = max_scroll;
-                    if (v != s_file_scroll) {
-                        s_file_scroll = v;
-                        s_need_redraw = 1;
-                    }
-                }
-            }
-            return 1;
-        }
-
-        if (masked == AMOTION_EVENT_ACTION_CANCEL) {
-            s_bm_touch_active = 0;
-            s_bm_dragging = 0;
-            s_file_touch_active = 0;
-            s_file_dragging = 0;
-            s_file_hold_start_ns = 0;
-            s_file_hold_idx = -1;
-            return 1;
-        }
-
-        if (masked == AMOTION_EVENT_ACTION_UP) {
-            if (s_center_long_fired) {
-                s_center_down_ns = 0;
-                s_center_long_fired = 0;
-                s_need_redraw = 1;
-                return 1;
-            }
-            if (s_file_hold_fired) {
-                s_file_hold_start_ns = 0;
-                s_file_hold_fired = 0;
-                s_need_redraw = 1;
-                return 1;
-            }
-
-            if (s_state == ST_BMARKS) {
-                int32_t was_dragging = s_bm_dragging;
-                s_bm_touch_active = 0;
-                s_bm_dragging = 0;
-                if (!was_dragging) {
-                    int32_t idx = ui_bm_index_at(y, s_bm_scroll);
-                    if (idx >= 0 && idx < s_bm_view_count) {
-                        int64_t offset = s_bm_view[idx].offset;
-                        if (rd_open_file(s_bm_path) == 0) {
-                            rd_jump_to_offset(offset);
-                            s_file_error = 0;
-                            s_state = ST_READING;
-                        } else {
-                            s_file_error = 1;
-                            s_state = ST_FILELIST;
-                        }
-                    }
-                }
-                s_need_redraw = 1;
-                return 1;
-            }
-
-            if (s_state == ST_DELETE) {
-                int32_t count;
-                FileItem *files = rd_get_files(&count);
-                int32_t l, t, r, b;
-                ui_get_delete_rect(&l, &t, &r, &b);
-                int32_t button_y = b - ui_px(76);
-                if (x >= l && x <= r && y >= button_y && y <= b - ui_px(20) &&
-                    s_delete_idx >= 0 && s_delete_idx < count) {
-                    if (x < (l + r) / 2) {
-                        s_state = ST_FILELIST;
-                        s_delete_idx = -1;
-                    } else {
-                        int32_t delete_result = rd_delete_file(files[s_delete_idx].path);
-                        s_file_error = delete_result == 0 ? 0 : (delete_result == -2 ? 3 : 2);
-                        s_delete_idx = -1;
-                        s_state = ST_FILELIST;
-                    }
-                } else if (x < l || x > r || y < t || y > b) {
-                    s_state = ST_FILELIST;
-                    s_delete_idx = -1;
-                }
-                s_need_redraw = 1;
-                return 1;
-            }
-
-            if (s_state == ST_FILELIST) {
-                int32_t was_dragging = s_file_dragging;
-                s_file_touch_active = 0;
-                s_file_dragging = 0;
-                s_file_hold_start_ns = 0;
-                s_file_hold_idx = -1;
-                if (was_dragging) return 1;
-
-                int32_t count;
-                FileItem *files = rd_get_files(&count);
-                if (ui_file_import_hit(y)) {
-                    s_file_error = 0;
-                    pickFile();
-                } else {
-                    int32_t fidx = ui_file_index_at(y, s_file_scroll);
-                    if (fidx >= 0 && fidx < count) {
-                        int32_t mark_left = ui_file_mark_left();
-                        if (files[fidx].bookmarks > 0 && x >= mark_left - ui_px(10)) {
-                            int32_t n = rd_read_bookmarks(files[fidx].path,
-                                                          s_bm_view, MAX_BOOKMARKS);
-                            if (n > 0) {
-                                snprintf(s_bm_path, sizeof(s_bm_path), "%s",
-                                         files[fidx].path);
-                                s_bm_view_count = n;
-                                s_bm_scroll = 0;
-                                s_state = ST_BMARKS;
-                                s_need_redraw = 1;
-                                return 1;
-                            }
-                        }
-                        if (rd_open_file(files[fidx].path) == 0) {
-                            s_file_error = 0;
-                            s_state = ST_READING;
-                            s_need_redraw = 1;
-                        } else {
-                            s_file_error = 1;
-                            s_need_redraw = 1;
-                        }
-                    }
-                }
-            } else if (s_state == ST_READING && reading_cell(x, y) == GRID_CENTER) {
-                rd_toggle_bookmark();
-                s_center_down_ns = 0;
-                s_need_redraw = 1;
-            } else if (s_state == ST_READING || s_state == ST_SETTINGS) {
-                s_center_down_ns = 0;
-                handle_touch_reading(x, y);
-            }
-            return 1;
-        }
+    switch (masked) {
+    case AMOTION_EVENT_ACTION_DOWN:
+        motion_down(event, x, y);
+        return 1;
+    case AMOTION_EVENT_ACTION_MOVE:
+        motion_move(x, y);
+        return 1;
+    case AMOTION_EVENT_ACTION_CANCEL:
+        motion_cancel();
+        return 1;
+    case AMOTION_EVENT_ACTION_UP:
+        motion_up(x, y);
+        return 1;
+    default:
+        return 0;
     }
-    return 0;
 }
 
 void android_main(struct android_app *app)
