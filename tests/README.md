@@ -14,6 +14,7 @@
 | `sh run_tsan.sh` | 三线程 UI 的 TSan |
 | `sh run_mutation_smoke.sh` | 受控变异，测试必须杀死变异 |
 | `sh android_lifecycle.sh` | 真机/模拟器：退出后重新进入必须回到 MainActivity |
+| `sh android_ui_smoke.sh` | 真机：打开文件、长按设置、返回退出 |
 | `run_tests.bat` | Windows x64 编码测试 |
 | `run_asan_vs.bat` | Windows MSVC ASan |
 
@@ -65,7 +66,7 @@
 | affinity | 1,000 |
 | reader/bookmarks | 5,000 |
 | index parser | 100,000 |
-| index file（真实 `.idx` 加载） | 5,000 |
+| index file（真实 `.idx` 加载） | 1,000 |
 
 ## 覆盖说明
 

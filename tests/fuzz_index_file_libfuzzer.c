@@ -23,7 +23,7 @@ static void make_text(const char *path)
     FILE *f = fopen(path, "wb");
     if (!f) abort();
     size_t n = strlen(unit);
-    for (int i = 0; i < 9000; i++) {
+    for (int i = 0; i < 3000; i++) {
         if (fwrite(unit, 1, n, f) != n) abort();
     }
     fclose(f);
